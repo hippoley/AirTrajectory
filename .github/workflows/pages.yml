@@ -45,8 +45,24 @@ jobs:
           assert all(len(s["frames"]) == len(s["series"]) for s in p["scenarios"])
           assert all("living" in s["frames"][0]["co2"] for s in p["scenarios"])
           assert all("openings" in s["frames"][0] for s in p["scenarios"])
+          assert all(s["frames"][0]["field"]["backend"] == "fast-field-v1" for s in p["scenarios"])
+          assert all(len(s["frames"][0]["field"]["vectors"]) > 100 for s in p["scenarios"])
           print("validated", path, "with", len(p["scenarios"]), "branches")
           PY
+      - name: Validate filament renderer
+        run: |
+          node --check web/lab.js
+          grep -q 'function advect' web/lab.js
+          grep -q 'function backendVelocity' web/lab.js
+          grep -q 'function jetResponse' web/lab.js
+          grep -q 'function wallResponse' web/lab.js
+          grep -q 'function emissionWeight' web/lab.js
+          grep -q 'function reseedForField' web/lab.js
+          grep -q 'function drawFlowSkeleton' web/lab.js
+          grep -q 'id:"D2"' web/lab.js
+          grep -q 'p.trail.length>20' web/lab.js
+          grep -q 'Midpoint/RK2 advection' web/lab.js
+          ! grep -q 'Array.from({length:720}' web/lab.js
       - name: Configure Pages
         uses: actions/configure-pages@v5
       - name: Upload Pages artifact

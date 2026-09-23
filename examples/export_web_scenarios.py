@@ -1,7 +1,7 @@
 import json
 from pathlib import Path
 
-from airtrajectory import BuildingTopology, OpeningEdge, ToyMultizoneEnvironment, TransitionAction, ZoneNode, exhaustive_opening_search
+from airtrajectory import BuildingTopology, FastFlowField, OpeningEdge, ToyMultizoneEnvironment, TransitionAction, ZoneNode, exhaustive_opening_search
 
 
 def normalized_vector(branch):
@@ -31,6 +31,16 @@ def build():
         ],
     )
     env = ToyMultizoneEnvironment(topology, {"living": 1260, "bedroom": 980, "study": 840}, horizon_steps=60)
+    flow = FastFlowField(topology)
+    grid_points = [(x, y) for y in range(120, 541, 35) for x in range(180, 831, 35)]
+    def field_for(opening_pct):
+        sampled = flow.sample(grid_points, opening_pct, wind_direction_deg=240, wind_speed_mps=3.2)
+        return {
+            "backend": sampled.backend,
+            "wind_direction_deg": sampled.wind_direction_deg,
+            "wind_speed_mps": sampled.wind_speed_mps,
+            "vectors": [[round(v.x, 1), round(v.y, 1), round(v.vx, 4), round(v.vy, 4)] for v in sampled.vectors],
+        }
     env.reset()
     env.step([TransitionAction("D1", 100), TransitionAction("D2", 100)])
     ranked = exhaustive_opening_search(
@@ -53,6 +63,7 @@ def build():
             "iaq": "backend reward aggregation normalized for display",
             "motion": "backend actuator_wear aggregation normalized for display",
             "flow": "backend opening state proxy; not engineering airflow",
+            "field": "FastFlowField qualitative vector grid; not CFD",
         },
         "scenarios": [],
     }
@@ -67,6 +78,7 @@ def build():
                 "step": i,
                 "co2": {zone: round(value) for zone, value in o["co2_ppm"].items()},
                 "openings": {key: round(value, 1) for key, value in o["opening_pct"].items()},
+                "field": field_for(o["opening_pct"]),
             }
             for i, o in enumerate(branch.observations)
         ]
