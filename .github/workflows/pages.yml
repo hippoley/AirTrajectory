@@ -2,19 +2,25 @@ name: deploy-pages
 on:
   push:
     branches: ["main"]
+  pull_request:
+    paths:
+      - "web/**"
+      - "airtrajectory/**"
+      - "examples/export_web_scenarios.py"
+      - ".github/workflows/pages.yml"
   workflow_dispatch:
+
 permissions:
   contents: read
   pages: write
   id-token: write
+
 concurrency:
-  group: pages
+  group: pages-${{ github.ref }}
   cancel-in-progress: true
+
 jobs:
-  deploy:
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+  build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -24,19 +30,31 @@ jobs:
       - run: python -m pip install -e .
       - name: Generate backend scenarios
         run: python examples/export_web_scenarios.py
-      - name: Test generated scenario artifact
-        run: python - <<'PY'
+      - name: Validate generated artifact
+        run: |
+          python - <<'PY'
           import json
-          p=json.load(open("web/data/scenarios.json"))
+          from pathlib import Path
+          path = Path("web/data/scenarios.json")
+          assert path.exists()
+          p = json.loads(path.read_text())
           assert p["backend"] == "toy-multizone-v1"
           assert len(p["scenarios"]) == 4
           assert all(len(s["series"]) > 1 for s in p["scenarios"])
+          print("validated", path, "with", len(p["scenarios"]), "branches")
           PY
-      - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
           path: web
+
+  deploy:
+    if: github.event_name != 'pull_request'
+    needs: build
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
       - name: Deploy
         id: deployment
         uses: actions/deploy-pages@v4
-# pages-enabled: 2026-09-23
