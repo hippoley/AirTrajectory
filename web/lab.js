@@ -16,13 +16,24 @@ function spawn(i){
   return{x:r.x+12+Math.random()*(r.w-24),y:r.y+12+Math.random()*(r.h-24),life:0,maxLife:180+Math.random()*150,seed:Math.random()*99,px:0,py:0,trail:[]};
 }
 function inside(x,y){return rooms.find(r=>x>r.x&&x<r.x+r.w&&y>r.y&&y<r.y+r.h)}
+function backendVelocity(x,y){
+  const field=currentFrame?.field,vectors=field?.vectors;
+  if(!vectors?.length)return null;
+  // Inverse-distance interpolation over the nearest backend samples.
+  let nearest=[];
+  for(const v of vectors){const dx=v[0]-x,dy=v[1]-y,d2=dx*dx+dy*dy;nearest.push([d2,v])}
+  nearest.sort((a,b)=>a[0]-b[0]);nearest=nearest.slice(0,4);
+  let sx=0,sy=0,sw=0;
+  for(const [d2,v] of nearest){const w=1/Math.max(16,d2);sx+=v[2]*w;sy+=v[3]*w;sw+=w}
+  return sw?[sx/sw,sy/sw]:null;
+}
 function velocity(x,y,p){
-  const v=flowAt(x,y,p),mag=Math.hypot(v[0],v[1]);
-  // Low-frequency curl: coherent eddies rather than per-particle jitter.
+  const base=backendVelocity(x,y)||flowAt(x,y,p),mag=Math.hypot(base[0],base[1]);
+  // Curl is visual microstructure only; transport direction comes from backend field.
   const t=performance.now()*.00018;
-  const curlX=Math.sin(y*.010+t+p.seed*.025)*.16+Math.sin((x+y)*.004-t)*.08;
-  const curlY=-Math.cos(x*.010-t+p.seed*.025)*.16+Math.cos((x-y)*.004+t)*.08;
-  return[v[0]+curlX*(.35+mag*.15),v[1]+curlY*(.35+mag*.15)];
+  const curlX=Math.sin(y*.010+t+p.seed*.025)*.055+Math.sin((x+y)*.004-t)*.025;
+  const curlY=-Math.cos(x*.010-t+p.seed*.025)*.055+Math.cos((x-y)*.004+t)*.025;
+  return[base[0]+curlX*(.25+mag*.08),base[1]+curlY*(.25+mag*.08)];
 }
 function advect(p,dt){
   // Midpoint/RK2 advection makes curved streamlines much less angular.
