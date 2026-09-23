@@ -146,13 +146,10 @@ function invalidateTrajectory(reason){
   document.querySelector("#forkState").textContent="STALE · OLD FUTURES LOCKED";
   document.querySelector("#rerun").classList.remove("hidden");
 }
-function restoreBackendTrajectory(){
-  trajectoryRevision=topologyRevision;trajectoryStale=false;
-  document.querySelector("#health").className="health ok";
-  document.querySelector("#health").querySelector("b").textContent="BACKEND ARTIFACT READY";
-  document.querySelector("#forkState").textContent="BACKEND ORIGIN";
-  document.querySelector("#rerun").classList.add("hidden");
-  applyFrame(selected,0);
+function requestPhysicsRerun(){
+  document.querySelector("#scenario").textContent="BACKEND REGEN REQUIRED";
+  document.querySelector("#scenarioTitle").textContent="Run exporter / physics backend for topology r"+topologyRevision;
+  document.querySelector("#forkState").textContent="STALE · WAITING FOR NEW ARTIFACT";
 }
 function openingFlow(o){return currentFrame?.field?.opening_flow_estimate?.[o.id]??null}
 function renderInspector(){
@@ -224,4 +221,4 @@ document.querySelectorAll(".preset").forEach(btn=>btn.onclick=()=>{objective=btn
 canvas.addEventListener("click",e=>{const rect=canvas.getBoundingClientRect(),x=(e.clientX-rect.left)*canvas.width/rect.width,y=(e.clientY-rect.top)*canvas.height/rect.height;let hit=null,dist=Infinity;for(const o of openings){const d=Math.hypot(o.x-x,o.y-y);if(d<dist&&d<55){hit=o;dist=d}}if(hit){selectOpening(hit.id);cycleOpening(hit.id)}});
 document.querySelectorAll(".view").forEach(btn=>btn.onclick=()=>{viewMode=btn.dataset.view;document.querySelectorAll(".view").forEach(x=>x.classList.toggle("active",x===btn));const legend=document.querySelector("#viewLegend");legend.innerHTML=viewMode==="flow"?"<span>→ backend direction</span><span>· filament magnitude</span><span>∷ opening flow</span>":viewMode==="co2"?"<span>room fill · backend CO₂</span><span>timeline frame aware</span>":"<span>× low-flow cells</span><span>backend field threshold</span>"});
 
-document.querySelector("#rerun").onclick=restoreBackendTrajectory;
+document.querySelector("#rerun").onclick=requestPhysicsRerun;
