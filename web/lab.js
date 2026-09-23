@@ -1,7 +1,7 @@
 const canvas=document.querySelector("#lab"),ctx=canvas.getContext("2d"),windEl=document.querySelector("#wind"),speedEl=document.querySelector("#speed");
 const rooms=[{x:180,y:120,w:350,h:250,name:"LIVING"},{x:530,y:120,w:300,h:250,name:"BEDROOM"},{x:350,y:370,w:480,h:170,name:"STUDY"}],openings=[{id:"W1",x:180,y:210,side:"left",open:.65},{id:"W2",x:830,y:205,side:"right",open:.35},{id:"W3",x:720,y:540,side:"bottom",open:.55},{id:"D1",x:530,y:260,side:"internal",open:1},{id:"D2",x:440,y:370,side:"internal-horizontal",open:1}];
 const fallback=[{name:"W1 · 25%",opens:[.25,.35,.55,1],co2:1045,series:[1260,1205,1162,1119,1081,1045],return:-8.2},{name:"W1 · 50%",opens:[.5,.35,.55,1],co2:925,series:[1260,1168,1090,1025,971,925],return:-7.1},{name:"W1 · 75%",opens:[.75,.35,.55,1],co2:842,series:[1260,1130,1030,952,891,842],return:-6.5},{name:"Cross-flow · W1 + W3",opens:[.55,.25,.85,1],co2:795,series:[1260,1108,1001,915,847,795],return:-6.1}];
-let scenarios=fallback,baseline=1260,selected=0,cursor=0,timer=null,currentFrame=null,selectedOpening=null,objective="balanced";
+let scenarios=fallback,baseline=1260,selected=0,cursor=0,timer=null,currentFrame=null,selectedOpening=null,objective="balanced",viewMode="flow";
 async function loadScenarios(){const h=document.querySelector("#health");try{const r=await fetch("./data/scenarios.json",{cache:"no-store"});if(!r.ok)throw 0;const p=await r.json();if(!Array.isArray(p.scenarios)||p.scenarios.length<4)throw 0;scenarios=p.scenarios;baseline=p.baseline_co2;document.querySelector("#backendName").textContent=p.backend.toUpperCase();h.className="health ok";h.querySelector("b").textContent="BACKEND ARTIFACT READY"}catch(e){h.className="health fallback";h.querySelector("b").textContent="INTERACTIVE FALLBACK";document.querySelector("#backendName").textContent="FAST FALLBACK"}renderBranches();applyFrame(0,0);updateVector(scenarios[0])}
 // Filament renderer: persistent pathlines, not decorative dots.
 const PARTICLE_BUDGET=620;
@@ -145,8 +145,12 @@ function renderInspector(){
 }
 function selectOpening(id){selectedOpening=id;document.querySelector("#selectedOpening").textContent=id+" · BACKEND FLOW";renderInspector()}
 function cycleOpening(id){const o=openings.find(x=>x.id===id);if(!o)return;o.open=(((Math.round(o.open*4)+1)%5)/4);renderInspector();document.querySelector("#scenario").textContent="MANUAL WHAT-IF";document.querySelector("#scenarioTitle").textContent=id+" → "+Math.round(o.open*100)+"%";document.querySelector("#forkState").textContent="LOCAL WHAT-IF · NOT BACKEND";document.querySelector("#fork").textContent="Fork backend origin"}
-function drawDeadZones(){for(const r of rooms){for(let y=r.y+24;y<r.y+r.h-16;y+=30)for(let x=r.x+24;x<r.x+r.w-16;x+=30){const q={seed:0},v=backendVelocity(x,y)||flowAt(x,y,q),s=Math.hypot(...v);if(s<.48){ctx.strokeStyle="rgba(132,91,91,.18)";ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(x-6,y+6);ctx.lineTo(x+6,y-6);ctx.stroke()}}}}
+function drawDeadZones(){if(viewMode!=="dead")return;for(const r of rooms){for(let y=r.y+24;y<r.y+r.h-16;y+=30)for(let x=r.x+24;x<r.x+r.w-16;x+=30){const q={seed:0},v=backendVelocity(x,y)||flowAt(x,y,q),s=Math.hypot(...v);if(s<.48){ctx.strokeStyle="rgba(132,91,91,.18)";ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(x-6,y+6);ctx.lineTo(x+6,y-6);ctx.stroke()}}}}
 function drawPlan(){ctx.fillStyle="#080c0e";ctx.fillRect(0,0,1100,650);ctx.strokeStyle="#172126";ctx.lineWidth=1;for(let x=0;x<1100;x+=25){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,650);ctx.stroke()}for(let y=0;y<650;y+=25){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(1100,y);ctx.stroke()}for(const r of rooms){ctx.fillStyle="#0f1619";ctx.fillRect(r.x,r.y,r.w,r.h);ctx.strokeStyle="#6f8086";ctx.lineWidth=3;ctx.strokeRect(r.x,r.y,r.w,r.h);ctx.fillStyle="#728187";ctx.font="600 11px ui-monospace";ctx.fillText(r.name,r.x+14,r.y+22)}drawDeadZones();for(const o of openings){ctx.strokeStyle=o.open>.05?"#dce7e9":"#664f4f";ctx.lineWidth=8;ctx.beginPath();if(o.side==="bottom"||o.side==="internal-horizontal"){ctx.moveTo(o.x-32,o.y);ctx.lineTo(o.x+32,o.y)}else{ctx.moveTo(o.x,o.y-32);ctx.lineTo(o.x,o.y+32)}ctx.stroke();ctx.fillStyle="#9aa8ad";ctx.font="9px ui-monospace";ctx.fillText(o.id+" "+Math.round(o.open*100)+"%",o.x+9,o.y-38)}}
+function drawCo2Overlay(){
+  if(viewMode!=="co2"||!currentFrame?.co2)return;
+  for(const r of rooms){const ppm=currentFrame.co2[r.name.toLowerCase()];if(ppm==null)continue;const severity=Math.max(0,Math.min(1,(ppm-600)/900));ctx.fillStyle=`rgba(176,112,78,${.05+severity*.22})`;ctx.fillRect(r.x+3,r.y+3,r.w-6,r.h-6);ctx.fillStyle="rgba(239,225,213,.86)";ctx.font="600 18px ui-monospace";ctx.fillText(Math.round(ppm)+" ppm",r.x+14,r.y+r.h-18)}
+}
 function drawFlowSkeleton(){
   const field=currentFrame?.field?.vectors;if(!field?.length)return;
   ctx.save();ctx.globalCompositeOperation="screen";ctx.lineCap="round";
@@ -161,13 +165,14 @@ function drawFlowSkeleton(){
 }
 function frame(){
   drawPlan();
-  drawFlowSkeleton();
+  drawCo2Overlay();
+  if(viewMode==="flow")drawFlowSkeleton();
   ctx.save();
   ctx.globalCompositeOperation="screen";
   ctx.lineCap="round";ctx.lineJoin="round";
   for(const p of particles){
     advect(p,1.55);
-    if(p.trail.length<3)continue;
+    if(viewMode!=="flow"||p.trail.length<3)continue;
     const speed=p.trail[p.trail.length-1][2];
     // Density + persistence encode magnitude: jets read as coherent bundles,
     // while dead zones become sparse, faint and short-lived.
@@ -199,3 +204,4 @@ document.querySelector("#fork").onclick=()=>{renderBranches();stop();document.qu
 canvas.addEventListener("mousemove",e=>{const rect=canvas.getBoundingClientRect(),x=(e.clientX-rect.left)*canvas.width/rect.width,y=(e.clientY-rect.top)*canvas.height/rect.height,r=inside(x,y),p=document.querySelector("#probe");if(!r){p.classList.add("hidden");return}const key=r.name.toLowerCase(),co2=currentFrame?.co2?.[key],v=backendVelocity(x,y)||flowAt(x,y,{seed:0}),speed=Math.hypot(...v);p.classList.remove("hidden");p.style.left=Math.min(rect.width-155,e.clientX-rect.left+14)+"px";p.style.top=Math.max(55,e.clientY-rect.top-18)+"px";document.querySelector("#probeRoom").textContent=r.name;document.querySelector("#probeValue").textContent=(co2!=null?co2+" ppm · ":"")+speed.toFixed(2)+(currentFrame?.field?" backend field":" flow proxy")});canvas.addEventListener("mouseleave",()=>document.querySelector("#probe").classList.add("hidden"));renderInspector();
 document.querySelectorAll(".preset").forEach(btn=>btn.onclick=()=>{objective=btn.dataset.preset;document.querySelectorAll(".preset").forEach(x=>x.classList.toggle("active",x===btn));renderBranches()});
 canvas.addEventListener("click",e=>{const rect=canvas.getBoundingClientRect(),x=(e.clientX-rect.left)*canvas.width/rect.width,y=(e.clientY-rect.top)*canvas.height/rect.height;let hit=null,dist=Infinity;for(const o of openings){const d=Math.hypot(o.x-x,o.y-y);if(d<dist&&d<55){hit=o;dist=d}}if(hit){selectOpening(hit.id);cycleOpening(hit.id)}});
+document.querySelectorAll(".view").forEach(btn=>btn.onclick=()=>{viewMode=btn.dataset.view;document.querySelectorAll(".view").forEach(x=>x.classList.toggle("active",x===btn));const legend=document.querySelector("#viewLegend");legend.innerHTML=viewMode==="flow"?"<span>→ backend direction</span><span>· filament magnitude</span><span>∷ opening flow</span>":viewMode==="co2"?"<span>room fill · backend CO₂</span><span>timeline frame aware</span>":"<span>× low-flow cells</span><span>backend field threshold</span>"});
