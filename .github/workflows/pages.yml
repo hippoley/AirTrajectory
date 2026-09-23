@@ -40,6 +40,7 @@ jobs:
           p = json.loads(path.read_text())
           assert p["backend"] == "toy-multizone-v1"
           assert len(p["scenarios"]) == 4
+          assert p["baseline"] == "exhaustive-opening-search-v1"
           assert all(len(s["series"]) > 1 for s in p["scenarios"])
           assert all(len(s["frames"]) == len(s["series"]) for s in p["scenarios"])
           assert all("living" in s["frames"][0]["co2"] for s in p["scenarios"])
