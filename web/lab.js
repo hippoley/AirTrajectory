@@ -4,10 +4,25 @@ const fallback=[{name:"W1 · 25%",opens:[.25,.35,.55,1],co2:1045,series:[1260,12
 let scenarios=fallback,baseline=1260,selected=0,cursor=0,timer=null,currentFrame=null,selectedOpening=null,objective="balanced";
 async function loadScenarios(){const h=document.querySelector("#health");try{const r=await fetch("./data/scenarios.json",{cache:"no-store"});if(!r.ok)throw 0;const p=await r.json();if(!Array.isArray(p.scenarios)||p.scenarios.length<4)throw 0;scenarios=p.scenarios;baseline=p.baseline_co2;document.querySelector("#backendName").textContent=p.backend.toUpperCase();h.className="health ok";h.querySelector("b").textContent="BACKEND ARTIFACT READY"}catch(e){h.className="health fallback";h.querySelector("b").textContent="INTERACTIVE FALLBACK";document.querySelector("#backendName").textContent="FAST FALLBACK"}renderBranches();updateVector(scenarios[0])}
 // Filament renderer: persistent pathlines, not decorative dots.
-const particles=Array.from({length:460},(_,i)=>spawn(i));
+const PARTICLE_BUDGET=620;
+const particles=Array.from({length:PARTICLE_BUDGET},(_,i)=>spawn(i));
+function emissionWeight(o){
+  const backend=currentFrame?.openings?.[o.id];
+  const open=(backend!=null?backend/100:o.open);
+  const v=backendVelocity(o.x+(o.side==="left"?18:o.side==="right"?-18:0),o.y+(o.side==="bottom"?-18:0));
+  const speed=v?Math.hypot(v[0],v[1]):(+speedEl.value*.12);
+  return Math.max(.01,open*open*(.35+speed));
+}
+function chooseInlet(){
+  const inlet=openings.filter(o=>o.side!=="internal"&&o.side!=="internal-horizontal"&&o.open>.03);
+  if(!inlet.length)return null;
+  const weights=inlet.map(emissionWeight),total=weights.reduce((a,b)=>a+b,0);
+  let pick=Math.random()*total;
+  for(let i=0;i<inlet.length;i++){pick-=weights[i];if(pick<=0)return inlet[i]}
+  return inlet[inlet.length-1];
+}
 function spawn(i){
-  const inlet=openings.filter(o=>o.side!=="internal"&&o.open>.05);
-  const source=inlet[i%Math.max(1,inlet.length)];
+  const source=chooseInlet();
   if(source){
     const jitter=(Math.random()-.5)*54;
     return{x:source.x+(source.side==="bottom"?jitter:(Math.random()*8-4)),y:source.y+(source.side==="bottom"?(Math.random()*8-4):jitter),life:Math.random()*90,maxLife:150+Math.random()*180,seed:Math.random()*99,px:0,py:0,trail:[]};
@@ -78,7 +93,10 @@ function advect(p,dt){
   // Midpoint/RK2 advection makes curved streamlines much less angular.
   const a=velocity(p.x,p.y,p),mx=p.x+a[0]*dt*.5,my=p.y+a[1]*dt*.5,b=velocity(mx,my,p);
   p.px=p.x;p.py=p.y;p.x+=b[0]*dt;p.y+=b[1]*dt;p.life++;
-  if(p.life%2===0)p.trail.push([p.x,p.y,Math.hypot(b[0],b[1])]);
+  const speed=Math.hypot(b[0],b[1]);
+  // Fast coherent flow keeps a denser pathline; dead zones shed samples.
+  const stride=speed>.55?1:speed>.24?2:4;
+  if(p.life%stride===0)p.trail.push([p.x,p.y,speed]);
   if(p.trail.length>20)p.trail.shift();
   if(!inside(p.x,p.y)||p.life>p.maxLife)Object.assign(p,spawn(Math.floor(Math.random()*rooms.length)));
 }
@@ -97,12 +115,14 @@ function frame(){
     advect(p,1.55);
     if(p.trail.length<3)continue;
     const speed=p.trail[p.trail.length-1][2];
-    // Dead zones stay nearly still and faint; jets become denser/brighter naturally.
-    const alpha=Math.min(.30,.025+speed*.075);
+    // Density + persistence encode magnitude: jets read as coherent bundles,
+    // while dead zones become sparse, faint and short-lived.
+    const alpha=Math.min(.34,.012+speed*.095);
+    if(speed<.10 && ((p.seed*997+p.life)%3)>1)continue;
     for(let j=1;j<p.trail.length;j++){
       const age=j/p.trail.length,a=alpha*age*age;
       ctx.strokeStyle=`rgba(174,224,226,${a})`;
-      ctx.lineWidth=.28+age*.62+Math.min(.35,speed*.08);
+      ctx.lineWidth=.22+age*.52+Math.min(.42,speed*.10);
       ctx.beginPath();ctx.moveTo(p.trail[j-1][0],p.trail[j-1][1]);ctx.lineTo(p.trail[j][0],p.trail[j][1]);ctx.stroke();
     }
     // Tiny bright head, deliberately not a visible "dot".
