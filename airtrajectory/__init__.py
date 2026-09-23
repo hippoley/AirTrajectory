@@ -11,3 +11,5 @@ __all__ = [
     "SnapshotableEnvironment", "ToyMultizoneEnvironment", "FastFlowField", "FlowField",
     "FlowVector", "BranchResult", "fork_actions", "rollout",
 ]
+
+from .search import SearchResult, exhaustive_opening_search

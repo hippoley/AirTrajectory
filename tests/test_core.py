@@ -2,7 +2,7 @@ import unittest
 
 from airtrajectory import (
     BuildingTopology, FastFlowField, OpeningEdge, ToyMultizoneEnvironment,
-    TransitionAction, ZoneNode, fork_actions, rollout,
+    TransitionAction, ZoneNode, exhaustive_opening_search, fork_actions, rollout,
 )
 
 
@@ -67,6 +67,31 @@ class CoreTests(unittest.TestCase):
         self.assertEqual(opened, repeated)
         self.assertNotEqual(closed.vectors, opened.vectors)
         self.assertEqual(opened.backend, "fast-field-v1")
+
+    def test_exhaustive_search_ranks_and_restores(self):
+        env = ToyMultizoneEnvironment(self.topology(), {"living": 1400, "bedroom": 1100}, horizon_steps=20)
+        env.reset()
+        env.step([TransitionAction("door", 100)])
+        origin = env.snapshot()
+        results = exhaustive_opening_search(
+            env,
+            ("w1", "w2"),
+            levels=(0, 50, 100),
+            fixed_actions=(TransitionAction("door", 100),),
+            horizon_steps=5,
+            top_k=3,
+        )
+        self.assertEqual(len(results), 3)
+        self.assertEqual(env.snapshot(), origin)
+        self.assertGreaterEqual(results[0].branch.return_value, results[1].branch.return_value)
+        self.assertGreaterEqual(results[1].branch.return_value, results[2].branch.return_value)
+        self.assertTrue(all(result.label.startswith("SEARCH · ") for result in results))
+
+    def test_exhaustive_search_rejects_empty_openings(self):
+        env = ToyMultizoneEnvironment(self.topology())
+        env.reset()
+        with self.assertRaises(ValueError):
+            exhaustive_opening_search(env, (), top_k=1)
 
 
 if __name__ == "__main__":
