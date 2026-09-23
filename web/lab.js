@@ -95,10 +95,34 @@ function velocity(x,y,p){
   const curlY=-Math.cos(x*.010-t+p.seed*.025)*.045+Math.cos((x-y)*.004+t)*.02;
   return[shaped[0]+curlX*(.22+mag*.06),shaped[1]+curlY*(.22+mag*.06)];
 }
+function crossesSolidWall(x0,y0,x1,y1){
+  // Shared vertical wall: living <-> bedroom. Only D1 is permeable.
+  if((x0<530&&x1>=530)||(x0>530&&x1<=530)){
+    const t=(530-x0)/(x1-x0),y=y0+(y1-y0)*t;
+    if(y>=120&&y<=370 && !(Math.abs(y-260)<=34 && openings.find(o=>o.id==="D1")?.open>.03))return true;
+  }
+  // Shared horizontal wall at y=370. D2 connects living <-> study only.
+  if((y0<370&&y1>=370)||(y0>370&&y1<=370)){
+    const t=(370-y0)/(y1-y0),x=x0+(x1-x0)*t;
+    if(x>=350&&x<=830){
+      const throughD2=x<=530&&Math.abs(x-440)<=34&&openings.find(o=>o.id==="D2")?.open>.03;
+      if(!throughD2)return true;
+    }
+  }
+  return false;
+}
 function advect(p,dt){
   // Midpoint/RK2 advection makes curved streamlines much less angular.
   const a=velocity(p.x,p.y,p),mx=p.x+a[0]*dt*.5,my=p.y+a[1]*dt*.5,b=velocity(mx,my,p);
-  p.px=p.x;p.py=p.y;p.x+=b[0]*dt;p.y+=b[1]*dt;p.life++;
+  p.px=p.x;p.py=p.y;
+  const nx=p.x+b[0]*dt,ny=p.y+b[1]*dt;
+  if(crossesSolidWall(p.x,p.y,nx,ny)){
+    // Preserve identity and slide along the wall instead of teleporting/resetting.
+    const tryX=p.x+b[0]*dt,tryY=p.y+b[1]*dt;
+    if(!crossesSolidWall(p.x,p.y,tryX,p.y)&&inside(tryX,p.y))p.x=tryX;
+    else if(!crossesSolidWall(p.x,p.y,p.x,tryY)&&inside(p.x,tryY))p.y=tryY;
+  }else{p.x=nx;p.y=ny}
+  p.life++;
   const speed=Math.hypot(b[0],b[1]);
   // Fast coherent flow keeps a denser pathline; dead zones shed samples.
   const stride=speed>.55?1:speed>.24?2:4;
