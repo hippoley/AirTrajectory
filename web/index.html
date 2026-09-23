@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AirTrajectory Lab</title>
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <main class="shell">
+    <header>
+      <div>
+        <p class="eyebrow">AIRTRAJECTORY / PHYSICAL LEARNING LAB</p>
+        <h1>How should this home breathe?</h1>
+      </div>
+      <div class="status"><span></span> FAST PHYSICS · LIVE</div>
+    </header>
+
+    <section class="workspace">
+      <div class="stage-card">
+        <canvas id="lab" width="1100" height="650"></canvas>
+        <div class="legend">
+          <span>particle direction → flow direction</span>
+          <span>speed → local velocity</span>
+          <span>density → relative flux</span>
+        </div>
+      </div>
+
+      <aside>
+        <div class="metric"><label>Living CO₂</label><strong id="co2">1,260</strong><small>ppm</small></div>
+        <div class="metric"><label>Ventilated coverage</label><strong id="coverage">64</strong><small>%</small></div>
+        <div class="metric"><label>Dead-zone estimate</label><strong id="dead">21</strong><small>%</small></div>
+        <div class="control">
+          <label>Wind direction <output id="windLabel">25°</output></label>
+          <input id="wind" type="range" min="0" max="359" value="25" />
+        </div>
+        <div class="control">
+          <label>Wind speed <output id="speedLabel">2.8 m/s</output></label>
+          <input id="speed" type="range" min="0" max="8" step="0.1" value="2.8" />
+        </div>
+        <button id="strategy">Find a better strategy</button>
+        <p class="hint">This first browser solver is qualitative. The same action/observation contract will later drive CONTAM and real-room backends.</p>
+      </aside>
+    </section>
+
+    <section class="timeline-card">
+      <div class="timeline-head">
+        <div><p class="eyebrow">TRAJECTORY</p><h2>One state, several possible futures.</h2></div>
+        <button class="ghost" id="fork">Fork from here</button>
+      </div>
+      <div class="timeline" id="timeline"></div>
+      <div class="branches" id="branches"></div>
+    </section>
+  </main>
+  <script type="module" src="./lab.js"></script>
+</body>
+</html>
