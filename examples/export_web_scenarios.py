@@ -33,13 +33,21 @@ def build():
     env = ToyMultizoneEnvironment(topology, {"living": 1260, "bedroom": 980, "study": 840}, horizon_steps=60)
     flow = FastFlowField(topology)
     grid_points = [(x, y) for y in range(120, 541, 35) for x in range(180, 831, 35)]
+    opening_xy = {"W1": (180, 210), "W2": (830, 205), "W3": (720, 540), "D1": (530, 260), "D2": (440, 370)}
+    opening_area = {edge.id: edge.max_area_m2 for edge in topology.openings.values()}
     def field_for(opening_pct):
         sampled = flow.sample(grid_points, opening_pct, wind_direction_deg=240, wind_speed_mps=3.2)
+        def local_speed(oid):
+            ox, oy = opening_xy[oid]
+            nearest = min(sampled.vectors, key=lambda v: (v.x - ox) ** 2 + (v.y - oy) ** 2)
+            return (nearest.vx ** 2 + nearest.vy ** 2) ** 0.5
+        flow_estimate = {oid: round(local_speed(oid) * opening_area[oid] * opening_pct.get(oid, 0.0) / 100.0, 4) for oid in opening_xy}
         return {
             "backend": sampled.backend,
             "wind_direction_deg": sampled.wind_direction_deg,
             "wind_speed_mps": sampled.wind_speed_mps,
             "grid": {"x0": 180, "y0": 120, "dx": 35, "dy": 35, "nx": 19, "ny": 13},
+            "opening_flow_estimate": flow_estimate,
             "vectors": [[round(v.x, 1), round(v.y, 1), round(v.vx, 4), round(v.vy, 4)] for v in sampled.vectors],
         }
     env.reset()
@@ -65,6 +73,7 @@ def build():
             "motion": "backend actuator_wear aggregation normalized for display",
             "flow": "backend opening state proxy; not engineering airflow",
             "field": "FastFlowField qualitative vector grid; not CFD",
+            "opening_flow_estimate": "local FastFlowField speed × opening area × opening fraction; qualitative, not calibrated m3/s",
         },
         "scenarios": [],
     }
