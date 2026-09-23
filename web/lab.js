@@ -1,5 +1,5 @@
 const canvas=document.querySelector("#lab"),ctx=canvas.getContext("2d"),windEl=document.querySelector("#wind"),speedEl=document.querySelector("#speed");
-const rooms=[{x:180,y:120,w:350,h:250,name:"LIVING"},{x:530,y:120,w:300,h:250,name:"BEDROOM"},{x:350,y:370,w:480,h:170,name:"STUDY"}],openings=[{id:"W1",x:180,y:210,side:"left",open:.65},{id:"W2",x:830,y:205,side:"right",open:.35},{id:"W3",x:720,y:540,side:"bottom",open:.55},{id:"D1",x:530,y:260,side:"internal",open:1}];
+const rooms=[{x:180,y:120,w:350,h:250,name:"LIVING"},{x:530,y:120,w:300,h:250,name:"BEDROOM"},{x:350,y:370,w:480,h:170,name:"STUDY"}],openings=[{id:"W1",x:180,y:210,side:"left",open:.65},{id:"W2",x:830,y:205,side:"right",open:.35},{id:"W3",x:720,y:540,side:"bottom",open:.55},{id:"D1",x:530,y:260,side:"internal",open:1},{id:"D2",x:440,y:370,side:"internal-horizontal",open:1}];
 const fallback=[{name:"W1 · 25%",opens:[.25,.35,.55,1],co2:1045,series:[1260,1205,1162,1119,1081,1045],return:-8.2},{name:"W1 · 50%",opens:[.5,.35,.55,1],co2:925,series:[1260,1168,1090,1025,971,925],return:-7.1},{name:"W1 · 75%",opens:[.75,.35,.55,1],co2:842,series:[1260,1130,1030,952,891,842],return:-6.5},{name:"Cross-flow · W1 + W3",opens:[.55,.25,.85,1],co2:795,series:[1260,1108,1001,915,847,795],return:-6.1}];
 let scenarios=fallback,baseline=1260,selected=0,cursor=0,timer=null,currentFrame=null,selectedOpening=null,objective="balanced";
 async function loadScenarios(){const h=document.querySelector("#health");try{const r=await fetch("./data/scenarios.json",{cache:"no-store"});if(!r.ok)throw 0;const p=await r.json();if(!Array.isArray(p.scenarios)||p.scenarios.length<4)throw 0;scenarios=p.scenarios;baseline=p.baseline_co2;document.querySelector("#backendName").textContent=p.backend.toUpperCase();h.className="health ok";h.querySelector("b").textContent="BACKEND ARTIFACT READY"}catch(e){h.className="health fallback";h.querySelector("b").textContent="INTERACTIVE FALLBACK";document.querySelector("#backendName").textContent="FAST FALLBACK"}renderBranches();updateVector(scenarios[0])}
@@ -27,13 +27,52 @@ function backendVelocity(x,y){
   for(const [d2,v] of nearest){const w=1/Math.max(16,d2);sx+=v[2]*w;sy+=v[3]*w;sw+=w}
   return sw?[sx/sw,sy/sw]:null;
 }
+function wallResponse(x,y,vx,vy){
+  const r=inside(x,y);if(!r)return[vx,vy];
+  const dl=x-r.x,dr=r.x+r.w-x,dt=y-r.y,db=r.y+r.h-y,d=Math.min(dl,dr,dt,db);
+  // No-slip-ish visual damping near walls; openings punch through this layer.
+  let nearOpening=false;
+  for(const o of openings){if(o.open>.05&&Math.hypot(o.x-x,o.y-y)<52){nearOpening=true;break}}
+  if(!nearOpening&&d<34){
+    const k=Math.max(.16,d/34);vx*=k;vy*=k;
+    // Gentle tangential recirculation along solid boundaries.
+    const swirl=(1-k)*.11;
+    if(d===dl||d===dr)vy+=(d===dl?1:-1)*swirl;
+    else vx+=(d===dt?-1:1)*swirl;
+  }
+  return[vx,vy];
+}
+function jetResponse(x,y,vx,vy){
+  for(const o of openings){
+    if(o.open<.05)continue;
+    const dx=x-o.x,dy=y-o.y;
+    const horizontal=o.side==="bottom"||o.side==="internal-horizontal";
+    const axial=horizontal?Math.abs(dy):Math.abs(dx),lateral=horizontal?Math.abs(dx):Math.abs(dy);
+    if(axial>145||lateral>58)continue;
+    const core=Math.exp(-lateral*lateral/620)*Math.exp(-axial/115)*o.open;
+    if(horizontal){
+      const sign=o.side==="bottom"?-1:(y<o.y?-1:1);
+      vy+=sign*core*.78;
+      // Shear layer: slight outward spread after the jet core.
+      vx+=Math.sign(dx||1)*core*(lateral/58)*.16;
+    }else{
+      const sign=o.side==="left"?1:o.side==="right"?-1:(x<o.x?-1:1);
+      vx+=sign*core*.78;
+      vy+=Math.sign(dy||1)*core*(lateral/58)*.16;
+    }
+  }
+  return[vx,vy];
+}
 function velocity(x,y,p){
-  const base=backendVelocity(x,y)||flowAt(x,y,p),mag=Math.hypot(base[0],base[1]);
+  const base=backendVelocity(x,y)||flowAt(x,y,p);
+  let shaped=jetResponse(x,y,base[0],base[1]);
+  shaped=wallResponse(x,y,shaped[0],shaped[1]);
+  const mag=Math.hypot(shaped[0],shaped[1]);
   // Curl is visual microstructure only; transport direction comes from backend field.
   const t=performance.now()*.00018;
-  const curlX=Math.sin(y*.010+t+p.seed*.025)*.055+Math.sin((x+y)*.004-t)*.025;
-  const curlY=-Math.cos(x*.010-t+p.seed*.025)*.055+Math.cos((x-y)*.004+t)*.025;
-  return[base[0]+curlX*(.25+mag*.08),base[1]+curlY*(.25+mag*.08)];
+  const curlX=Math.sin(y*.010+t+p.seed*.025)*.045+Math.sin((x+y)*.004-t)*.02;
+  const curlY=-Math.cos(x*.010-t+p.seed*.025)*.045+Math.cos((x-y)*.004+t)*.02;
+  return[shaped[0]+curlX*(.22+mag*.06),shaped[1]+curlY*(.22+mag*.06)];
 }
 function advect(p,dt){
   // Midpoint/RK2 advection makes curved streamlines much less angular.
@@ -48,7 +87,7 @@ function localFlux(o){return Math.max(0,Math.min(1,o.open*(.25+(+speedEl.value/8
 function selectOpening(id){selectedOpening=id;document.querySelector("#selectedOpening").textContent=id+" · CLICK CANVAS TO CYCLE";renderInspector()}
 function cycleOpening(id){const o=openings.find(x=>x.id===id);if(!o)return;o.open=(((Math.round(o.open*4)+1)%5)/4);renderInspector();document.querySelector("#scenario").textContent="MANUAL WHAT-IF";document.querySelector("#scenarioTitle").textContent=id+" → "+Math.round(o.open*100)+"%";document.querySelector("#forkState").textContent="LOCAL WHAT-IF · NOT BACKEND";document.querySelector("#fork").textContent="Fork backend origin"}
 function drawDeadZones(){for(const r of rooms){let sum=0,n=0;for(let y=r.y+24;y<r.y+r.h-16;y+=30)for(let x=r.x+24;x<r.x+r.w-16;x+=30){const q={seed:0},v=flowAt(x,y,q),s=Math.hypot(...v);sum+=s;n++;if(s<.48){ctx.strokeStyle="rgba(132,91,91,.18)";ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(x-6,y+6);ctx.lineTo(x+6,y-6);ctx.stroke()}}}}
-function drawPlan(){ctx.fillStyle="#080c0e";ctx.fillRect(0,0,1100,650);ctx.strokeStyle="#172126";ctx.lineWidth=1;for(let x=0;x<1100;x+=25){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,650);ctx.stroke()}for(let y=0;y<650;y+=25){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(1100,y);ctx.stroke()}for(const r of rooms){ctx.fillStyle="#0f1619";ctx.fillRect(r.x,r.y,r.w,r.h);ctx.strokeStyle="#6f8086";ctx.lineWidth=3;ctx.strokeRect(r.x,r.y,r.w,r.h);ctx.fillStyle="#728187";ctx.font="600 11px ui-monospace";ctx.fillText(r.name,r.x+14,r.y+22)}drawDeadZones();for(const o of openings){ctx.strokeStyle=o.open>.05?"#dce7e9":"#664f4f";ctx.lineWidth=8;ctx.beginPath();if(o.side==="bottom"){ctx.moveTo(o.x-32,o.y);ctx.lineTo(o.x+32,o.y)}else{ctx.moveTo(o.x,o.y-32);ctx.lineTo(o.x,o.y+32)}ctx.stroke();ctx.fillStyle="#9aa8ad";ctx.font="9px ui-monospace";ctx.fillText(o.id+" "+Math.round(o.open*100)+"%",o.x+9,o.y-38)}}
+function drawPlan(){ctx.fillStyle="#080c0e";ctx.fillRect(0,0,1100,650);ctx.strokeStyle="#172126";ctx.lineWidth=1;for(let x=0;x<1100;x+=25){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,650);ctx.stroke()}for(let y=0;y<650;y+=25){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(1100,y);ctx.stroke()}for(const r of rooms){ctx.fillStyle="#0f1619";ctx.fillRect(r.x,r.y,r.w,r.h);ctx.strokeStyle="#6f8086";ctx.lineWidth=3;ctx.strokeRect(r.x,r.y,r.w,r.h);ctx.fillStyle="#728187";ctx.font="600 11px ui-monospace";ctx.fillText(r.name,r.x+14,r.y+22)}drawDeadZones();for(const o of openings){ctx.strokeStyle=o.open>.05?"#dce7e9":"#664f4f";ctx.lineWidth=8;ctx.beginPath();if(o.side==="bottom"||o.side==="internal-horizontal"){ctx.moveTo(o.x-32,o.y);ctx.lineTo(o.x+32,o.y)}else{ctx.moveTo(o.x,o.y-32);ctx.lineTo(o.x,o.y+32)}ctx.stroke();ctx.fillStyle="#9aa8ad";ctx.font="9px ui-monospace";ctx.fillText(o.id+" "+Math.round(o.open*100)+"%",o.x+9,o.y-38)}}
 function frame(){
   drawPlan();
   ctx.save();
