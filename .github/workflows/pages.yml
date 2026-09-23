@@ -48,6 +48,7 @@ jobs:
           assert all(s["frames"][0]["field"]["backend"] == "fast-field-v1" for s in p["scenarios"])
           assert all(len(s["frames"][0]["field"]["vectors"]) > 100 for s in p["scenarios"])
           assert all(s["frames"][0]["field"]["grid"] == {"x0": 180, "y0": 120, "dx": 35, "dy": 35, "nx": 19, "ny": 13} for s in p["scenarios"])
+          assert all(set(s["frames"][0]["field"]["opening_flow_estimate"]) == {"W1","W2","W3","D1","D2"} for s in p["scenarios"])
           print("validated", path, "with", len(p["scenarios"]), "branches")
           PY
       - name: Validate filament renderer
@@ -55,6 +56,8 @@ jobs:
           node --check web/lab.js
           grep -q 'function advect' web/lab.js
           grep -q 'function backendVelocity' web/lab.js
+          grep -q 'function openingFlow' web/lab.js
+          grep -q 'opening_flow_estimate' web/lab.js
           grep -q 'function jetResponse' web/lab.js
           grep -q 'function wallResponse' web/lab.js
           grep -q 'function crossesSolidWall' web/lab.js
