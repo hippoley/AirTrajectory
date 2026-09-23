@@ -18,6 +18,20 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: python -m pip install -e .
+      - name: Generate backend scenarios
+        run: python examples/export_web_scenarios.py
+      - name: Test generated scenario artifact
+        run: python - <<'PY'
+          import json
+          p=json.load(open("web/data/scenarios.json"))
+          assert p["backend"] == "toy-multizone-v1"
+          assert len(p["scenarios"]) == 4
+          assert all(len(s["series"]) > 1 for s in p["scenarios"])
+          PY
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
