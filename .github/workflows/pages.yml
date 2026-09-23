@@ -65,6 +65,11 @@ jobs:
           grep -q 'function emissionWeight' web/lab.js
           grep -q 'function reseedForField' web/lab.js
           grep -q 'function drawFlowSkeleton' web/lab.js
+          grep -q 'function drawCo2Overlay' web/lab.js
+          grep -q 'viewMode!=="dead"' web/lab.js
+          grep -q 'data-view="flow"' web/index.html
+          grep -q 'data-view="co2"' web/index.html
+          grep -q 'data-view="dead"' web/index.html
           grep -q 'id:"D2"' web/lab.js
           grep -q 'p.trail.length>20' web/lab.js
           grep -q 'Midpoint/RK2 advection' web/lab.js
