@@ -1,57 +1,25 @@
 <!doctype html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>AirTrajectory Lab</title>
-  <link rel="stylesheet" href="./styles.css" />
-</head>
-<body>
-  <main class="shell">
-    <header>
-      <div>
-        <p class="eyebrow">AIRTRAJECTORY / PHYSICAL LEARNING LAB</p>
-        <h1>How should this home breathe?</h1>
-      </div>
-      <div class="status"><span></span> FAST PHYSICS · LIVE</div>
-    </header>
-
-    <section class="workspace">
-      <div class="stage-card">
-        <canvas id="lab" width="1100" height="650"></canvas>
-        <div class="legend">
-          <span>particle direction → flow direction</span>
-          <span>speed → local velocity</span>
-          <span>density → relative flux</span>
-        </div>
-      </div>
-
-      <aside>
-        <div class="metric"><label>Living CO₂</label><strong id="co2">1,260</strong><small>ppm</small></div>
-        <div class="metric"><label>Ventilated coverage</label><strong id="coverage">64</strong><small>%</small></div>
-        <div class="metric"><label>Dead-zone estimate</label><strong id="dead">21</strong><small>%</small></div>
-        <div class="control">
-          <label>Wind direction <output id="windLabel">25°</output></label>
-          <input id="wind" type="range" min="0" max="359" value="25" />
-        </div>
-        <div class="control">
-          <label>Wind speed <output id="speedLabel">2.8 m/s</output></label>
-          <input id="speed" type="range" min="0" max="8" step="0.1" value="2.8" />
-        </div>
-        <button id="strategy">Find a better strategy</button>
-        <p class="hint">This first browser solver is qualitative. The same action/observation contract will later drive CONTAM and real-room backends.</p>
-      </aside>
-    </section>
-
-    <section class="timeline-card">
-      <div class="timeline-head">
-        <div><p class="eyebrow">TRAJECTORY</p><h2>One state, several possible futures.</h2></div>
-        <button class="ghost" id="fork">Fork from here</button>
-      </div>
-      <div class="timeline" id="timeline"></div>
-      <div class="branches" id="branches"></div>
-    </section>
-  </main>
-  <script type="module" src="./lab.js"></script>
-</body>
-</html>
+<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AirTrajectory — Physical Learning Lab</title><link rel="stylesheet" href="./styles.css"></head>
+<body><main class="shell">
+<header><div><p class="eyebrow">AIRTRAJECTORY / PHYSICAL LEARNING LAB</p><h1>How should this home breathe?</h1><p class="lede">Explore one physical state, branch its future, and watch the house respond.</p></div><div class="status"><span></span> FAST PHYSICS · LIVE</div></header>
+<nav class="modebar"><button class="mode active">LIVE HOUSE</button><button class="mode">TRAJECTORY</button><button class="mode">UNSEEN TOPOLOGY</button><div class="backend">BACKEND <b>FAST v1</b></div></nav>
+<section class="workspace">
+ <div class="stage-card"><canvas id="lab" width="1100" height="650"></canvas><div class="stage-overlay"><span id="scenario">CURRENT STATE</span><strong id="scenarioTitle">Observed trajectory</strong></div><div class="legend"><span>direction → airflow</span><span>speed → velocity</span><span>density → relative flux</span></div></div>
+ <aside>
+  <p class="eyebrow">LIVE STATE</p>
+  <div class="metric"><label>Living CO₂</label><strong id="co2">1,260</strong><small>ppm</small></div>
+  <div class="metric"><label>Ventilated coverage</label><strong id="coverage">64</strong><small>%</small></div>
+  <div class="metric"><label>Dead-zone estimate</label><strong id="dead">21</strong><small>%</small></div>
+  <div class="control"><label>Wind direction <output id="windLabel">25°</output></label><input id="wind" type="range" min="0" max="359" value="25"></div>
+  <div class="control"><label>Wind speed <output id="speedLabel">2.8 m/s</output></label><input id="speed" type="range" min="0" max="8" step=".1" value="2.8"></div>
+  <button id="strategy">Find a better strategy</button>
+  <p class="hint">Qualitative fast field. It is intentionally not CFD; backend provenance stays visible.</p>
+ </aside>
+</section>
+<section class="timeline-card">
+ <div class="timeline-head"><div><p class="eyebrow">TRAJECTORY / t+12 MIN</p><h2>Fork the future from this exact state.</h2></div><button class="ghost" id="fork">Fork from here</button></div>
+ <div class="timeline" id="timeline"></div><div class="branches" id="branches"></div>
+</section>
+<section class="proof"><div><p class="eyebrow">WHY THIS EXISTS</p><h2>Not another airflow animation.</h2></div><p>Every branch is shaped like a future trajectory: action → physical response → outcome. The production path replaces FAST with CONTAM and real-room backends without changing the interaction model.</p></section>
+</main><script type="module" src="./lab.js"></script></body></html>
