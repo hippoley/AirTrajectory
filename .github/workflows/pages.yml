@@ -54,6 +54,9 @@ jobs:
           node --check web/lab.js
           grep -q 'function advect' web/lab.js
           grep -q 'function backendVelocity' web/lab.js
+          grep -q 'function jetResponse' web/lab.js
+          grep -q 'function wallResponse' web/lab.js
+          grep -q 'id:"D2"' web/lab.js
           grep -q 'p.trail.length>20' web/lab.js
           grep -q 'Midpoint/RK2 advection' web/lab.js
           ! grep -q 'Array.from({length:720}' web/lab.js
