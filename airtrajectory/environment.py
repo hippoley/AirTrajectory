@@ -17,10 +17,20 @@ class VentilationEnvironment(ABC):
         ...
 
 
-class ToyMultizoneEnvironment(VentilationEnvironment):
+class SnapshotableEnvironment(VentilationEnvironment):
+    @abstractmethod
+    def snapshot(self) -> Dict[str, Any]:
+        ...
+
+    @abstractmethod
+    def restore(self, snapshot: Dict[str, Any]) -> None:
+        ...
+
+
+class ToyMultizoneEnvironment(SnapshotableEnvironment):
     """Deterministic topology-aware CO2 mixing baseline.
 
-    This validates trajectory plumbing and control semantics only.
+    This validates trajectory plumbing and branching semantics only.
     It is not an engineering airflow solver.
     """
 
@@ -55,6 +65,18 @@ class ToyMultizoneEnvironment(VentilationEnvironment):
         self.openings = {o: 0.0 for o in self.topology.openings}
         return self._observation(), {"backend": "toy-multizone-v1"}
 
+    def snapshot(self):
+        return {
+            "step": self._step,
+            "co2": deepcopy(self.co2),
+            "openings": deepcopy(self.openings),
+        }
+
+    def restore(self, snapshot):
+        self._step = int(snapshot["step"])
+        self.co2 = deepcopy(snapshot["co2"])
+        self.openings = deepcopy(snapshot["openings"])
+
     def step(self, actions):
         previous_openings = deepcopy(self.openings)
         for action in actions:
@@ -69,7 +91,6 @@ class ToyMultizoneEnvironment(VentilationEnvironment):
             fraction = self.openings[edge.id] / 100.0
             if fraction <= 0:
                 continue
-
             rate = min(0.18, 0.02 + 0.12 * fraction * edge.max_area_m2)
             if edge.source == self.topology.outside_id or edge.target == self.topology.outside_id:
                 zone = edge.target if edge.source == self.topology.outside_id else edge.source
@@ -81,19 +102,8 @@ class ToyMultizoneEnvironment(VentilationEnvironment):
 
         self.co2 = {z: max(self.outdoor_co2, value) for z, value in next_co2.items()}
         self._step += 1
-
         iaq_penalty = -sum(max(0.0, value - 800.0) / 400.0 for value in self.co2.values())
-        wear = -sum(
-            abs(self.openings[key] - previous_openings[key]) / 100.0
-            for key in self.openings
-        )
+        wear = -sum(abs(self.openings[k] - previous_openings[k]) / 100.0 for k in self.openings)
         reward = RewardVector(iaq=iaq_penalty, actuator_wear=wear)
         terminated = self._step >= self.horizon_steps
-
-        return (
-            self._observation(),
-            reward,
-            terminated,
-            False,
-            {"backend": "toy-multizone-v1"},
-        )
+        return self._observation(), reward, terminated, False, {"backend": "toy-multizone-v1"}
