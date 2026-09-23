@@ -32,14 +32,20 @@ function spawn(i){
 }
 function inside(x,y){return rooms.find(r=>x>r.x&&x<r.x+r.w&&y>r.y&&y<r.y+r.h)}
 function backendVelocity(x,y){
-  const field=currentFrame?.field,vectors=field?.vectors;
+  const field=currentFrame?.field,vectors=field?.vectors,g=field?.grid;
   if(!vectors?.length)return null;
-  // Inverse-distance interpolation over the nearest backend samples.
+  if(g){
+    const fx=Math.max(0,Math.min(g.nx-1,(x-g.x0)/g.dx)),fy=Math.max(0,Math.min(g.ny-1,(y-g.y0)/g.dy));
+    const x0=Math.min(g.nx-2,Math.floor(fx)),y0=Math.min(g.ny-2,Math.floor(fy)),tx=fx-x0,ty=fy-y0;
+    const at=(ix,iy)=>vectors[iy*g.nx+ix];
+    const a=at(x0,y0),b=at(x0+1,y0),c=at(x0,y0+1),d=at(x0+1,y0+1);
+    const lerp=(p,q,t)=>p+(q-p)*t;
+    return[lerp(lerp(a[2],b[2],tx),lerp(c[2],d[2],tx),ty),lerp(lerp(a[3],b[3],tx),lerp(c[3],d[3],tx),ty)];
+  }
   let nearest=[];
   for(const v of vectors){const dx=v[0]-x,dy=v[1]-y,d2=dx*dx+dy*dy;nearest.push([d2,v])}
   nearest.sort((a,b)=>a[0]-b[0]);nearest=nearest.slice(0,4);
-  let sx=0,sy=0,sw=0;
-  for(const [d2,v] of nearest){const w=1/Math.max(16,d2);sx+=v[2]*w;sy+=v[3]*w;sw+=w}
+  let sx=0,sy=0,sw=0;for(const [d2,v] of nearest){const w=1/Math.max(16,d2);sx+=v[2]*w;sy+=v[3]*w;sw+=w}
   return sw?[sx/sw,sy/sw]:null;
 }
 function wallResponse(x,y,vx,vy){
