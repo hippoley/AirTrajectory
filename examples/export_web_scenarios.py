@@ -31,7 +31,15 @@ def build():
         co2 = round(last["co2_ppm"]["living"])
         opens = [last["opening_pct"].get(k, 0) / 100 for k in ("W1", "W2", "W3", "D1")]
         series = [round(o["co2_ppm"]["living"]) for o in branch.observations]
-        payload["scenarios"].append({"name": name, "opens": opens, "co2": co2, "series": series, "return": round(branch.return_value, 3)})
+        frames = [
+            {
+                "step": i,
+                "co2": {zone: round(value) for zone, value in o["co2_ppm"].items()},
+                "openings": {key: round(value, 1) for key, value in o["opening_pct"].items()},
+            }
+            for i, o in enumerate(branch.observations)
+        ]
+        payload["scenarios"].append({"name": name, "opens": opens, "co2": co2, "series": series, "frames": frames, "return": round(branch.return_value, 3)})
     Path("web/data").mkdir(parents=True, exist_ok=True)
     Path("web/data/scenarios.json").write_text(json.dumps(payload, indent=2), encoding="utf-8")
 
