@@ -47,6 +47,13 @@ jobs:
           assert all("openings" in s["frames"][0] for s in p["scenarios"])
           print("validated", path, "with", len(p["scenarios"]), "branches")
           PY
+      - name: Validate filament renderer
+        run: |
+          node --check web/lab.js
+          grep -q 'function advect' web/lab.js
+          grep -q 'p.trail.length>20' web/lab.js
+          grep -q 'Midpoint/RK2 advection' web/lab.js
+          ! grep -q 'Array.from({length:720}' web/lab.js
       - name: Configure Pages
         uses: actions/configure-pages@v5
       - name: Upload Pages artifact
