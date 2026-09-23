@@ -111,8 +111,21 @@ function selectOpening(id){selectedOpening=id;document.querySelector("#selectedO
 function cycleOpening(id){const o=openings.find(x=>x.id===id);if(!o)return;o.open=(((Math.round(o.open*4)+1)%5)/4);renderInspector();document.querySelector("#scenario").textContent="MANUAL WHAT-IF";document.querySelector("#scenarioTitle").textContent=id+" → "+Math.round(o.open*100)+"%";document.querySelector("#forkState").textContent="LOCAL WHAT-IF · NOT BACKEND";document.querySelector("#fork").textContent="Fork backend origin"}
 function drawDeadZones(){for(const r of rooms){let sum=0,n=0;for(let y=r.y+24;y<r.y+r.h-16;y+=30)for(let x=r.x+24;x<r.x+r.w-16;x+=30){const q={seed:0},v=flowAt(x,y,q),s=Math.hypot(...v);sum+=s;n++;if(s<.48){ctx.strokeStyle="rgba(132,91,91,.18)";ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(x-6,y+6);ctx.lineTo(x+6,y-6);ctx.stroke()}}}}
 function drawPlan(){ctx.fillStyle="#080c0e";ctx.fillRect(0,0,1100,650);ctx.strokeStyle="#172126";ctx.lineWidth=1;for(let x=0;x<1100;x+=25){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,650);ctx.stroke()}for(let y=0;y<650;y+=25){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(1100,y);ctx.stroke()}for(const r of rooms){ctx.fillStyle="#0f1619";ctx.fillRect(r.x,r.y,r.w,r.h);ctx.strokeStyle="#6f8086";ctx.lineWidth=3;ctx.strokeRect(r.x,r.y,r.w,r.h);ctx.fillStyle="#728187";ctx.font="600 11px ui-monospace";ctx.fillText(r.name,r.x+14,r.y+22)}drawDeadZones();for(const o of openings){ctx.strokeStyle=o.open>.05?"#dce7e9":"#664f4f";ctx.lineWidth=8;ctx.beginPath();if(o.side==="bottom"||o.side==="internal-horizontal"){ctx.moveTo(o.x-32,o.y);ctx.lineTo(o.x+32,o.y)}else{ctx.moveTo(o.x,o.y-32);ctx.lineTo(o.x,o.y+32)}ctx.stroke();ctx.fillStyle="#9aa8ad";ctx.font="9px ui-monospace";ctx.fillText(o.id+" "+Math.round(o.open*100)+"%",o.x+9,o.y-38)}}
+function drawFlowSkeleton(){
+  const field=currentFrame?.field?.vectors;if(!field?.length)return;
+  ctx.save();ctx.globalCompositeOperation="screen";ctx.lineCap="round";
+  for(let i=0;i<field.length;i+=3){
+    const v=field[i],speed=Math.hypot(v[2],v[3]);if(speed<.28)continue;
+    const scale=Math.min(32,10+speed*18),mag=Math.max(.001,speed);
+    const ex=v[0]+v[2]/mag*scale,ey=v[1]+v[3]/mag*scale;
+    ctx.strokeStyle=`rgba(118,166,169,${Math.min(.12,(speed-.2)*.08)})`;
+    ctx.lineWidth=.45;ctx.beginPath();ctx.moveTo(v[0],v[1]);ctx.lineTo(ex,ey);ctx.stroke();
+  }
+  ctx.restore();
+}
 function frame(){
   drawPlan();
+  drawFlowSkeleton();
   ctx.save();
   ctx.globalCompositeOperation="screen";
   ctx.lineCap="round";ctx.lineJoin="round";
