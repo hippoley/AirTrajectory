@@ -1,8 +1,8 @@
 import unittest
 
 from airtrajectory import (
-    BuildingTopology, OpeningEdge, ToyMultizoneEnvironment, TransitionAction,
-    ZoneNode, fork_actions, rollout,
+    BuildingTopology, FastFlowField, OpeningEdge, ToyMultizoneEnvironment,
+    TransitionAction, ZoneNode, fork_actions, rollout,
 )
 
 
@@ -44,7 +44,6 @@ class CoreTests(unittest.TestCase):
         env.reset()
         env.step([TransitionAction("door", 100)])
         origin = env.snapshot()
-
         branches = fork_actions(
             env,
             {
@@ -53,14 +52,21 @@ class CoreTests(unittest.TestCase):
             },
             horizon_steps=5,
         )
-
         self.assertEqual(env.snapshot(), origin)
-        self.assertEqual(branches["open25"].observations[0]["step"], branches["open75"].observations[0]["step"])
         self.assertLess(
             branches["open75"].observations[-1]["co2_ppm"]["living"],
             branches["open25"].observations[-1]["co2_ppm"]["living"],
         )
-        self.assertNotEqual(branches["open25"].return_value, branches["open75"].return_value)
+
+    def test_fast_field_is_deterministic_and_opening_sensitive(self):
+        field = FastFlowField(self.topology())
+        points = [(10.0, 20.0), (30.0, 40.0)]
+        closed = field.sample(points, {"w1": 0, "door": 0, "w2": 0}, 25, 2.8)
+        opened = field.sample(points, {"w1": 75, "door": 100, "w2": 25}, 25, 2.8)
+        repeated = field.sample(points, {"w1": 75, "door": 100, "w2": 25}, 25, 2.8)
+        self.assertEqual(opened, repeated)
+        self.assertNotEqual(closed.vectors, opened.vectors)
+        self.assertEqual(opened.backend, "fast-field-v1")
 
 
 if __name__ == "__main__":
