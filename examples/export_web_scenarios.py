@@ -39,6 +39,7 @@ def build():
             "backend": sampled.backend,
             "wind_direction_deg": sampled.wind_direction_deg,
             "wind_speed_mps": sampled.wind_speed_mps,
+            "grid": {"x0": 180, "y0": 120, "dx": 35, "dy": 35, "nx": 19, "ny": 13},
             "vectors": [[round(v.x, 1), round(v.y, 1), round(v.vx, 4), round(v.vy, 4)] for v in sampled.vectors],
         }
     env.reset()
