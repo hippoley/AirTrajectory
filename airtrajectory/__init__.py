@@ -13,3 +13,5 @@ __all__ = [
 ]
 
 from .search import SearchResult, exhaustive_opening_search
+
+from .api import ForkRequest, fork_request
