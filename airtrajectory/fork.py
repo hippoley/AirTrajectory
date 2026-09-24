@@ -59,3 +59,11 @@ def fork_actions(
         env.restore(origin)
 
     return results
+
+
+
+def fork_window_levels(env: SnapshotableEnvironment, opening_id: str, levels=(0,25,50,75,100), horizon_steps: int = 30):
+    """Canonical five-way window counterfactual from the environment's current immutable state."""
+    candidates={("CLOSE" if pct==0 else "OPEN100" if pct==100 else f"VENT{pct}"):
+                [TransitionAction(opening_id,pct)] for pct in levels}
+    return fork_actions(env,candidates,horizon_steps=horizon_steps)
