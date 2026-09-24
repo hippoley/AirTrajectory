@@ -31,6 +31,15 @@ class CoreTests(unittest.TestCase):
         after, _, _, _, _ = env.step([TransitionAction("w1", 100)])
         self.assertLess(after["co2_ppm"]["living"], before["co2_ppm"]["living"])
 
+    def test_toy_backend_respects_dt_minutes(self):
+        fast = ToyMultizoneEnvironment(self.topology(), {"living": 1400, "bedroom": 900}, dt_minutes=1)
+        slow = ToyMultizoneEnvironment(self.topology(), {"living": 1400, "bedroom": 900}, dt_minutes=5)
+        fast.reset(); slow.reset()
+        a=[TransitionAction("w1",100)]
+        fast_after,_,_,_,_=fast.step(a)
+        slow_after,_,_,_,_=slow.step(a)
+        self.assertLess(slow_after["co2_ppm"]["living"], fast_after["co2_ppm"]["living"])
+
     def test_rollout_preserves_learning_fields(self):
         env = ToyMultizoneEnvironment(self.topology(), {"living": 1400, "bedroom": 900}, horizon_steps=4)
         def policy(_):
