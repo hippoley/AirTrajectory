@@ -74,6 +74,10 @@ jobs:
           grep -q 'function requestPhysicsRerun' web/lab.js
           grep -q 'TRAJECTORY STALE' web/lab.js
           grep -q 'id="topologyRevision"' web/index.html
+          grep -q 'function constrainOpeningToWall' web/lab.js
+          grep -q 'pointerdown' web/lab.js
+          grep -q 'pointerup' web/lab.js
+          grep -q 'moved along wall' web/lab.js
           grep -q 'id:"D2"' web/lab.js
           grep -q 'p.trail.length>20' web/lab.js
           grep -q 'Midpoint/RK2 advection' web/lab.js
