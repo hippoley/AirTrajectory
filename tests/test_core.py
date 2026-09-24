@@ -14,6 +14,7 @@ from airtrajectory.physical import PhysicalWindowEnvironment, RulePolicy, Safety
 from airtrajectory.drivers import FakePhysicalWindowDriver
 from airtrajectory.api import fork_request
 from airtrajectory.telemetry import DecisionTelemetry
+from airtrajectory.http_server import Handler
 
 
 class CoreTests(unittest.TestCase):
@@ -163,6 +164,14 @@ class CoreTests(unittest.TestCase):
         self.assertEqual(trace["attributes"]["request_id"],"tau-traced")
         self.assertEqual(trace["attributes"]["branch.count"],5)
         self.assertEqual(len([e for e in trace["events"] if e["name"]=="branch.result"]),5)
+
+    def test_fork_response_exposes_trace_id(self):
+        with tempfile.TemporaryDirectory() as d:
+            response=fork_request({"request_id":"trace-visible","topology_id":"demo-3zone","opening_id":"W1",
+                "origin":{"co2_ppm":{"living":1300,"bedroom":980,"study":840},"opening_pct":{"W1":50,"W2":0,"W3":0,"D1":100,"D2":100}},
+                "horizon_minutes":2},telemetry=DecisionTelemetry(Path(d)/"trace.jsonl"))
+        self.assertTrue(response["trace_id"])
+        self.assertEqual(response["request_id"],"trace-visible")
 
     def test_fork_request_rejects_unknown_topology(self):
         with self.assertRaisesRegex(ValueError,"unsupported topology_id"):
