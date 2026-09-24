@@ -1,10 +1,17 @@
+import json
+import tempfile
 import unittest
+from pathlib import Path
 
 from airtrajectory import (
     ActuatorFeedback, BuildingTopology, FastFlowField, OpeningEdge, SemanticAction,
     SensorReading, ToyMultizoneEnvironment, TransitionAction, ZoneNode,
-    exhaustive_opening_search, fork_actions, rollout,
+    TrajectoryStore, exhaustive_opening_search, fork_actions, rollout,
 )
+
+
+from airtrajectory.physical import PhysicalWindowEnvironment, RulePolicy, SafetyResolver, record_physical_trajectory
+from airtrajectory.drivers import FakePhysicalWindowDriver
 
 
 class CoreTests(unittest.TestCase):
@@ -50,6 +57,29 @@ class CoreTests(unittest.TestCase):
         feedback = ActuatorFeedback("actuator-w1", 1.0, estimated_position_pct=50, quality="estimated")
         self.assertIsNone(feedback.measured_position_pct)
         self.assertEqual(feedback.estimated_position_pct, 50)
+
+    def test_fake_physical_runtime_records_tau0_contract(self):
+        driver=FakePhysicalWindowDriver(co2_ppm=1400,measured_feedback=True)
+        env=PhysicalWindowEnvironment(driver,"w1")
+        with tempfile.TemporaryDirectory() as d:
+            store=TrajectoryStore(Path(d)/"tau0.jsonl")
+            trajectory=record_physical_trajectory(env,RulePolicy("w1"),SafetyResolver(),"physical-demo",store)
+            payload=json.loads((Path(d)/"tau0.jsonl").read_text().strip())
+        self.assertEqual(trajectory.environment_kind,"physical")
+        self.assertEqual(payload["context"]["reset_info"]["driver"],"FakePhysicalWindowDriver")
+        self.assertEqual(payload["steps"][0]["semantic_actions"][0]["command"],"VENT")
+        self.assertEqual(payload["steps"][0]["executed_actions"][0]["target_pct"],50)
+        self.assertEqual(payload["steps"][0]["actuator_feedback"][0]["measured_position_pct"],50)
+
+    def test_rain_safety_intervention_overrides_rule_policy(self):
+        driver=FakePhysicalWindowDriver(co2_ppm=1400,rain=True)
+        env=PhysicalWindowEnvironment(driver,"w1")
+        with tempfile.TemporaryDirectory() as d:
+            trajectory=record_physical_trajectory(env,RulePolicy("w1"),SafetyResolver(),"physical-demo",TrajectoryStore(Path(d)/"tau0.jsonl"))
+        step=trajectory.steps[0]
+        self.assertEqual(step.proposed_actions[0].target_pct,50)
+        self.assertEqual(step.executed_actions[0].target_pct,0)
+        self.assertEqual(step.intervention,"RAIN_SAFE_CLOSE")
 
     def test_invalid_topology_rejected(self):
         with self.assertRaises(ValueError):
