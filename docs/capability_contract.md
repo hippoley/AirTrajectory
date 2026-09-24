@@ -14,6 +14,11 @@ Every public claim should map to an executable check.
 | synthetic physical driver can exercise sensor → rule → safety → command → feedback → JSONL | `test_fake_physical_runtime_records_tau0_contract` |
 | rain safety can preserve proposed action while executing safe close | `test_rain_safety_intervention_overrides_rule_policy` |
 
+| stale sensor evidence blocks physical control | `test_stale_sensor_blocks_physical_control` |
+| deployments requiring measured position reject estimate-only feedback | `test_measured_feedback_gate_rejects_estimate_only_driver` |
+
+**Real τ₀ status: NOT CAPTURED.** A real τ₀ requires a non-fake driver, fresh sensor evidence, an actual actuator command, feedback provenance, and persisted trajectory output.
+
 > `FakePhysicalWindowDriver` is contract-test evidence only. It is not a real actuator integration and must never be presented as physical τ₀ evidence.
 
 Upcoming claims must not be added to the README until they have a corresponding test or evaluation.

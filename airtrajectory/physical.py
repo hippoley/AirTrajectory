@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
+import time
 from typing import Iterable, List, Optional
 from .trajectory import ActuatorFeedback, RewardVector, SemanticAction, Trajectory, TrajectoryStep, TrajectoryStore, TransitionAction
 
@@ -35,10 +36,20 @@ class RulePolicy:
         return [TransitionAction(self.opening_id,float(target or 0))]
 
 class PhysicalWindowEnvironment:
-    def __init__(self, driver: PhysicalWindowDriver, opening_id: str):
+    def __init__(self, driver: PhysicalWindowDriver, opening_id: str, max_sensor_age_s: float = 10.0, require_measured_feedback: bool = False):
         self.driver,self.opening_id,self.last_feedback=driver,opening_id,None
+        self.max_sensor_age_s=max_sensor_age_s
+        self.require_measured_feedback=require_measured_feedback
+    def _validate_readings(self, readings):
+        now=time.time()
+        stale=[r.sensor_id for r in readings if now-r.timestamp>self.max_sensor_age_s]
+        if stale: raise RuntimeError("stale sensor readings: "+",".join(stale))
+    def _validate_feedback(self, feedback):
+        if feedback.timestamp<=0: raise RuntimeError("actuator feedback missing timestamp")
+        if self.require_measured_feedback and feedback.measured_position_pct is None:
+            raise RuntimeError("measured actuator position required but unavailable")
     def _observe(self):
-        readings=self.driver.read_sensors(); by_type={r.sensor_type:r for r in readings}; f=self.last_feedback
+        readings=self.driver.read_sensors(); self._validate_readings(readings); by_type={r.sensor_type:r for r in readings}; f=self.last_feedback
         position=None if f is None else (f.measured_position_pct if f.measured_position_pct is not None else f.estimated_position_pct)
         return {"co2_ppm":by_type.get("co2").value if by_type.get("co2") else None,"rain":bool(by_type.get("rain").value) if by_type.get("rain") else False,"opening_pct":position,"sensor_readings":readings}
     def reset(self):
@@ -47,7 +58,7 @@ class PhysicalWindowEnvironment:
         feedback=[]
         for a in actions:
             if a.opening_id!=self.opening_id:raise KeyError(f"unknown physical opening: {a.opening_id}")
-            f=self.driver.set_position(a.opening_id,a.target_pct);feedback.append(f);self.last_feedback=f
+            f=self.driver.set_position(a.opening_id,a.target_pct);self._validate_feedback(f);feedback.append(f);self.last_feedback=f
         return self._observe(),RewardVector(),False,False,{"backend":"physical-window","actuator_feedback":feedback}
 
 def record_physical_trajectory(env,policy,resolver,topology_id,store,steps=1):
