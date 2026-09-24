@@ -271,7 +271,7 @@ function simulateTauFuture(origin,label,target){
  const co2=Math.max(450,Math.round(start-(start-450)*(.08+.42*ventilation)));
  return {label,target,executed,intervention:rain&&target>0?"RAIN_SAFE_CLOSE":null,origin_co2:start,end_co2:co2,delta_co2:co2-start,horizon_min:horizon,provenance:"browser-counterfactual · qualitative · not backend physics"};
 }
-const forkEndpoint=(new URLSearchParams(location.search).get("forkApi")||localStorage.getItem("airtrajectory.forkApi")||"").replace(/\\/$/,"");
+const forkEndpoint=(new URLSearchParams(location.search).get("forkApi")||localStorage.getItem("airtrajectory.forkApi")||"").replace(/\/$/,"");
 async function requestBackendFork(origin,index){
  if(!forkEndpoint) return null;
  const s=origin.next_observation||origin.observation;
