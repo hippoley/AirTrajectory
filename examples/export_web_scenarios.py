@@ -1,7 +1,7 @@
 import json
 from pathlib import Path
 
-from airtrajectory import BuildingTopology, FastFlowField, OpeningEdge, ToyMultizoneEnvironment, TransitionAction, ZoneNode, exhaustive_opening_search
+from airtrajectory import BuildingTopology, FastFlowField, OpeningEdge, ToyMultizoneEnvironment, TransitionAction, ZoneNode, exhaustive_opening_search, fork_window_levels
 
 
 def normalized_vector(branch):
@@ -60,6 +60,25 @@ def build():
         horizon_steps=30,
         top_k=4,
     )
+    # Canonical backend counterfactual artifact from a known post-action origin.
+    tau_env = ToyMultizoneEnvironment(topology, {"living":1260,"bedroom":980,"study":840}, dt_minutes=1, horizon_steps=60)
+    tau_env.reset()
+    tau_env.step([TransitionAction("D1",100),TransitionAction("D2",100),TransitionAction("W1",50)])
+    tau_origin=tau_env.snapshot()
+    tau_branches=fork_window_levels(tau_env,"W1",horizon_steps=30)
+    tau_forks={
+        "origin":{"kind":"post-action-snapshot","backend":"toy-multizone-v1","state":tau_origin},
+        "horizon_minutes":30,
+        "branches":[{
+            "label":label,
+            "target_pct":branch.actions[0].target_pct,
+            "end_co2_ppm":round(branch.observations[-1]["co2_ppm"]["living"]),
+            "series":[round(o["co2_ppm"]["living"]) for o in branch.observations],
+            "return":round(branch.return_value,3),
+            "provenance":"backend-generated · toy-multizone-v1 · not engineering truth",
+        } for label,branch in tau_branches.items()]
+    }
+
     payload = {
         "schema_version": "0.3",
         "backend": "toy-multizone-v1",
@@ -76,6 +95,7 @@ def build():
             "opening_flow_estimate": "local FastFlowField speed × opening area × opening fraction; qualitative, not calibrated m3/s",
         },
         "scenarios": [],
+        "tau_forks": tau_forks,
     }
     for result in ranked:
         name, branch = result.label, result.branch
