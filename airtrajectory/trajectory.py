@@ -16,6 +16,41 @@ class TransitionAction:
             raise ValueError("target_pct must be in [0, 100]")
 
 
+@dataclass(frozen=True)
+class SemanticAction:
+    target_type: str
+    target_id: str
+    command: str
+    value: Any = None
+
+
+@dataclass(frozen=True)
+class SensorReading:
+    sensor_id: str
+    sensor_type: str
+    value: float
+    unit: str
+    timestamp: float
+    quality: str = "unknown"
+
+
+@dataclass(frozen=True)
+class ActuatorFeedback:
+    actuator_id: str
+    timestamp: float
+    measured_position_pct: Optional[float] = None
+    estimated_position_pct: Optional[float] = None
+    quality: str = "unknown"
+
+    def __post_init__(self):
+        for name, value in (
+            ("measured_position_pct", self.measured_position_pct),
+            ("estimated_position_pct", self.estimated_position_pct),
+        ):
+            if value is not None and not 0 <= value <= 100:
+                raise ValueError(f"{name} must be in [0, 100]")
+
+
 @dataclass
 class RewardVector:
     iaq: float = 0.0
@@ -45,6 +80,9 @@ class TrajectoryStep:
     executed_actions: List[TransitionAction]
     next_observation: Dict[str, Any]
     reward: RewardVector
+    semantic_actions: List[SemanticAction] = field(default_factory=list)
+    sensor_readings: List[SensorReading] = field(default_factory=list)
+    actuator_feedback: List[ActuatorFeedback] = field(default_factory=list)
     intervention: Optional[str] = None
     terminated: bool = False
     info: Dict[str, Any] = field(default_factory=dict)
@@ -54,6 +92,8 @@ class TrajectoryStep:
 class Trajectory:
     topology_id: str
     policy_id: str
+    schema_version: str = "0.2"
+    environment_kind: str = "simulation"
     id: str = field(default_factory=lambda: str(uuid.uuid4()))
     created_at: float = field(default_factory=time.time)
     context: Dict[str, Any] = field(default_factory=dict)

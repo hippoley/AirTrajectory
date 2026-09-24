@@ -1,8 +1,9 @@
 import unittest
 
 from airtrajectory import (
-    BuildingTopology, FastFlowField, OpeningEdge, ToyMultizoneEnvironment,
-    TransitionAction, ZoneNode, exhaustive_opening_search, fork_actions, rollout,
+    ActuatorFeedback, BuildingTopology, FastFlowField, OpeningEdge, SemanticAction,
+    SensorReading, ToyMultizoneEnvironment, TransitionAction, ZoneNode,
+    exhaustive_opening_search, fork_actions, rollout,
 )
 
 
@@ -31,6 +32,24 @@ class CoreTests(unittest.TestCase):
         self.assertEqual(len(trajectory.steps), 4)
         self.assertEqual(trajectory.steps[0].proposed_actions, trajectory.steps[0].executed_actions)
         self.assertIn("co2_ppm", trajectory.steps[-1].next_observation)
+
+    def test_physical_trajectory_schema_preserves_semantic_and_feedback_layers(self):
+        env = ToyMultizoneEnvironment(self.topology(), {"living": 1400, "bedroom": 900}, horizon_steps=1)
+        trajectory = rollout(env, lambda _: [TransitionAction("w1", 50)], "two-room", "rule-v1", max_steps=1)
+        step = trajectory.steps[0]
+        step.semantic_actions.append(SemanticAction("window_group", "living_windows", "VENT", 50))
+        step.sensor_readings.append(SensorReading("co2-living", "co2", 1400, "ppm", 1.0, "good"))
+        step.actuator_feedback.append(ActuatorFeedback("actuator-w1", 2.0, measured_position_pct=48))
+        payload = trajectory.to_dict()
+        self.assertEqual(payload["schema_version"], "0.2")
+        self.assertEqual(payload["steps"][0]["semantic_actions"][0]["command"], "VENT")
+        self.assertEqual(payload["steps"][0]["actuator_feedback"][0]["measured_position_pct"], 48)
+        self.assertIsNone(payload["steps"][0]["actuator_feedback"][0]["estimated_position_pct"])
+
+    def test_feedback_separates_measured_and_estimated_position(self):
+        feedback = ActuatorFeedback("actuator-w1", 1.0, estimated_position_pct=50, quality="estimated")
+        self.assertIsNone(feedback.measured_position_pct)
+        self.assertEqual(feedback.estimated_position_pct, 50)
 
     def test_invalid_topology_rejected(self):
         with self.assertRaises(ValueError):
