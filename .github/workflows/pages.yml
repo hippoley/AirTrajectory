@@ -90,6 +90,10 @@ jobs:
           grep -q 'function physicalStep' web/lab.js
           grep -q 'RAIN_SAFE_CLOSE' web/lab.js
           grep -q 'browser-simulated' web/lab.js
+          grep -q 'SESSION TRAJECTORY' web/index.html
+          grep -q 'function renderPhysicalTimeline' web/lab.js
+          grep -q 'w1.open=executed/100' web/lab.js
+          grep -q 'class="tau-step' web/lab.js
           grep -q 'id:"D2"' web/lab.js
           grep -q 'p.trail.length>20' web/lab.js
           grep -q 'Midpoint/RK2 advection' web/lab.js

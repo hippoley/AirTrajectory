@@ -261,11 +261,21 @@ const physicalCo2=document.querySelector("#physicalCo2"),physicalRain=document.q
 let physicalPosition=0,browserTau=[];
 function physicalObservation(){return {co2_ppm:+physicalCo2.value,rain:physicalRain.checked,opening_pct:physicalPosition}}
 function renderPhysicalObservation(){const o=physicalObservation();document.querySelector("#physicalCo2Label").textContent=o.co2_ppm+" ppm";document.querySelector("#evObserve").textContent="CO₂ "+o.co2_ppm+" · "+(o.rain?"RAIN":"DRY")}
+function renderPhysicalTimeline(){
+ const el=document.querySelector("#physicalTimeline");
+ if(!browserTau.length){el.innerHTML='<span class="empty">No control steps yet</span>';return}
+ el.innerHTML=browserTau.map((s,i)=>'<button type="button" class="tau-step'+(s.intervention?' intervened':'')+'" data-tau="'+i+'"><small>τ'+String(i).padStart(2,'0')+'</small><b>'+s.semantic_action+'</b><span>'+s.proposed_action.target_pct+'→'+s.executed_action.target_pct+'%</span></button>').join("");
+ el.querySelectorAll("[data-tau]").forEach(btn=>btn.addEventListener("click",()=>{const step=browserTau[+btn.dataset.tau];document.querySelector("#tauReceipt").textContent=JSON.stringify(step,null,2);document.querySelector("#tauReceipt").scrollIntoView({block:"nearest"})}))
+}
 function physicalStep(target,semantic){
  const o=physicalObservation(),proposed=target,executed=o.rain&&target>0?0:target,intervention=o.rain&&target>0?"RAIN_SAFE_CLOSE":null;
  physicalPosition=executed;
  const step={index:browserTau.length,environment_kind:"browser-contract",observation:o,semantic_action:semantic,proposed_action:{opening_id:"W1",target_pct:proposed},intervention,executed_action:{opening_id:"W1",target_pct:executed},actuator_feedback:{measured_position_pct:null,estimated_position_pct:executed,quality:"browser-simulated"}};
  browserTau.push(step);
+ const w1=openings.find(o=>o.id==="W1");w1.open=executed/100;
+ selectedOpening="W1";renderOpeningInspector();
+ document.querySelector("#selectedOpening").textContent="W1 · PHYSICAL SESSION "+executed+"%";
+ renderPhysicalTimeline();
  document.querySelector("#evPropose").textContent=semantic+" · "+proposed+"%";
  document.querySelector("#evSafety").textContent=intervention||"PASS";
  document.querySelector("#evExecute").textContent="W1 → "+executed+"%";
@@ -273,11 +283,12 @@ function physicalStep(target,semantic){
  document.querySelector("#tauCount").textContent=browserTau.length+" step"+(browserTau.length===1?"":"s")+" captured";
  document.querySelector("#tauReceipt").textContent=JSON.stringify(step,null,2);
  renderPhysicalObservation();
+renderPhysicalTimeline();
 }
 physicalCo2.addEventListener("input",renderPhysicalObservation);
 physicalRain.addEventListener("change",renderPhysicalObservation);
 document.querySelector("#ruleStep").addEventListener("click",()=>{const o=physicalObservation();if(o.co2_ppm>1200)physicalStep(50,"VENT");else if(o.co2_ppm<800)physicalStep(0,"CLOSE");else physicalStep(o.opening_pct,"HOLD")});
 document.querySelector("#manualVent").addEventListener("click",()=>physicalStep(50,"VENT"));
 document.querySelector("#manualClose").addEventListener("click",()=>physicalStep(0,"CLOSE"));
-document.querySelector("#resetTau").addEventListener("click",()=>{browserTau=[];physicalPosition=0;["#evPropose","#evExecute","#evFeedback"].forEach(s=>document.querySelector(s).textContent="—");document.querySelector("#evSafety").textContent="WAITING";document.querySelector("#tauCount").textContent="0 steps captured";document.querySelector("#tauReceipt").textContent="Run a step to produce browser-only evidence.";renderPhysicalObservation()});
+document.querySelector("#resetTau").addEventListener("click",()=>{browserTau=[];physicalPosition=0;const w1=openings.find(o=>o.id==="W1");w1.open=0;renderOpeningInspector();renderPhysicalTimeline();["#evPropose","#evExecute","#evFeedback"].forEach(s=>document.querySelector(s).textContent="—");document.querySelector("#evSafety").textContent="WAITING";document.querySelector("#tauCount").textContent="0 steps captured";document.querySelector("#tauReceipt").textContent="Run a step to produce browser-only evidence.";renderPhysicalObservation()});
 renderPhysicalObservation();
