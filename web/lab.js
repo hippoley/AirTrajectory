@@ -1,5 +1,5 @@
 const canvas=document.querySelector("#lab"),ctx=canvas.getContext("2d"),windEl=document.querySelector("#wind"),speedEl=document.querySelector("#speed");
-const rooms=[{x:180,y:120,w:350,h:250,name:"LIVING"},{x:530,y:120,w:300,h:250,name:"BEDROOM"},{x:350,y:370,w:480,h:170,name:"STUDY"}],openings=[{id:"W1",x:180,y:210,side:"left",open:.65},{id:"W2",x:830,y:205,side:"right",open:.35},{id:"W3",x:720,y:540,side:"bottom",open:.55},{id:"D1",x:530,y:260,side:"internal",open:1},{id:"D2",x:440,y:370,side:"internal-horizontal",open:1}];
+const rooms=[{id:"living",x:180,y:120,w:350,h:250,name:"LIVING"},{id:"bedroom",x:530,y:120,w:300,h:250,name:"BEDROOM"},{id:"study",x:350,y:370,w:480,h:170,name:"STUDY"}],openings=[{id:"W1",wallId:"living-west",t:.36,x:180,y:210,side:"left",open:.65},{id:"W2",wallId:"bedroom-east",t:.34,x:830,y:205,side:"right",open:.35},{id:"W3",wallId:"study-south",t:.77,x:720,y:540,side:"bottom",open:.55},{id:"D1",wallId:"living-bedroom",t:.56,x:530,y:260,side:"internal",open:1},{id:"D2",wallId:"living-study",t:.5,x:440,y:370,side:"internal-horizontal",open:1}];
 const fallback=[{name:"W1 · 25%",opens:[.25,.35,.55,1],co2:1045,series:[1260,1205,1162,1119,1081,1045],return:-8.2},{name:"W1 · 50%",opens:[.5,.35,.55,1],co2:925,series:[1260,1168,1090,1025,971,925],return:-7.1},{name:"W1 · 75%",opens:[.75,.35,.55,1],co2:842,series:[1260,1130,1030,952,891,842],return:-6.5},{name:"Cross-flow · W1 + W3",opens:[.55,.25,.85,1],co2:795,series:[1260,1108,1001,915,847,795],return:-6.1}];
 let scenarios=fallback,baseline=1260,selected=0,cursor=0,timer=null,currentFrame=null,selectedOpening=null,objective="balanced",viewMode="flow",topologyRevision=0,trajectoryRevision=0,trajectoryStale=false,dragOpening=null,dragMoved=false,dragWall=null;
 async function loadScenarios(){const h=document.querySelector("#health");try{const r=await fetch("./data/scenarios.json",{cache:"no-store"});if(!r.ok)throw 0;const p=await r.json();if(!Array.isArray(p.scenarios)||p.scenarios.length<4)throw 0;scenarios=p.scenarios;baseline=p.baseline_co2;document.querySelector("#backendName").textContent=p.backend.toUpperCase();h.className="health ok";h.querySelector("b").textContent="BACKEND ARTIFACT READY"}catch(e){h.className="health fallback";h.querySelector("b").textContent="INTERACTIVE FALLBACK";document.querySelector("#backendName").textContent="FAST FALLBACK"}renderBranches();applyFrame(0,0);updateVector(scenarios[0])}
@@ -158,24 +158,36 @@ function renderInspector(){
   box.innerHTML=openings.map(o=>{const f=openingFlow(o),relative=f==null?o.open:f/maxFlow,label=f==null?`${Math.round(o.open*100)}%`:`${f.toFixed(3)} q`;return `<div class="opening-row ${selectedOpening===o.id?"active":""}" data-opening="${o.id}"><b>${o.id}</b><div class="fluxbar"><i style="width:${Math.round(relative*100)}%"></i></div><strong>${label}</strong></div>`}).join("");
   box.querySelectorAll(".opening-row").forEach(row=>row.onclick=()=>selectOpening(row.dataset.opening));
 }
+function room(id){return rooms.find(r=>r.id===id)}
+function wallSegment(id){
+  const l=room("living"),b=room("bedroom"),s=room("study");
+  if(id==="living-west")return{x1:l.x,y1:l.y,x2:l.x,y2:l.y+l.h};
+  if(id==="bedroom-east")return{x1:b.x+b.w,y1:b.y,x2:b.x+b.w,y2:b.y+b.h};
+  if(id==="study-south")return{x1:s.x,y1:s.y+s.h,x2:s.x+s.w,y2:s.y+s.h};
+  if(id==="living-bedroom")return{x1:l.x+l.w,y1:Math.max(l.y,b.y),x2:l.x+l.w,y2:Math.min(l.y+l.h,b.y+b.h)};
+  if(id==="living-study"){const x1=Math.max(l.x,s.x),x2=Math.min(l.x+l.w,s.x+s.w);return{x1,y1:l.y+l.h,x2,y2:l.y+l.h}}
+  return null;
+}
+function syncOpeningGeometry(o){
+  const w=wallSegment(o.wallId);if(!w)return;
+  o.x=w.x1+(w.x2-w.x1)*o.t;o.y=w.y1+(w.y2-w.y1)*o.t;
+}
+function syncAllOpeningGeometry(){openings.forEach(syncOpeningGeometry)}
 function hitSharedWall(x,y){return Math.abs(x-rooms[0].x-rooms[0].w)<12&&y>=rooms[0].y+38&&y<=rooms[0].y+rooms[0].h-38}
 function resizeLivingBedroomWall(x){
   const living=rooms[0],bed=rooms[1],left=living.x,right=bed.x+bed.w,minW=220;
   const split=Math.max(left+minW,Math.min(right-minW,x));
   living.w=split-left;bed.x=split;bed.w=right-split;
-  const d1=openings.find(o=>o.id==="D1"),w2=openings.find(o=>o.id==="W2");
-  d1.x=split;w2.x=right;
-  constrainOpeningToWall(d1,d1.x,d1.y);constrainOpeningToWall(w2,w2.x,w2.y);
+  syncAllOpeningGeometry();
 }
 function canvasPoint(e){const rect=canvas.getBoundingClientRect();return{x:(e.clientX-rect.left)*canvas.width/rect.width,y:(e.clientY-rect.top)*canvas.height/rect.height}}
 function hitOpening(x,y){let hit=null,dist=Infinity;for(const o of openings){const d=Math.hypot(o.x-x,o.y-y);if(d<dist&&d<55){hit=o;dist=d}}return hit}
 function constrainOpeningToWall(o,x,y){
-  const pad=36;
-  if(o.id==="W1"){const r=rooms[0];o.x=r.x;o.y=Math.max(r.y+pad,Math.min(r.y+r.h-pad,y))}
-  else if(o.id==="W2"){const r=rooms[1];o.x=r.x+r.w;o.y=Math.max(r.y+pad,Math.min(r.y+r.h-pad,y))}
-  else if(o.id==="W3"){o.y=540;o.x=Math.max(350+pad,Math.min(830-pad,x))}
-  else if(o.id==="D1"){const r=rooms[0];o.x=r.x+r.w;o.y=Math.max(r.y+pad,Math.min(r.y+r.h-pad,y))}
-  else if(o.id==="D2"){o.y=370;o.x=Math.max(350+pad,Math.min(530-pad,x))}
+  const w=wallSegment(o.wallId);if(!w)return;
+  const dx=w.x2-w.x1,dy=w.y2-w.y1,len2=dx*dx+dy*dy;
+  const raw=len2?((x-w.x1)*dx+(y-w.y1)*dy)/len2:.5;
+  const length=Math.sqrt(len2),margin=Math.min(.45,36/Math.max(1,length));
+  o.t=Math.max(margin,Math.min(1-margin,raw));syncOpeningGeometry(o);
 }
 function selectOpening(id){selectedOpening=id;document.querySelector("#selectedOpening").textContent=id+" · BACKEND FLOW";renderInspector()}
 function cycleOpening(id){const o=openings.find(x=>x.id===id);if(!o)return;o.open=(((Math.round(o.open*4)+1)%5)/4);renderInspector();invalidateTrajectory(id+" → "+Math.round(o.open*100)+"%") }
