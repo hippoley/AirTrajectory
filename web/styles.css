@@ -4,3 +4,5 @@
 .hidden{display:none!important}.rerun{background:#2a2020;color:#e5c4bc;border:1px solid #5a3b36}.backend span{color:#829095}
 
 #lab{touch-action:none;cursor:crosshair}#lab.dragging-opening{cursor:grabbing}
+
+#lab.resizing-wall{cursor:col-resize}
