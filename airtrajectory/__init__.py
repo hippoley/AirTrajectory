@@ -2,7 +2,7 @@ from .topology import BuildingTopology, OpeningEdge, ZoneNode
 from .trajectory import ActuatorFeedback, RewardVector, SemanticAction, SensorReading, Trajectory, TrajectoryStep, TrajectoryStore, TransitionAction
 from .environment import SnapshotableEnvironment, VentilationEnvironment, ToyMultizoneEnvironment
 from .field import FastFlowField, FlowField, FlowVector
-from .fork import BranchResult, fork_actions
+from .fork import BranchResult, fork_actions, fork_window_levels
 from .rollout import rollout
 
 __all__ = [
