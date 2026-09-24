@@ -91,7 +91,8 @@ class ToyMultizoneEnvironment(SnapshotableEnvironment):
             fraction = self.openings[edge.id] / 100.0
             if fraction <= 0:
                 continue
-            rate = min(0.18, 0.02 + 0.12 * fraction * edge.max_area_m2)
+            rate_per_minute = 0.02 + 0.12 * fraction * edge.max_area_m2
+            rate = min(0.95, rate_per_minute * self.dt_minutes)
             if edge.source == self.topology.outside_id or edge.target == self.topology.outside_id:
                 zone = edge.target if edge.source == self.topology.outside_id else edge.source
                 next_co2[zone] += (self.outdoor_co2 - old[zone]) * rate
