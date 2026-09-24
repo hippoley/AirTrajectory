@@ -6,7 +6,7 @@ from pathlib import Path
 from airtrajectory import (
     ActuatorFeedback, BuildingTopology, FastFlowField, OpeningEdge, SemanticAction,
     SensorReading, ToyMultizoneEnvironment, TransitionAction, ZoneNode,
-    TrajectoryStore, exhaustive_opening_search, fork_actions, rollout,
+    TrajectoryStore, exhaustive_opening_search, fork_actions, fork_window_levels, rollout,
 )
 
 
@@ -126,6 +126,15 @@ class CoreTests(unittest.TestCase):
             branches["open75"].observations[-1]["co2_ppm"]["living"],
             branches["open25"].observations[-1]["co2_ppm"]["living"],
         )
+
+    def test_canonical_window_fork_has_five_branches_and_restores_origin(self):
+        env=ToyMultizoneEnvironment(self.topology(),{"living":1400,"bedroom":900},horizon_steps=40)
+        env.reset(); env.step([TransitionAction("door",100),TransitionAction("w1",50)])
+        origin=env.snapshot()
+        branches=fork_window_levels(env,"w1",horizon_steps=5)
+        self.assertEqual(list(branches),["CLOSE","VENT25","VENT50","VENT75","OPEN100"])
+        self.assertEqual(env.snapshot(),origin)
+        self.assertLess(branches["OPEN100"].observations[-1]["co2_ppm"]["living"],branches["CLOSE"].observations[-1]["co2_ppm"]["living"])
 
     def test_fast_field_is_deterministic_and_opening_sensitive(self):
         field = FastFlowField(self.topology())
