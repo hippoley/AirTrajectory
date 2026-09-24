@@ -1,7 +1,7 @@
 const canvas=document.querySelector("#lab"),ctx=canvas.getContext("2d"),windEl=document.querySelector("#wind"),speedEl=document.querySelector("#speed");
 const rooms=[{x:180,y:120,w:350,h:250,name:"LIVING"},{x:530,y:120,w:300,h:250,name:"BEDROOM"},{x:350,y:370,w:480,h:170,name:"STUDY"}],openings=[{id:"W1",x:180,y:210,side:"left",open:.65},{id:"W2",x:830,y:205,side:"right",open:.35},{id:"W3",x:720,y:540,side:"bottom",open:.55},{id:"D1",x:530,y:260,side:"internal",open:1},{id:"D2",x:440,y:370,side:"internal-horizontal",open:1}];
 const fallback=[{name:"W1 · 25%",opens:[.25,.35,.55,1],co2:1045,series:[1260,1205,1162,1119,1081,1045],return:-8.2},{name:"W1 · 50%",opens:[.5,.35,.55,1],co2:925,series:[1260,1168,1090,1025,971,925],return:-7.1},{name:"W1 · 75%",opens:[.75,.35,.55,1],co2:842,series:[1260,1130,1030,952,891,842],return:-6.5},{name:"Cross-flow · W1 + W3",opens:[.55,.25,.85,1],co2:795,series:[1260,1108,1001,915,847,795],return:-6.1}];
-let scenarios=fallback,baseline=1260,selected=0,cursor=0,timer=null,currentFrame=null,selectedOpening=null,objective="balanced",viewMode="flow",topologyRevision=0,trajectoryRevision=0,trajectoryStale=false,dragOpening=null,dragMoved=false;
+let scenarios=fallback,baseline=1260,selected=0,cursor=0,timer=null,currentFrame=null,selectedOpening=null,objective="balanced",viewMode="flow",topologyRevision=0,trajectoryRevision=0,trajectoryStale=false,dragOpening=null,dragMoved=false,dragWall=null;
 async function loadScenarios(){const h=document.querySelector("#health");try{const r=await fetch("./data/scenarios.json",{cache:"no-store"});if(!r.ok)throw 0;const p=await r.json();if(!Array.isArray(p.scenarios)||p.scenarios.length<4)throw 0;scenarios=p.scenarios;baseline=p.baseline_co2;document.querySelector("#backendName").textContent=p.backend.toUpperCase();h.className="health ok";h.querySelector("b").textContent="BACKEND ARTIFACT READY"}catch(e){h.className="health fallback";h.querySelector("b").textContent="INTERACTIVE FALLBACK";document.querySelector("#backendName").textContent="FAST FALLBACK"}renderBranches();applyFrame(0,0);updateVector(scenarios[0])}
 // Filament renderer: persistent pathlines, not decorative dots.
 const PARTICLE_BUDGET=620;
@@ -158,14 +158,23 @@ function renderInspector(){
   box.innerHTML=openings.map(o=>{const f=openingFlow(o),relative=f==null?o.open:f/maxFlow,label=f==null?`${Math.round(o.open*100)}%`:`${f.toFixed(3)} q`;return `<div class="opening-row ${selectedOpening===o.id?"active":""}" data-opening="${o.id}"><b>${o.id}</b><div class="fluxbar"><i style="width:${Math.round(relative*100)}%"></i></div><strong>${label}</strong></div>`}).join("");
   box.querySelectorAll(".opening-row").forEach(row=>row.onclick=()=>selectOpening(row.dataset.opening));
 }
+function hitSharedWall(x,y){return Math.abs(x-rooms[0].x-rooms[0].w)<12&&y>=rooms[0].y+38&&y<=rooms[0].y+rooms[0].h-38}
+function resizeLivingBedroomWall(x){
+  const living=rooms[0],bed=rooms[1],left=living.x,right=bed.x+bed.w,minW=220;
+  const split=Math.max(left+minW,Math.min(right-minW,x));
+  living.w=split-left;bed.x=split;bed.w=right-split;
+  const d1=openings.find(o=>o.id==="D1"),w2=openings.find(o=>o.id==="W2");
+  d1.x=split;w2.x=right;
+  constrainOpeningToWall(d1,d1.x,d1.y);constrainOpeningToWall(w2,w2.x,w2.y);
+}
 function canvasPoint(e){const rect=canvas.getBoundingClientRect();return{x:(e.clientX-rect.left)*canvas.width/rect.width,y:(e.clientY-rect.top)*canvas.height/rect.height}}
 function hitOpening(x,y){let hit=null,dist=Infinity;for(const o of openings){const d=Math.hypot(o.x-x,o.y-y);if(d<dist&&d<55){hit=o;dist=d}}return hit}
 function constrainOpeningToWall(o,x,y){
   const pad=36;
-  if(o.id==="W1"){o.x=180;o.y=Math.max(120+pad,Math.min(370-pad,y))}
-  else if(o.id==="W2"){o.x=830;o.y=Math.max(120+pad,Math.min(370-pad,y))}
+  if(o.id==="W1"){const r=rooms[0];o.x=r.x;o.y=Math.max(r.y+pad,Math.min(r.y+r.h-pad,y))}
+  else if(o.id==="W2"){const r=rooms[1];o.x=r.x+r.w;o.y=Math.max(r.y+pad,Math.min(r.y+r.h-pad,y))}
   else if(o.id==="W3"){o.y=540;o.x=Math.max(350+pad,Math.min(830-pad,x))}
-  else if(o.id==="D1"){o.x=530;o.y=Math.max(120+pad,Math.min(370-pad,y))}
+  else if(o.id==="D1"){const r=rooms[0];o.x=r.x+r.w;o.y=Math.max(r.y+pad,Math.min(r.y+r.h-pad,y))}
   else if(o.id==="D2"){o.y=370;o.x=Math.max(350+pad,Math.min(530-pad,x))}
 }
 function selectOpening(id){selectedOpening=id;document.querySelector("#selectedOpening").textContent=id+" · BACKEND FLOW";renderInspector()}
@@ -228,10 +237,10 @@ function spark(series){const min=Math.min(...series),max=Math.max(...series),spa
 document.querySelector("#fork").onclick=()=>{if(trajectoryStale)return;renderBranches();stop();document.querySelector("#forkState").textContent="BACKEND ORIGIN";applyFrame(2,0)};document.querySelector("#strategy").onclick=()=>{if(trajectoryStale)return;renderBranches();const best=scenarios.reduce((b,s,i,a)=>objectiveScore(s)>objectiveScore(a[b])?i:b,0);stop();applyFrame(best,0);updateVector(scenarios[best]);play()};document.querySelector("#play").onclick=play;document.querySelector("#scrubber").oninput=e=>{stop();applyFrame(selected,+e.target.value)};windEl.oninput=()=>document.querySelector("#windLabel").textContent=`${windEl.value}°`;speedEl.oninput=()=>{document.querySelector("#speedLabel").textContent=`${(+speedEl.value).toFixed(1)} m/s`;renderInspector()};const tl=document.querySelector("#timeline");for(let i=0;i<9;i++){const n=document.createElement("div");n.className="node"+(i===5?" active":"");tl.append(n);if(i<8){const l=document.createElement("div");l.className="line";tl.append(l)}}loadScenarios();frame();
 canvas.addEventListener("mousemove",e=>{const rect=canvas.getBoundingClientRect(),x=(e.clientX-rect.left)*canvas.width/rect.width,y=(e.clientY-rect.top)*canvas.height/rect.height,r=inside(x,y),p=document.querySelector("#probe");if(!r){p.classList.add("hidden");return}const key=r.name.toLowerCase(),co2=currentFrame?.co2?.[key],v=backendVelocity(x,y)||flowAt(x,y,{seed:0}),speed=Math.hypot(...v);p.classList.remove("hidden");p.style.left=Math.min(rect.width-155,e.clientX-rect.left+14)+"px";p.style.top=Math.max(55,e.clientY-rect.top-18)+"px";document.querySelector("#probeRoom").textContent=r.name;document.querySelector("#probeValue").textContent=(co2!=null?co2+" ppm · ":"")+speed.toFixed(2)+(currentFrame?.field?" backend field":" flow proxy")});canvas.addEventListener("mouseleave",()=>document.querySelector("#probe").classList.add("hidden"));renderInspector();
 document.querySelectorAll(".preset").forEach(btn=>btn.onclick=()=>{objective=btn.dataset.preset;document.querySelectorAll(".preset").forEach(x=>x.classList.toggle("active",x===btn));renderBranches()});
-canvas.addEventListener("pointerdown",e=>{const p=canvasPoint(e),hit=hitOpening(p.x,p.y);if(!hit)return;dragOpening=hit;dragMoved=false;canvas.classList.add("dragging-opening");selectOpening(hit.id);document.querySelector("#selectedOpening").textContent=hit.id+" · DRAG ALONG WALL";canvas.setPointerCapture(e.pointerId)});
-canvas.addEventListener("pointermove",e=>{if(!dragOpening)return;const p=canvasPoint(e),ox=dragOpening.x,oy=dragOpening.y;constrainOpeningToWall(dragOpening,p.x,p.y);if(Math.hypot(dragOpening.x-ox,dragOpening.y-oy)>.5)dragMoved=true});
-canvas.addEventListener("pointerup",e=>{if(!dragOpening)return;const edited=dragOpening,moved=dragMoved;dragOpening=null;dragMoved=false;canvas.classList.remove("dragging-opening");if(canvas.hasPointerCapture(e.pointerId))canvas.releasePointerCapture(e.pointerId);if(moved)invalidateTrajectory(edited.id+" moved along wall");else cycleOpening(edited.id)});
-canvas.addEventListener("pointercancel",()=>{dragOpening=null;dragMoved=false;canvas.classList.remove("dragging-opening")});
+canvas.addEventListener("pointerdown",e=>{const p=canvasPoint(e),hit=hitOpening(p.x,p.y);if(hit){dragOpening=hit;dragMoved=false;canvas.classList.add("dragging-opening");selectOpening(hit.id);document.querySelector("#selectedOpening").textContent=hit.id+" · DRAG ALONG WALL";canvas.setPointerCapture(e.pointerId);return}if(hitSharedWall(p.x,p.y)){dragWall={startX:p.x};canvas.classList.add("resizing-wall");canvas.setPointerCapture(e.pointerId)}});
+canvas.addEventListener("pointermove",e=>{const p=canvasPoint(e);if(dragOpening){const ox=dragOpening.x,oy=dragOpening.y;constrainOpeningToWall(dragOpening,p.x,p.y);if(Math.hypot(dragOpening.x-ox,dragOpening.y-oy)>.5)dragMoved=true;return}if(dragWall)resizeLivingBedroomWall(p.x)});
+canvas.addEventListener("pointerup",e=>{if(dragWall){const changed=Math.abs(canvasPoint(e).x-dragWall.startX)>1;dragWall=null;canvas.classList.remove("resizing-wall");if(canvas.hasPointerCapture(e.pointerId))canvas.releasePointerCapture(e.pointerId);if(changed)invalidateTrajectory("Living / Bedroom shared wall resized");return}if(!dragOpening)return;const edited=dragOpening,moved=dragMoved;dragOpening=null;dragMoved=false;canvas.classList.remove("dragging-opening");if(canvas.hasPointerCapture(e.pointerId))canvas.releasePointerCapture(e.pointerId);if(moved)invalidateTrajectory(edited.id+" moved along wall");else cycleOpening(edited.id)});
+canvas.addEventListener("pointercancel",()=>{dragOpening=null;dragMoved=false;dragWall=null;canvas.classList.remove("dragging-opening","resizing-wall")});
 document.querySelectorAll(".view").forEach(btn=>btn.onclick=()=>{viewMode=btn.dataset.view;document.querySelectorAll(".view").forEach(x=>x.classList.toggle("active",x===btn));const legend=document.querySelector("#viewLegend");legend.innerHTML=viewMode==="flow"?"<span>→ backend direction</span><span>· filament magnitude</span><span>∷ opening flow</span>":viewMode==="co2"?"<span>room fill · backend CO₂</span><span>timeline frame aware</span>":"<span>× low-flow cells</span><span>backend field threshold</span>"});
 
 document.querySelector("#rerun").onclick=requestPhysicsRerun;
