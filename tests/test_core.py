@@ -81,6 +81,17 @@ class CoreTests(unittest.TestCase):
         self.assertEqual(step.executed_actions[0].target_pct,0)
         self.assertEqual(step.intervention,"RAIN_SAFE_CLOSE")
 
+    def test_stale_sensor_blocks_physical_control(self):
+        env=PhysicalWindowEnvironment(FakePhysicalWindowDriver(sensor_age_s=30),"w1",max_sensor_age_s=5)
+        with self.assertRaisesRegex(RuntimeError,"stale sensor"):
+            env.reset()
+
+    def test_measured_feedback_gate_rejects_estimate_only_driver(self):
+        env=PhysicalWindowEnvironment(FakePhysicalWindowDriver(measured_feedback=False),"w1",require_measured_feedback=True)
+        observation,_=env.reset()
+        with self.assertRaisesRegex(RuntimeError,"measured actuator position required"):
+            env.step(RulePolicy("w1")(observation))
+
     def test_invalid_topology_rejected(self):
         with self.assertRaises(ValueError):
             BuildingTopology.from_parts(
