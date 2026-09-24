@@ -99,6 +99,9 @@ jobs:
           grep -q 'function simulateTauFuture' web/lab.js
           grep -q '\["CLOSE",0\].*\["OPEN100",100\]' web/lab.js
           grep -q 'browser-counterfactual · qualitative · not backend physics' web/lab.js
+          grep -q 'next_observation:nextObservation' web/lab.js
+          grep -q 'IMMUTABLE POST-ACTION ORIGIN' web/lab.js
+          grep -q 'origin.next_observation||origin.observation' web/lab.js
           grep -q 'id:"D2"' web/lab.js
           grep -q 'p.trail.length>20' web/lab.js
           grep -q 'Midpoint/RK2 advection' web/lab.js
