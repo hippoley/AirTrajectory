@@ -80,6 +80,10 @@ jobs:
           grep -q 'moved along wall' web/lab.js
           grep -q 'function hitSharedWall' web/lab.js
           grep -q 'function resizeLivingBedroomWall' web/lab.js
+          grep -q 'function wallSegment' web/lab.js
+          grep -q 'function syncOpeningGeometry' web/lab.js
+          grep -q 'wallId:"living-bedroom"' web/lab.js
+          grep -q 'wallId:"living-study"' web/lab.js
           grep -q 'shared wall resized' web/lab.js
           grep -q 'id:"D2"' web/lab.js
           grep -q 'p.trail.length>20' web/lab.js
