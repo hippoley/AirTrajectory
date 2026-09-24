@@ -256,3 +256,28 @@ canvas.addEventListener("pointercancel",()=>{dragOpening=null;dragMoved=false;dr
 document.querySelectorAll(".view").forEach(btn=>btn.onclick=()=>{viewMode=btn.dataset.view;document.querySelectorAll(".view").forEach(x=>x.classList.toggle("active",x===btn));const legend=document.querySelector("#viewLegend");legend.innerHTML=viewMode==="flow"?"<span>→ backend direction</span><span>· filament magnitude</span><span>∷ opening flow</span>":viewMode==="co2"?"<span>room fill · backend CO₂</span><span>timeline frame aware</span>":"<span>× low-flow cells</span><span>backend field threshold</span>"});
 
 document.querySelector("#rerun").onclick=requestPhysicsRerun;
+
+const physicalCo2=document.querySelector("#physicalCo2"),physicalRain=document.querySelector("#physicalRain");
+let physicalPosition=0,browserTau=[];
+function physicalObservation(){return {co2_ppm:+physicalCo2.value,rain:physicalRain.checked,opening_pct:physicalPosition}}
+function renderPhysicalObservation(){const o=physicalObservation();document.querySelector("#physicalCo2Label").textContent=o.co2_ppm+" ppm";document.querySelector("#evObserve").textContent="CO₂ "+o.co2_ppm+" · "+(o.rain?"RAIN":"DRY")}
+function physicalStep(target,semantic){
+ const o=physicalObservation(),proposed=target,executed=o.rain&&target>0?0:target,intervention=o.rain&&target>0?"RAIN_SAFE_CLOSE":null;
+ physicalPosition=executed;
+ const step={index:browserTau.length,environment_kind:"browser-contract",observation:o,semantic_action:semantic,proposed_action:{opening_id:"W1",target_pct:proposed},intervention,executed_action:{opening_id:"W1",target_pct:executed},actuator_feedback:{measured_position_pct:null,estimated_position_pct:executed,quality:"browser-simulated"}};
+ browserTau.push(step);
+ document.querySelector("#evPropose").textContent=semantic+" · "+proposed+"%";
+ document.querySelector("#evSafety").textContent=intervention||"PASS";
+ document.querySelector("#evExecute").textContent="W1 → "+executed+"%";
+ document.querySelector("#evFeedback").textContent="EST "+executed+"% · SIM";
+ document.querySelector("#tauCount").textContent=browserTau.length+" step"+(browserTau.length===1?"":"s")+" captured";
+ document.querySelector("#tauReceipt").textContent=JSON.stringify(step,null,2);
+ renderPhysicalObservation();
+}
+physicalCo2.addEventListener("input",renderPhysicalObservation);
+physicalRain.addEventListener("change",renderPhysicalObservation);
+document.querySelector("#ruleStep").addEventListener("click",()=>{const o=physicalObservation();if(o.co2_ppm>1200)physicalStep(50,"VENT");else if(o.co2_ppm<800)physicalStep(0,"CLOSE");else physicalStep(o.opening_pct,"HOLD")});
+document.querySelector("#manualVent").addEventListener("click",()=>physicalStep(50,"VENT"));
+document.querySelector("#manualClose").addEventListener("click",()=>physicalStep(0,"CLOSE"));
+document.querySelector("#resetTau").addEventListener("click",()=>{browserTau=[];physicalPosition=0;["#evPropose","#evExecute","#evFeedback"].forEach(s=>document.querySelector(s).textContent="—");document.querySelector("#evSafety").textContent="WAITING";document.querySelector("#tauCount").textContent="0 steps captured";document.querySelector("#tauReceipt").textContent="Run a step to produce browser-only evidence.";renderPhysicalObservation()});
+renderPhysicalObservation();
