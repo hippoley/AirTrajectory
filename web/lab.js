@@ -173,9 +173,9 @@ function syncOpeningGeometry(o){
   o.x=w.x1+(w.x2-w.x1)*o.t;o.y=w.y1+(w.y2-w.y1)*o.t;
 }
 function syncAllOpeningGeometry(){openings.forEach(syncOpeningGeometry)}
-function hitSharedWall(x,y){return Math.abs(x-rooms[0].x-rooms[0].w)<12&&y>=rooms[0].y+38&&y<=rooms[0].y+rooms[0].h-38}
+function hitSharedWall(x,y){const w=wallSegment("living-bedroom");return !!w&&Math.abs(x-w.x1)<12&&y>=w.y1+38&&y<=w.y2-38}
 function resizeLivingBedroomWall(x){
-  const living=rooms[0],bed=rooms[1],left=living.x,right=bed.x+bed.w,minW=220;
+  const living=room("living"),bed=room("bedroom"),left=living.x,right=bed.x+bed.w,minW=220;
   const split=Math.max(left+minW,Math.min(right-minW,x));
   living.w=split-left;bed.x=split;bed.w=right-split;
   syncAllOpeningGeometry();
