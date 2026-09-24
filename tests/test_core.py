@@ -16,9 +16,25 @@ from airtrajectory.drivers import FakePhysicalWindowDriver
 from airtrajectory.api import fork_request
 from airtrajectory.telemetry import DecisionTelemetry
 from airtrajectory.dataset import transition_rows, counterfactual_rows
+from airtrajectory.bc import TabularBC
 
 
 class CoreTests(unittest.TestCase):
+    def test_bc_learns_executed_behavior_and_ignores_counterfactuals(self):
+        rows=[
+            {"observation":{"co2":1400,"rain":True},"action":[{"opening_id":"W1","target_pct":0}],"is_counterfactual":False},
+            {"observation":{"co2":1450,"rain":True},"action":[{"opening_id":"W1","target_pct":0}],"is_counterfactual":False},
+            {"observation":{"co2":1400,"rain":True},"action":[{"opening_id":"W1","target_pct":100}],"is_counterfactual":True},
+        ]
+        model=TabularBC(); self.assertEqual(model.fit(rows),2)
+        self.assertEqual(model.predict({"co2":1420,"rain":True}),0)
+        self.assertEqual(model.evaluate(rows)["accuracy"],1.0)
+
+    def test_bc_fails_closed_outside_dataset_support(self):
+        model=TabularBC()
+        model.fit([{"observation":{"co2":1300},"action":[{"opening_id":"W1","target_pct":50}],"is_counterfactual":False}])
+        self.assertEqual(model.predict({"co2":700}),0)
+
     def test_dataset_uses_executed_action_and_preserves_proposal(self):
         trajectory=Trajectory("demo","rule")
         trajectory.append(TrajectoryStep(0,{"co2":1400},[TransitionAction("W1",50)],[TransitionAction("W1",0)],{"co2":1390},RewardVector(safety=-1),intervention="RAIN_SAFE_CLOSE",info={"trace_id":"trace-1","provenance":"physical"}))
