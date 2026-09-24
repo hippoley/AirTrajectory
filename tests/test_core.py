@@ -1,6 +1,7 @@
 import json
 import tempfile
 import unittest
+from airtrajectory.trajectory import Trajectory, TrajectoryStep, TransitionAction, RewardVector
 from pathlib import Path
 
 from airtrajectory import (
@@ -14,9 +15,25 @@ from airtrajectory.physical import PhysicalWindowEnvironment, RulePolicy, Safety
 from airtrajectory.drivers import FakePhysicalWindowDriver
 from airtrajectory.api import fork_request
 from airtrajectory.telemetry import DecisionTelemetry
+from airtrajectory.dataset import transition_rows, counterfactual_rows
 
 
 class CoreTests(unittest.TestCase):
+    def test_dataset_uses_executed_action_and_preserves_proposal(self):
+        trajectory=Trajectory("demo","rule")
+        trajectory.append(TrajectoryStep(0,{"co2":1400},[TransitionAction("W1",50)],[TransitionAction("W1",0)],{"co2":1390},RewardVector(safety=-1),intervention="RAIN_SAFE_CLOSE",info={"trace_id":"trace-1","provenance":"physical"}))
+        row=list(transition_rows(trajectory))[0]
+        self.assertEqual(row["proposed_actions"][0]["target_pct"],50)
+        self.assertEqual(row["action"][0]["target_pct"],0)
+        self.assertEqual(row["trace_id"],"trace-1")
+        self.assertFalse(row["is_counterfactual"])
+
+    def test_counterfactual_rows_are_not_behavior_samples(self):
+        artifact={"request_id":"r1","trace_id":"t1","topology_id":"demo-3zone","backend":"toy","origin_kind":"post-action-snapshot","branches":[{"label":"VENT50","target_pct":50,"end_co2_ppm":900,"return":1.2,"provenance":"backend-generated"}]}
+        row=list(counterfactual_rows(artifact))[0]
+        self.assertTrue(row["is_counterfactual"])
+        self.assertEqual(row["trace_id"],"t1")
+
     def topology(self):
         return BuildingTopology.from_parts(
             [ZoneNode("living", 45), ZoneNode("bedroom", 30)],
