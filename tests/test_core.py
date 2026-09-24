@@ -12,6 +12,7 @@ from airtrajectory import (
 
 from airtrajectory.physical import PhysicalWindowEnvironment, RulePolicy, SafetyResolver, record_physical_trajectory
 from airtrajectory.drivers import FakePhysicalWindowDriver
+from airtrajectory.api import fork_request
 
 
 class CoreTests(unittest.TestCase):
@@ -135,6 +136,22 @@ class CoreTests(unittest.TestCase):
         self.assertEqual(list(branches),["CLOSE","VENT25","VENT50","VENT75","OPEN100"])
         self.assertEqual(env.snapshot(),origin)
         self.assertLess(branches["OPEN100"].observations[-1]["co2_ppm"]["living"],branches["CLOSE"].observations[-1]["co2_ppm"]["living"])
+
+    def test_fork_request_reconstructs_post_action_origin(self):
+        response=fork_request({
+            "request_id":"tau-01","topology_id":"demo-3zone","opening_id":"W1",
+            "origin":{"co2_ppm":{"living":1400,"bedroom":980,"study":840},
+                      "opening_pct":{"W1":50,"W2":0,"W3":0,"D1":100,"D2":100}},
+            "horizon_minutes":5,
+        })
+        self.assertEqual(response["request_id"],"tau-01")
+        self.assertEqual([b["label"] for b in response["branches"]],["CLOSE","VENT25","VENT50","VENT75","OPEN100"])
+        self.assertLess(response["branches"][-1]["end_co2_ppm"],response["branches"][0]["end_co2_ppm"])
+        self.assertTrue(all("backend-generated" in b["provenance"] for b in response["branches"]))
+
+    def test_fork_request_rejects_unknown_topology(self):
+        with self.assertRaisesRegex(ValueError,"unsupported topology_id"):
+            fork_request({"topology_id":"unknown","opening_id":"W1","origin":{"co2_ppm":1400,"opening_pct":50}})
 
     def test_fast_field_is_deterministic_and_opening_sensitive(self):
         field = FastFlowField(self.topology())
