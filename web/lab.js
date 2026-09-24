@@ -263,7 +263,8 @@ function physicalObservation(){return {co2_ppm:+physicalCo2.value,rain:physicalR
 function renderPhysicalObservation(){const o=physicalObservation();document.querySelector("#physicalCo2Label").textContent=o.co2_ppm+" ppm";document.querySelector("#evObserve").textContent="CO₂ "+o.co2_ppm+" · "+(o.rain?"RAIN":"DRY")}
 const tauForkActions=[["CLOSE",0],["VENT25",25],["VENT50",50],["VENT75",75],["OPEN100",100]];
 function simulateTauFuture(origin,label,target){
- const start=origin.observation.co2_ppm, rain=origin.observation.rain;
+ const forkState=origin.next_observation||origin.observation;
+ const start=forkState.co2_ppm, rain=forkState.rain;
  const executed=rain&&target>0?0:target;
  const ventilation=executed/100;
  const horizon=30;
@@ -273,7 +274,7 @@ function simulateTauFuture(origin,label,target){
 function openTauFork(index){
  selectedTauOrigin=index;const origin=browserTau[index],lab=document.querySelector("#tauForkLab");lab.classList.remove("hidden");
  document.querySelector("#tauForkTitle").textContent="Fork from τ"+String(index).padStart(2,"0");
- document.querySelector("#tauForkOrigin").textContent="IMMUTABLE ORIGIN · "+origin.observation.co2_ppm+" ppm · executed "+origin.executed_action.target_pct+"%";
+ document.querySelector("#tauForkOrigin").textContent="IMMUTABLE POST-ACTION ORIGIN · "+origin.next_observation.co2_ppm+" ppm · opening "+origin.next_observation.opening_pct+"%";
  const futures=tauForkActions.map(([label,target])=>simulateTauFuture(origin,label,target));
  document.querySelector("#tauForkBranches").innerHTML=futures.map((f,i)=>'<button class="tau-future'+(f.intervention?' intervened':'')+'" data-future="'+i+'"><small>SIMULATED FUTURE</small><b>'+f.label+'</b><span>'+f.executed+'% executed</span><em>'+f.end_co2+' ppm @ +30m</em></button>').join("");
  document.querySelectorAll("[data-future]").forEach(btn=>btn.onclick=()=>{const f=futures[+btn.dataset.future];document.querySelector("#tauForkCompare").innerHTML='<b>'+f.label+'</b><span>CO₂ '+f.origin_co2+' → '+f.end_co2+' ppm ('+(f.delta_co2>0?'+':'')+f.delta_co2+')</span><span>executed '+f.executed+'%'+(f.intervention?' · '+f.intervention:'')+'</span><small>'+f.provenance+'</small>'});
@@ -288,7 +289,8 @@ function renderPhysicalTimeline(){
 function physicalStep(target,semantic){
  const o=physicalObservation(),proposed=target,executed=o.rain&&target>0?0:target,intervention=o.rain&&target>0?"RAIN_SAFE_CLOSE":null;
  physicalPosition=executed;
- const step={index:browserTau.length,environment_kind:"browser-contract",observation:o,semantic_action:semantic,proposed_action:{opening_id:"W1",target_pct:proposed},intervention,executed_action:{opening_id:"W1",target_pct:executed},actuator_feedback:{measured_position_pct:null,estimated_position_pct:executed,quality:"browser-simulated"}};
+ const nextObservation={co2_ppm:o.co2_ppm,rain:o.rain,opening_pct:executed};
+ const step={index:browserTau.length,environment_kind:"browser-contract",observation:o,semantic_action:semantic,proposed_action:{opening_id:"W1",target_pct:proposed},intervention,executed_action:{opening_id:"W1",target_pct:executed},actuator_feedback:{measured_position_pct:null,estimated_position_pct:executed,quality:"browser-simulated"},next_observation:nextObservation};
  browserTau.push(step);
  const w1=openings.find(o=>o.id==="W1");w1.open=executed/100;
  selectedOpening="W1";renderOpeningInspector();
@@ -309,5 +311,5 @@ document.querySelector("#ruleStep").addEventListener("click",()=>{const o=physic
 document.querySelector("#manualVent").addEventListener("click",()=>physicalStep(50,"VENT"));
 document.querySelector("#manualClose").addEventListener("click",()=>physicalStep(0,"CLOSE"));
 document.querySelector("#closeTauFork").addEventListener("click",()=>document.querySelector("#tauForkLab").classList.add("hidden"));
-document.querySelector("#resetTau").addEventListener("click",()=>{browserTau=[];physicalPosition=0;const w1=openings.find(o=>o.id==="W1");w1.open=0;renderOpeningInspector();renderPhysicalTimeline();["#evPropose","#evExecute","#evFeedback"].forEach(s=>document.querySelector(s).textContent="—");document.querySelector("#evSafety").textContent="WAITING";document.querySelector("#tauCount").textContent="0 steps captured";document.querySelector("#tauReceipt").textContent="Run a step to produce browser-only evidence.";renderPhysicalObservation()});
+document.querySelector("#resetTau").addEventListener("click",()=>{browserTau=[];selectedTauOrigin=null;document.querySelector("#tauForkLab").classList.add("hidden");physicalPosition=0;const w1=openings.find(o=>o.id==="W1");w1.open=0;renderOpeningInspector();renderPhysicalTimeline();["#evPropose","#evExecute","#evFeedback"].forEach(s=>document.querySelector(s).textContent="—");document.querySelector("#evSafety").textContent="WAITING";document.querySelector("#tauCount").textContent="0 steps captured";document.querySelector("#tauReceipt").textContent="Run a step to produce browser-only evidence.";renderPhysicalObservation()});
 renderPhysicalObservation();
