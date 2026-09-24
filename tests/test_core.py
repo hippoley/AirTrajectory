@@ -17,9 +17,21 @@ from airtrajectory.api import fork_request
 from airtrajectory.telemetry import DecisionTelemetry
 from airtrajectory.dataset import transition_rows, counterfactual_rows
 from airtrajectory.bc import TabularBC
+from airtrajectory.offline_rl import OfflineQ
 
 
 class CoreTests(unittest.TestCase):
+    def test_offline_q_never_selects_unseen_action(self):
+        rows=[
+          {"observation":{"co2":1400},"next_observation":{"co2":1300},"action":[{"opening_id":"W1","target_pct":50}],"reward":1.0,"terminated":False,"is_counterfactual":False},
+          {"observation":{"co2":1450},"next_observation":{"co2":1350},"action":[{"opening_id":"W1","target_pct":50}],"reward":1.0,"terminated":True,"is_counterfactual":False},
+          {"observation":{"co2":1400},"next_observation":{"co2":900},"action":[{"opening_id":"W1","target_pct":100}],"reward":99.0,"terminated":True,"is_counterfactual":True},
+        ]
+        q=OfflineQ(); self.assertEqual(q.fit(rows),2)
+        self.assertEqual(q.predict({"co2":1420}),50)
+        self.assertEqual(q.predict({"co2":700}),0)
+
+
     def test_bc_learns_executed_behavior_and_ignores_counterfactuals(self):
         rows=[
             {"observation":{"co2":1400,"rain":True},"action":[{"opening_id":"W1","target_pct":0}],"is_counterfactual":False},
