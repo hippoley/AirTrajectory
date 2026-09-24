@@ -1,6 +1,7 @@
 import json
 import tempfile
 import unittest
+from airtrajectory.trajectory import Trajectory, TrajectoryStep, TransitionAction, RewardVector
 from pathlib import Path
 
 from airtrajectory import (
