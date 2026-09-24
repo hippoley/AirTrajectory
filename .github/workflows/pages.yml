@@ -85,6 +85,11 @@ jobs:
           grep -q 'wallId:"living-bedroom"' web/lab.js
           grep -q 'wallId:"living-study"' web/lab.js
           grep -q 'shared wall resized' web/lab.js
+          grep -q 'PHYSICAL CONTROL CONSOLE / τ₀ GATE' web/index.html
+          grep -q 'REAL τ₀ · NOT CAPTURED' web/index.html
+          grep -q 'function physicalStep' web/lab.js
+          grep -q 'RAIN_SAFE_CLOSE' web/lab.js
+          grep -q 'browser-simulated' web/lab.js
           grep -q 'id:"D2"' web/lab.js
           grep -q 'p.trail.length>20' web/lab.js
           grep -q 'Midpoint/RK2 advection' web/lab.js
