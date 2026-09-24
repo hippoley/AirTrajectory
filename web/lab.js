@@ -271,11 +271,27 @@ function simulateTauFuture(origin,label,target){
  const co2=Math.max(450,Math.round(start-(start-450)*(.08+.42*ventilation)));
  return {label,target,executed,intervention:rain&&target>0?"RAIN_SAFE_CLOSE":null,origin_co2:start,end_co2:co2,delta_co2:co2-start,horizon_min:horizon,provenance:"browser-counterfactual · qualitative · not backend physics"};
 }
-function openTauFork(index){
+const forkEndpoint=(new URLSearchParams(location.search).get("forkApi")||localStorage.getItem("airtrajectory.forkApi")||"").replace(/\\/$/,"");
+async function requestBackendFork(origin,index){
+ if(!forkEndpoint) return null;
+ const s=origin.next_observation||origin.observation;
+ const payload={request_id:"browser-tau-"+index+"-"+Date.now(),topology_id:"demo-3zone",opening_id:"W1",horizon_minutes:30,origin:{co2_ppm:{living:s.co2_ppm,bedroom:980,study:840},opening_pct:{W1:s.opening_pct,W2:0,W3:0,D1:100,D2:100}}};
+ const r=await fetch(forkEndpoint+"/fork",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});
+ if(!r.ok) throw new Error("fork backend "+r.status);
+ return r.json();
+}
+async function openTauFork(index){
  selectedTauOrigin=index;const origin=browserTau[index],lab=document.querySelector("#tauForkLab");lab.classList.remove("hidden");
  document.querySelector("#tauForkTitle").textContent="Fork from τ"+String(index).padStart(2,"0");
  document.querySelector("#tauForkOrigin").textContent="IMMUTABLE POST-ACTION ORIGIN · "+origin.next_observation.co2_ppm+" ppm · opening "+origin.next_observation.opening_pct+"%";
  const futures=tauForkActions.map(([label,target])=>simulateTauFuture(origin,label,target));
+ if(forkEndpoint){
+  try{
+   const artifact=await requestBackendFork(origin,index);
+   const byLabel=Object.fromEntries(artifact.branches.map(b=>[b.label,b]));
+   futures.forEach(f=>{const b=byLabel[f.label];if(b){f.end_co2=b.end_co2_ppm;f.delta_co2=b.end_co2_ppm-f.origin_co2;f.provenance=b.provenance+" · trace "+artifact.trace_id;}});
+  }catch(err){ console.warn("AirTrajectory backend unavailable; explicit browser fallback active",err); }
+ }
  document.querySelector("#tauForkBranches").innerHTML=futures.map((f,i)=>'<button class="tau-future'+(f.intervention?' intervened':'')+'" data-future="'+i+'"><small>SIMULATED FUTURE</small><b>'+f.label+'</b><span>'+f.executed+'% executed</span><em>'+f.end_co2+' ppm @ +30m</em></button>').join("");
  document.querySelectorAll("[data-future]").forEach(btn=>btn.onclick=()=>{const f=futures[+btn.dataset.future];document.querySelector("#tauForkCompare").innerHTML='<b>'+f.label+'</b><span>CO₂ '+f.origin_co2+' → '+f.end_co2+' ppm ('+(f.delta_co2>0?'+':'')+f.delta_co2+')</span><span>executed '+f.executed+'%'+(f.intervention?' · '+f.intervention:'')+'</span><small>'+f.provenance+'</small>'});
  lab.scrollIntoView({behavior:"smooth",block:"nearest"});
