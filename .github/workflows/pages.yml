@@ -29,7 +29,8 @@ jobs:
           python-version: "3.11"
       - run: python -m pip install -e .
       - name: Generate backend scenarios
-        run: python examples/export_web_scenarios.py
+        run: |
+          python examples/export_web_scenarios.py
           grep -q 'tau_forks' web/data/scenarios.json
           grep -q 'backend-generated · toy-multizone-v1 · not engineering truth' web/data/scenarios.json
           grep -q 'requestBackendFork' web/lab.js
