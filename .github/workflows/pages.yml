@@ -78,6 +78,9 @@ jobs:
           grep -q 'pointerdown' web/lab.js
           grep -q 'pointerup' web/lab.js
           grep -q 'moved along wall' web/lab.js
+          grep -q 'function hitSharedWall' web/lab.js
+          grep -q 'function resizeLivingBedroomWall' web/lab.js
+          grep -q 'shared wall resized' web/lab.js
           grep -q 'id:"D2"' web/lab.js
           grep -q 'p.trail.length>20' web/lab.js
           grep -q 'Midpoint/RK2 advection' web/lab.js
