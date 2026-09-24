@@ -70,6 +70,10 @@ jobs:
           grep -q 'data-view="flow"' web/index.html
           grep -q 'data-view="co2"' web/index.html
           grep -q 'data-view="dead"' web/index.html
+          grep -q 'function invalidateTrajectory' web/lab.js
+          grep -q 'function requestPhysicsRerun' web/lab.js
+          grep -q 'TRAJECTORY STALE' web/lab.js
+          grep -q 'id="topologyRevision"' web/index.html
           grep -q 'id:"D2"' web/lab.js
           grep -q 'p.trail.length>20' web/lab.js
           grep -q 'Midpoint/RK2 advection' web/lab.js
