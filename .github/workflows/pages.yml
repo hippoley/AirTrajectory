@@ -34,7 +34,7 @@ jobs:
           grep -q 'tau_forks' web/data/scenarios.json
           grep -q 'backend-generated · toy-multizone-v1 · not engineering truth' web/data/scenarios.json
           grep -q 'requestBackendFork' web/lab.js
-          grep -q 'AirTrajectory backend unavailable; explicit browser fallback active' web/lab.js
+          grep -Fq 'AirTrajectory backend unavailable; explicit browser fallback active' web/lab.js
       - name: Validate generated artifact
         run: |
           python - <<'PY'
