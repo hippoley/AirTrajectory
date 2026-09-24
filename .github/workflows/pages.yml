@@ -94,6 +94,11 @@ jobs:
           grep -q 'function renderPhysicalTimeline' web/lab.js
           grep -q 'w1.open=executed/100' web/lab.js
           grep -q 'class="tau-step' web/lab.js
+          grep -q 'COUNTERFACTUAL EXPANSION' web/index.html
+          grep -q 'function openTauFork' web/lab.js
+          grep -q 'function simulateTauFuture' web/lab.js
+          grep -q '\["CLOSE",0\].*\["OPEN100",100\]' web/lab.js
+          grep -q 'browser-counterfactual · qualitative · not backend physics' web/lab.js
           grep -q 'id:"D2"' web/lab.js
           grep -q 'p.trail.length>20' web/lab.js
           grep -q 'Midpoint/RK2 advection' web/lab.js
