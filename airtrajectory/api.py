@@ -9,6 +9,7 @@ from typing import Any, Dict
 from .environment import ToyMultizoneEnvironment
 from .fork import fork_window_levels
 from .topology import BuildingTopology, OpeningEdge, ZoneNode
+from .telemetry import DecisionTelemetry
 
 
 @dataclass(frozen=True)
@@ -38,8 +39,13 @@ def demo_topology():
          OpeningEdge("D2","living","study","door",1.4)])
 
 
-def fork_request(payload: Dict[str, Any]) -> Dict[str, Any]:
+def fork_request(payload: Dict[str, Any], telemetry: DecisionTelemetry | None = None) -> Dict[str, Any]:
     req=ForkRequest.from_dict(payload)
+    telemetry=telemetry or DecisionTelemetry()
+    with telemetry.span("counterfactual.fork", request_id=req.request_id, topology_id=req.topology_id, opening_id=req.opening_id, horizon_minutes=req.horizon_minutes) as decision_trace:
+        return _fork_request(req, decision_trace)
+
+def _fork_request(req: ForkRequest, decision_trace) -> Dict[str, Any]:
     if req.topology_id!="demo-3zone":
         raise ValueError("unsupported topology_id; arbitrary topology transport is not implemented yet")
     topology=demo_topology()
@@ -57,7 +63,11 @@ def fork_request(payload: Dict[str, Any]) -> Dict[str, Any]:
         for key,value in supplied.items():
             if key in snapshot["openings"]: snapshot["openings"][key]=float(value)
     env.restore(snapshot)
+    decision_trace.attributes["origin.co2_ppm"]=co2
+    decision_trace.attributes["origin.opening_pct"]=supplied
     branches=fork_window_levels(env,req.opening_id,horizon_steps=req.horizon_minutes)
+    decision_trace.attributes["branch.count"]=len(branches)
+    decision_trace.events.extend({"name":"branch.result","label":label,"target_pct":branch.actions[0].target_pct,"return":round(branch.return_value,3)} for label,branch in branches.items())
     return {
         "schema_version":"0.1","request_id":req.request_id,"topology_id":req.topology_id,
         "origin_kind":"post-action-snapshot","backend":"toy-multizone-v1","horizon_minutes":req.horizon_minutes,
