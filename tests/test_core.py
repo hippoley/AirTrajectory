@@ -11,7 +11,7 @@ from airtrajectory import (
 )
 
 
-from airtrajectory.physical import PhysicalWindowEnvironment, RulePolicy, SafetyResolver, record_physical_trajectory
+from airtrajectory.physical import DriverCapabilities, PhysicalWindowEnvironment, RulePolicy, SafetyResolver, record_physical_trajectory, validate_physical_tau0
 from airtrajectory.drivers import FakePhysicalWindowDriver
 from airtrajectory.api import fork_request
 from airtrajectory.telemetry import DecisionTelemetry
@@ -121,11 +121,48 @@ class CoreTests(unittest.TestCase):
             store=TrajectoryStore(Path(d)/"tau0.jsonl")
             trajectory=record_physical_trajectory(env,RulePolicy("w1"),SafetyResolver(),"physical-demo",store)
             payload=json.loads((Path(d)/"tau0.jsonl").read_text().strip())
-        self.assertEqual(trajectory.environment_kind,"physical")
+        self.assertEqual(trajectory.environment_kind,"synthetic")
+        report=validate_physical_tau0(trajectory)
+        self.assertFalse(report.valid_tau0)
+        self.assertTrue(any("simulated" in r for r in report.reasons))
         self.assertEqual(payload["context"]["reset_info"]["driver"],"FakePhysicalWindowDriver")
         self.assertEqual(payload["steps"][0]["semantic_actions"][0]["command"],"VENT")
         self.assertEqual(payload["steps"][0]["executed_actions"][0]["target_pct"],50)
         self.assertEqual(payload["steps"][0]["actuator_feedback"][0]["measured_position_pct"],50)
+
+    def test_missing_rain_evidence_fails_closed(self):
+        class NoRain(FakePhysicalWindowDriver):
+            def read_sensors(self):
+                return [r for r in super().read_sensors() if r.sensor_type!="rain"]
+        env=PhysicalWindowEnvironment(NoRain(co2_ppm=1500),"w1")
+        observation,_=env.reset()
+        decision=SafetyResolver().resolve(observation,RulePolicy("w1")(observation))
+        self.assertEqual(decision.intervention,"RAIN_EVIDENCE_MISSING")
+        self.assertEqual(decision.executed[0].target_pct,0)
+
+    def test_hold_with_unknown_position_does_not_invent_close(self):
+        actions=RulePolicy("w1")({"co2_ppm":1000,"rain":False,"opening_pct":None})
+        self.assertEqual(actions,[])
+
+    def test_stale_actuator_feedback_is_rejected(self):
+        class StaleFeedback(FakePhysicalWindowDriver):
+            def set_position(self,opening_id,target_pct):
+                f=super().set_position(opening_id,target_pct)
+                return ActuatorFeedback(f.actuator_id,1.0,measured_position_pct=f.measured_position_pct,estimated_position_pct=f.estimated_position_pct,quality=f.quality)
+        env=PhysicalWindowEnvironment(StaleFeedback(),"w1",max_feedback_age_s=1)
+        observation,_=env.reset()
+        with self.assertRaisesRegex(RuntimeError,"stale actuator feedback"):
+            env.step([TransitionAction("w1",50)])
+
+    def test_tau0_audit_accepts_non_simulated_measured_contract(self):
+        class ContractReal(FakePhysicalWindowDriver):
+            def capabilities(self):
+                return DriverCapabilities("external-test-contract",False,True,("co2","rain"))
+        env=PhysicalWindowEnvironment(ContractReal(co2_ppm=1400,measured_feedback=True),"w1",require_measured_feedback=True)
+        with tempfile.TemporaryDirectory() as d:
+            trajectory=record_physical_trajectory(env,RulePolicy("w1"),SafetyResolver(),"physical-contract",TrajectoryStore(Path(d)/"tau0.jsonl"))
+        report=validate_physical_tau0(trajectory)
+        self.assertTrue(report.valid_tau0,report.reasons)
 
     def test_rain_safety_intervention_overrides_rule_policy(self):
         driver=FakePhysicalWindowDriver(co2_ppm=1400,rain=True)
