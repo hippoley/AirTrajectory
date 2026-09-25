@@ -1,6 +1,36 @@
 <!doctype html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>AirTrajectory — Stage 0.3</title><link rel="stylesheet" href="./styles.css"></head><body><main class="shell">
 <header><div><div class="tagrow"><span class="stage-tag">STAGE 0.3</span><span class="eyebrow">PHYSICAL LEARNING LAB</span></div><h1>How should this home breathe?</h1><p class="lede">A trajectory-native experiment for multi-window ventilation. Change the world, fork a state, compare its futures.</p></div><div id="health" class="health loading"><i></i><div><small>SYSTEM</small><b>LOADING BACKEND</b></div></div></header>
-<nav class="modebar"><button class="mode active">01 · LIVE HOUSE</button><button class="mode">02 · FORK LAB</button><button class="mode disabled">03 · UNSEEN TOPOLOGY <em>NEXT</em></button><div class="backend"><span id="topologyRevision">TOPOLOGY r0</span> · BACKEND <b id="backendName">FAST FALLBACK</b></div></nav>
+<nav class="modebar"><button class="mode active">01 · LIVE HOUSE</button><button class="mode">02 · FORK LAB</button><button class="mode">03 · UNSEEN TOPOLOGY <em>LIVE</em></button><div class="backend"><span id="topologyRevision">TOPOLOGY r0</span> · BACKEND <b id="backendName">FAST FALLBACK</b></div></nav><section id="episodeLab" class="episode-lab">
+<div class="episode-rail">
+  <div><p class="eyebrow">LEARNING LOOP / BACKEND ARTIFACT</p><h2>Watch the agent breathe a home.</h2><p class="sub">Train on 2–4 rooms. Test here on a five-room topology the policy never saw.</p></div>
+  <div class="episode-policies" role="group" aria-label="Policy">
+    <button class="episode-policy active" data-episode-policy="rule">RULE</button>
+    <button class="episode-policy" data-episode-policy="bc">BC</button>
+    <button class="episode-policy" data-episode-policy="offline_q">OFFLINE Q</button>
+  </div>
+  <div id="episodeBench" class="episode-bench"></div>
+</div>
+<div class="episode-stage">
+  <div class="episode-stagebar">
+    <div><small id="episodeProvenance">BACKEND-GENERATED · TOY PHYSICS</small><b id="episodePolicyLabel">RULE · UNSEEN 5-ROOM HOME</b></div>
+    <button id="episodeRun" class="episode-run">▶ RUN EPISODE</button>
+  </div>
+  <div id="episodeHouse" class="episode-house" aria-live="polite"></div>
+  <div class="episode-decision"><span>AGENT</span><b id="episodeDecision">Loading experiment…</b><em id="episodeStepReward">reward —</em></div>
+  <div class="episode-player">
+    <span id="episodeClock">τ00</span>
+    <input id="episodeScrubber" type="range" min="0" max="0" value="0">
+    <span id="episodeFrame">00 / 00</span>
+  </div>
+</div>
+<aside class="episode-inspector">
+  <p class="eyebrow">SELECTED ROOM</p>
+  <strong id="episodeRoomTitle">—</strong>
+  <div id="episodeRoomDetail" class="episode-room-detail">Click a room.</div>
+  <p class="eyebrow reward-title">REWARD VECTOR</p>
+  <div id="episodeReward" class="episode-reward"></div>
+</aside>
+</section>
 <section class="workspace"><div class="stage-card"><canvas id="lab" width="1100" height="650"></canvas><div class="stage-overlay"><span id="scenario">CURRENT STATE</span><strong id="scenarioTitle">Observed trajectory</strong></div><div id="probe" class="probe hidden"><small>PHYSICAL PROBE</small><b id="probeRoom">LIVING</b><span id="probeValue">—</span></div><div class="view-switch"><button class="view active" data-view="flow">FLOW</button><button class="view" data-view="co2">CO₂</button><button class="view" data-view="dead">DEAD ZONE</button></div><div class="legend" id="viewLegend"><span>→ backend direction</span><span>· filament magnitude</span><span>∷ opening flow</span></div></div>
 <aside><p class="eyebrow">WORLD STATE / NOW</p><div class="metric hero"><label>Living CO₂</label><strong id="co2">1,260</strong><small>ppm</small></div><div class="metric-row"><div class="metric"><label>Coverage</label><strong id="coverage">64</strong><small>%</small></div><div class="metric"><label>Dead zone</label><strong id="dead">21</strong><small>%</small></div></div><div class="control"><label>Wind direction <output id="windLabel">25°</output></label><input id="wind" type="range" min="0" max="359" value="25"></div><div class="control"><label>Wind speed <output id="speedLabel">2.8 m/s</output></label><input id="speed" type="range" min="0" max="8" step=".1" value="2.8"></div><div class="presets"><p class="eyebrow">OBJECTIVE LENS</p><div class="preset-row"><button class="preset active" data-preset="balanced">BALANCED</button><button class="preset" data-preset="fresh">FRESH AIR</button><button class="preset" data-preset="quiet">LOW MOTION</button></div></div><div class="inspector"><p class="eyebrow">OPENING INSPECTOR <span id="selectedOpening">CLICK A WINDOW</span></p><div id="openingRows"></div></div><button id="strategy">Search better futures <span>↗</span></button><button id="rerun" class="rerun hidden">Re-run physics <span>↻</span></button><p class="hint">Particle field is qualitative. Trajectory outcomes use the backend artifact when available; fallback mode remains interactive.</p></aside></section>
 <section class="timeline-card"><div class="timeline-head"><div><p class="eyebrow">COUNTERFACTUAL LAB / SAME ORIGIN</p><h2>One state. Four possible futures.</h2><p class="sub">Each branch starts from the same snapshot so the comparison means something.</p></div><div class="fork-actions"><span id="forkState">BACKEND ORIGIN</span><button class="ghost" id="fork">Fork backend origin</button></div></div><div class="player"><button class="play" id="play">▶</button><span id="clock">t+00</span><input id="scrubber" type="range" min="0" max="29" value="0"><span id="frameCount">00 / 30</span></div><div class="timeline" id="timeline"></div><div class="branches" id="branches"></div><div class="compare"><div><p class="eyebrow">FUTURE COMPARISON</p><strong id="compareTitle">Select a future to inspect its trade-offs.</strong></div><div class="vector" id="vector"><span>IAQ <b>—</b></span><span>FLOW <b>—</b></span><span>MOTION <b>—</b></span><span>RETURN <b>—</b></span></div></div></section>

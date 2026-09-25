@@ -313,3 +313,63 @@ document.querySelector("#manualClose").addEventListener("click",()=>physicalStep
 document.querySelector("#closeTauFork").addEventListener("click",()=>document.querySelector("#tauForkLab").classList.add("hidden"));
 document.querySelector("#resetTau").addEventListener("click",()=>{browserTau=[];selectedTauOrigin=null;document.querySelector("#tauForkLab").classList.add("hidden");physicalPosition=0;const w1=openings.find(o=>o.id==="W1");w1.open=0;renderOpeningInspector();renderPhysicalTimeline();["#evPropose","#evExecute","#evFeedback"].forEach(s=>document.querySelector(s).textContent="—");document.querySelector("#evSafety").textContent="WAITING";document.querySelector("#tauCount").textContent="0 steps captured";document.querySelector("#tauReceipt").textContent="Run a step to produce browser-only evidence.";renderPhysicalObservation()});
 renderPhysicalObservation();
+
+/* Backend-generated learning Episode Lab */
+(() => {
+ const root=document.querySelector("#episodeLab");
+ if(!root) return;
+ const house=document.querySelector("#episodeHouse"),bench=document.querySelector("#episodeBench"),scrub=document.querySelector("#episodeScrubber");
+ const policyLabel=document.querySelector("#episodePolicyLabel"),decision=document.querySelector("#episodeDecision"),rewardLabel=document.querySelector("#episodeStepReward");
+ const clock=document.querySelector("#episodeClock"),frame=document.querySelector("#episodeFrame"),roomTitle=document.querySelector("#episodeRoomTitle"),roomDetail=document.querySelector("#episodeRoomDetail"),rewardBox=document.querySelector("#episodeReward");
+ const run=document.querySelector("#episodeRun"),prov=document.querySelector("#episodeProvenance");
+ let data=null,policy="rule",step=0,timer=null,selectedRoom=null;
+ const names={rule:"RULE",bc:"BC",offline_q:"OFFLINE Q"};
+ const fmt=n=>Number(n).toFixed(1);
+ function current(){ return data?.episode?.[policy]; }
+ function stop(){ if(timer){clearInterval(timer);timer=null} run.textContent="▶ RUN EPISODE"; }
+ function rewardRows(r){
+   const keys=[["iaq","IAQ"],["comfort","COMFORT"],["energy","ENERGY"],["safety","SAFETY"],["actuator_wear","WEAR"]];
+   const max=Math.max(1,...keys.map(([k])=>Math.abs(Number(r?.[k]||0))));
+   rewardBox.innerHTML=keys.map(([k,label])=>{const v=Number(r?.[k]||0);return '<div class="reward-row"><span>'+label+'</span><div class="reward-track"><i style="width:'+Math.min(100,Math.abs(v)/max*100)+'%"></i></div><b>'+fmt(v)+'</b></div>'}).join("");
+ }
+ function renderBench(){
+   const m=data.metrics;
+   bench.innerHTML=["rule","bc","offline_q"].map(k=>'<div class="bench-row"><span>'+names[k]+'</span><b>'+fmt(m[k].mean_return)+'</b><small>return · final max CO₂ '+Math.round(m[k].mean_final_max_co2_ppm)+' ppm</small></div>').join("");
+ }
+ function render(){
+   const ep=current(); if(!ep||!ep.steps.length) return;
+   step=Math.max(0,Math.min(step,ep.steps.length-1)); const s=ep.steps[step],o=s.observation,actions=Object.fromEntries(s.executed_actions.map(a=>[a.opening_id,a.target_pct]));
+   const rooms=Object.keys(o.co2_ppm),openingZone=o.opening_zone||{};
+   if(!selectedRoom||!rooms.includes(selectedRoom)) selectedRoom=rooms[0];
+   house.innerHTML=rooms.map((room,i)=>{
+     const win=Object.entries(openingZone).find(([,z])=>z===room)?.[0],pct=win?Number(actions[win]??o.opening_pct?.[win]??0):0,co2=Number(o.co2_ppm[room]),occ=o.occupancy?.[room]??0;
+     return '<button class="episode-room '+(room===selectedRoom?'selected':'')+'" data-episode-room="'+room+'"><header><b>'+room.toUpperCase()+'</b><span>ROOM '+String(i+1).padStart(2,"0")+'</span></header><div class="room-co2">'+Math.round(co2)+' <small>ppm</small></div><div class="room-occ">'+occ+' occupant'+(occ===1?'':'s')+'</div>'+(win?'<div class="episode-window"><i style="height:'+pct+'%"></i><span>'+win+' · '+pct+'%</span></div>':'')+'</button>';
+   }).join("");
+   house.querySelectorAll("[data-episode-room]").forEach(el=>el.onclick=()=>{selectedRoom=el.dataset.episodeRoom;render()});
+   const chosenWin=Object.entries(openingZone).find(([,z])=>z===selectedRoom)?.[0],selectedAction=chosenWin?actions[chosenWin]:undefined;
+   roomTitle.textContent=selectedRoom.toUpperCase();
+   roomDetail.textContent='CO₂ '+Math.round(o.co2_ppm[selectedRoom])+' ppm\nOccupancy '+(o.occupancy?.[selectedRoom]??0)+'\n'+(chosenWin?'Window '+chosenWin+' → '+selectedAction+'%':'No exterior window');
+   const actionText=s.executed_actions.filter(a=>openingZone[a.opening_id]).map(a=>a.opening_id+'→'+a.target_pct+'%').join(" · ");
+   decision.textContent=actionText||"No exterior-window action";
+   rewardLabel.textContent="reward "+fmt(s.reward.scalar);
+   rewardRows(s.reward);
+   scrub.max=String(ep.steps.length-1);scrub.value=String(step);
+   clock.textContent="τ"+String(step).padStart(2,"0");frame.textContent=String(step+1).padStart(2,"0")+" / "+String(ep.steps.length).padStart(2,"0");
+   policyLabel.textContent=names[policy]+" · UNSEEN "+(ep.context.room_count||5)+"-ROOM HOME";
+ }
+ function choosePolicy(next){
+   stop();policy=next;step=0;selectedRoom=null;
+   document.querySelectorAll("[data-episode-policy]").forEach(b=>b.classList.toggle("active",b.dataset.episodePolicy===policy));
+   render();
+ }
+ document.querySelectorAll("[data-episode-policy]").forEach(b=>b.onclick=()=>choosePolicy(b.dataset.episodePolicy));
+ scrub.addEventListener("input",()=>{stop();step=Number(scrub.value);render()});
+ run.onclick=()=>{
+   if(timer){stop();return}
+   run.textContent="Ⅱ PAUSE";
+   timer=setInterval(()=>{const ep=current();if(step>=ep.steps.length-1){stop();return}step++;render()},420);
+ };
+ fetch("./data/experiment.json").then(r=>{if(!r.ok)throw new Error("experiment artifact "+r.status);return r.json()}).then(payload=>{
+   data=payload;prov.textContent=payload.provenance.toUpperCase();renderBench();render();
+ }).catch(err=>{decision.textContent="Experiment artifact unavailable: "+err.message;stop()});
+})();
