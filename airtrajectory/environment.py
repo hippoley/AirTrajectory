@@ -108,3 +108,63 @@ class ToyMultizoneEnvironment(SnapshotableEnvironment):
         reward = RewardVector(iaq=iaq_penalty, actuator_wear=wear)
         terminated = self._step >= self.horizon_steps
         return self._observation(), reward, terminated, False, {"backend": "toy-multizone-v1"}
+
+
+class ScenarioMultizoneEnvironment(ToyMultizoneEnvironment):
+    """Episode environment with occupancy sources and weather context.
+
+    Still a toy/surrogate backend: useful for learning plumbing and transfer tests,
+    not engineering airflow truth.
+    """
+    def __init__(self, scenario, dt_minutes: float = 1.0, horizon_steps: int = 120, judge=None):
+        from .judge import VentilationJudge
+        super().__init__(
+            scenario.topology,
+            initial_co2=scenario.initial_co2,
+            outdoor_co2=scenario.outdoor_co2,
+            dt_minutes=dt_minutes,
+            horizon_steps=horizon_steps,
+        )
+        self.scenario=scenario
+        self.occupancy=dict(scenario.occupancy)
+        self.rain=bool(scenario.rain)
+        self.outdoor_temp_c=float(scenario.outdoor_temp_c)
+        self.judge=judge or VentilationJudge()
+
+    def _observation(self):
+        obs=super()._observation()
+        obs.update({
+            "occupancy":deepcopy(self.occupancy),
+            "rain":self.rain,
+            "outdoor_temp_c":self.outdoor_temp_c,
+            "exterior_openings":[
+                e.id for e in self.topology.openings.values()
+                if e.source==self.topology.outside_id or e.target==self.topology.outside_id
+            ],
+        })
+        return obs
+
+    def reset(self, seed=None):
+        obs,info=super().reset(seed)
+        info.update({
+            "scenario_id":self.scenario.id,
+            "backend":"toy-scenario-v1",
+            "physics_fidelity":"toy",
+        })
+        return obs,info
+
+    def step(self, actions):
+        actions=list(actions)
+        observation=self._observation()
+        previous_openings=deepcopy(self.openings)
+
+        # Explicit occupant source term. This is a learning surrogate, not a
+        # calibrated metabolic/airflow model.
+        for zone_id,people in self.occupancy.items():
+            volume=self.topology.zones[zone_id].volume_m3
+            self.co2[zone_id] += float(people) * 18.0 * (30.0/volume) * self.dt_minutes
+
+        next_observation,_,terminated,truncated,info=super().step(actions)
+        reward=self.judge.score(observation,next_observation,actions,previous_openings)
+        info.update({"backend":"toy-scenario-v1","physics_fidelity":"toy"})
+        return next_observation,reward,terminated,truncated,info
