@@ -7,6 +7,7 @@ on:
       - "web/**"
       - "airtrajectory/**"
       - "examples/export_web_scenarios.py"
+      - "examples/export_experiment_lab.py"
       - ".github/workflows/pages.yml"
   workflow_dispatch:
 
@@ -28,10 +29,10 @@ jobs:
         with:
           python-version: "3.11"
       - run: python -m pip install -e .
-      - name: Generate backend scenarios
-        run: python examples/export_web_scenarios.py
-          grep -q 'tau_forks' web/data/scenarios.json
-          grep -q 'backend-generated · toy-multizone-v1 · not engineering truth' web/data/scenarios.json
+      - name: Generate backend artifacts
+        run: |
+          python examples/export_web_scenarios.py
+          python examples/export_experiment_lab.py
       - name: Validate generated artifact
         run: |
           python - <<'PY'
@@ -52,6 +53,20 @@ jobs:
           assert all(s["frames"][0]["field"]["grid"] == {"x0": 180, "y0": 120, "dx": 35, "dy": 35, "nx": 19, "ny": 13} for s in p["scenarios"])
           assert all(set(s["frames"][0]["field"]["opening_flow_estimate"]) == {"W1","W2","W3","D1","D2"} for s in p["scenarios"])
           print("validated", path, "with", len(p["scenarios"]), "branches")
+          PY
+      - name: Validate learning experiment artifact
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p=json.loads(Path("web/data/experiment.json").read_text())
+          assert p["contract"]["train_rooms"] == [2,3,4]
+          assert p["contract"]["test_rooms"] == [5]
+          assert set(p["episode"]) == {"rule","bc","offline_q"}
+          assert all(len(ep["steps"]) == 20 for ep in p["episode"].values())
+          assert all(ep["context"]["room_count"] == 5 for ep in p["episode"].values())
+          assert "not engineering truth" in p["provenance"]
+          print("validated learning experiment")
           PY
       - name: Validate filament renderer
         run: |
