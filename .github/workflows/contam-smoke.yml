@@ -1,5 +1,12 @@
 name: contam-real-smoke
 on:
+  push:
+    branches: ["main"]
+    paths:
+      - "airtrajectory/contam.py"
+      - "examples/contam_smoke.py"
+      - "pyproject.toml"
+      - ".github/workflows/contam-smoke.yml"
   pull_request:
     paths:
       - "airtrajectory/contam.py"
