@@ -133,13 +133,22 @@ class ScenarioMultizoneEnvironment(ToyMultizoneEnvironment):
 
     def _observation(self):
         obs=super()._observation()
+        exterior=[
+            e for e in self.topology.openings.values()
+            if e.source==self.topology.outside_id or e.target==self.topology.outside_id
+        ]
         obs.update({
             "occupancy":deepcopy(self.occupancy),
             "rain":self.rain,
             "outdoor_temp_c":self.outdoor_temp_c,
-            "exterior_openings":[
+            "exterior_openings":[e.id for e in exterior],
+            "opening_zone":{
+                e.id:(e.target if e.source==self.topology.outside_id else e.source)
+                for e in exterior
+            },
+            "interior_openings":[
                 e.id for e in self.topology.openings.values()
-                if e.source==self.topology.outside_id or e.target==self.topology.outside_id
+                if e.id not in {x.id for x in exterior}
             ],
         })
         return obs
