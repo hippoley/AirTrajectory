@@ -18,3 +18,36 @@ jobs:
       - run: python examples/single_room_rollout.py
       - run: python examples/export_web_scenarios.py
       - run: python -c 'import json; p=json.load(open("web/data/scenarios.json")); assert len(p["scenarios"]) == 4; assert p["baseline"] == "exhaustive-opening-search-v1"; assert all(s["frames"] for s in p["scenarios"]); assert all(set(s["metrics"]) == {"iaq","flow","motion","return"} for s in p["scenarios"])'
+
+
+  contam-real:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install official contamxpy runtime
+        run: python -m pip install -e ".[contam]"
+      - name: Download official contamxpy source demos
+        run: python -m pip download --no-deps --no-binary=:all: contamxpy==0.0.9 -d _contam_sdist
+      - name: Locate demo PRJ
+        shell: python
+        run: |
+          import glob, tarfile
+          archives=glob.glob("_contam_sdist/contamxpy-0.0.9.tar.gz")
+          assert archives, "contamxpy source archive missing"
+          with tarfile.open(archives[0]) as tf:
+              tf.extractall("_contam_src")
+          matches=glob.glob("_contam_src/**/demo_files/test_OneZoneSS-UseApi.prj",recursive=True)
+          if not matches:
+              matches=glob.glob("_contam_src/**/*.prj",recursive=True)
+          assert matches, "official contamxpy source contains no PRJ demo"
+          open("_contam_prj.txt","w",encoding="utf-8").write(matches[0])
+          print(matches[0])
+      - name: Execute real CONTAM engine
+        shell: pwsh
+        run: |
+          $prj = Get-Content _contam_prj.txt -Raw
+          python examples/contam_smoke.py $prj.Trim() --zone 1 --contaminant 1 --steps 2 | Tee-Object -FilePath contam-smoke.json
+          Select-String -Path contam-smoke.json -Pattern "CONTAM_EXECUTED"
