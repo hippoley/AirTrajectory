@@ -41,6 +41,11 @@ class CoreTests(unittest.TestCase):
             bundle.write_text(json.dumps({
                 "status":"PASS",
                 "hardware_identity":{"identity_sha256":"same"},
+                "preflight":{
+                    "receipt_sha256":"a"*64,
+                    "hardware_identity_sha256":"same",
+                    "gateway_contract_sha256":"b"*64,
+                },
             }))
             with self.assertRaisesRegex(RuntimeError,"still simulated"):
                 module.capture_physical_tau0(
@@ -82,6 +87,11 @@ class CoreTests(unittest.TestCase):
             bundle.write_text(json.dumps({
                 "status":"PASS",
                 "hardware_identity":{"identity_sha256":"commission-A"},
+                "preflight":{
+                    "receipt_sha256":"c"*64,
+                    "hardware_identity_sha256":"commission-A",
+                    "gateway_contract_sha256":"d"*64,
+                },
             }))
             with self.assertRaisesRegex(RuntimeError,"does not match"):
                 module.capture_physical_tau0(
@@ -95,6 +105,47 @@ class CoreTests(unittest.TestCase):
                 )
             self.assertFalse(driver.commanded)
 
+
+    def test_physical_capture_rejects_commissioning_without_preflight_lineage(self):
+        spec=importlib.util.spec_from_file_location(
+            "capture_physical_tau0_preflight",
+            Path(__file__).resolve().parents[1]/"examples"/"capture_physical_tau0.py",
+        )
+        module=importlib.util.module_from_spec(spec); spec.loader.exec_module(module)
+        class NoTouch(FakePhysicalWindowDriver):
+            def __init__(self):
+                super().__init__(co2_ppm=1400,measured_feedback=True)
+                self.readiness_called=False
+                self.commanded=False
+            def physical_readiness(self):
+                self.readiness_called=True
+                return {
+                    "capture_preconditions":True,
+                    "hardware_identity":{"identity_sha256":"same"},
+                    "reasons":[],
+                }
+            def set_position(self,opening_id,target_pct):
+                self.commanded=True
+                return super().set_position(opening_id,target_pct)
+        driver=NoTouch()
+        with tempfile.TemporaryDirectory() as d:
+            bundle=Path(d)/"commission.json"
+            bundle.write_text(json.dumps({
+                "status":"PASS",
+                "hardware_identity":{"identity_sha256":"same"},
+            }))
+            with self.assertRaisesRegex(RuntimeError,"preflight lineage"):
+                module.capture_physical_tau0(
+                    driver=driver,
+                    opening_id="w1",
+                    topology_id="physical-test",
+                    steps=1,
+                    out=Path(d)/"tau.jsonl",
+                    receipt=Path(d)/"receipt.json",
+                    commission_bundle=bundle,
+                )
+        self.assertFalse(driver.readiness_called)
+        self.assertFalse(driver.commanded)
 
 
     def test_windowpilot_bridge_is_explicitly_simulated_and_estimated_only(self):
@@ -317,12 +368,19 @@ class CoreTests(unittest.TestCase):
             list(audited_physical_transition_rows(trajectory))
 
     def test_dataset_uses_executed_action_and_preserves_proposal(self):
-        trajectory=Trajectory("demo","rule")
+        trajectory=Trajectory("demo","rule",context={
+            "preflight_receipt_sha256":"a"*64,
+            "preflight_hardware_identity_sha256":"same-hardware",
+            "gateway_contract_sha256":"b"*64,
+        })
         trajectory.append(TrajectoryStep(0,{"co2":1400},[TransitionAction("W1",50)],[TransitionAction("W1",0)],{"co2":1390},RewardVector(safety=-1),intervention="RAIN_SAFE_CLOSE",info={"trace_id":"trace-1","provenance":"physical"}))
         row=list(transition_rows(trajectory))[0]
         self.assertEqual(row["proposed_actions"][0]["target_pct"],50)
         self.assertEqual(row["action"][0]["target_pct"],0)
         self.assertEqual(row["trace_id"],"trace-1")
+        self.assertEqual(row["preflight_receipt_sha256"],"a"*64)
+        self.assertEqual(row["preflight_hardware_identity_sha256"],"same-hardware")
+        self.assertEqual(row["gateway_contract_sha256"],"b"*64)
         self.assertFalse(row["is_counterfactual"])
 
     def test_counterfactual_rows_are_not_behavior_samples(self):
@@ -438,6 +496,9 @@ class CoreTests(unittest.TestCase):
                 context_extra={
                     "commissioning_identity_sha256":"same-hardware",
                     "runtime_hardware_identity":identity,
+                    "preflight_receipt_sha256":"a"*64,
+                    "preflight_hardware_identity_sha256":"same-hardware",
+                    "gateway_contract_sha256":"b"*64,
                 },
             )
         report=validate_physical_tau0(trajectory)
