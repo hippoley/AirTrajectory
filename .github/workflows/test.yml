@@ -32,8 +32,9 @@ jobs:
       - name: Download official contamxpy source demos
         run: python -m pip download --no-deps --no-binary=:all: contamxpy==0.0.9 -d _contam_sdist
       - name: Locate demo PRJ
-        shell: python
+        shell: pwsh
         run: |
+          @'
           import glob, tarfile
           archives=glob.glob("_contam_sdist/contamxpy-0.0.9.tar.gz")
           assert archives, "contamxpy source archive missing"
@@ -45,6 +46,7 @@ jobs:
           assert matches, "official contamxpy source contains no PRJ demo"
           open("_contam_prj.txt","w",encoding="utf-8").write(matches[0])
           print(matches[0])
+          '@ | python -
       - name: Execute real CONTAM engine
         shell: pwsh
         run: |
