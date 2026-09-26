@@ -1,2 +1,3 @@
 from .fake import FakePhysicalWindowDriver
-__all__=["FakePhysicalWindowDriver"]
+from .windowpilot import WindowPilotHTTPDriver
+__all__=["FakePhysicalWindowDriver","WindowPilotHTTPDriver"]
