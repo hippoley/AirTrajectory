@@ -1,6 +1,7 @@
 """Capture and audit a physical trajectory through a configured WindowPilot runtime."""
 import argparse
 import json
+import hashlib
 from pathlib import Path
 
 from airtrajectory.drivers import WindowPilotHTTPDriver
@@ -35,10 +36,16 @@ def capture_physical_tau0(*, driver, opening_id, topology_id, steps, out, receip
     if not caps.measured_position:
         raise RuntimeError("WindowPilot has no measured position feedback; physical capture aborted")
 
+    commission_bundle_sha256=hashlib.sha256(bundle_path.read_bytes()).hexdigest()
     env=PhysicalWindowEnvironment(driver,opening_id,require_measured_feedback=True)
     trajectory=record_physical_trajectory(
         env,RulePolicy(opening_id),SafetyResolver(),
         topology_id,TrajectoryStore(out),steps=steps,
+        context_extra={
+            "commissioning_identity_sha256":expected,
+            "runtime_hardware_identity":readiness.get("hardware_identity"),
+            "commissioning_bundle_sha256":commission_bundle_sha256,
+        },
     )
     report=validate_physical_tau0(trajectory)
     payload={
@@ -50,6 +57,8 @@ def capture_physical_tau0(*, driver, opening_id, topology_id, steps, out, receip
         "output":str(out),
         "commissioning_identity_sha256":expected,
         "runtime_hardware_identity":readiness.get("hardware_identity"),
+        "commissioning_bundle_sha256":commission_bundle_sha256,
+        "trajectory_sha256":hashlib.sha256(Path(out).read_bytes()).hexdigest(),
     }
     receipt_path=Path(receipt); receipt_path.parent.mkdir(parents=True,exist_ok=True)
     receipt_path.write_text(json.dumps(payload,ensure_ascii=False,indent=2),encoding="utf-8")
