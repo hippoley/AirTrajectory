@@ -21,6 +21,27 @@ from airtrajectory.offline_rl import OfflineQ
 
 
 class CoreTests(unittest.TestCase):
+    def test_rollout_safety_gate_preserves_proposal_and_records_intervention(self):
+        from airtrajectory.scenario import generate_chain_scenario
+        from airtrajectory.environment import ScenarioMultizoneEnvironment
+        scenario=generate_chain_scenario(4,rooms=2)
+        scenario=type(scenario)(
+            id=scenario.id,topology=scenario.topology,initial_co2=scenario.initial_co2,
+            occupancy=scenario.occupancy,rain=True,outdoor_co2=scenario.outdoor_co2,
+            outdoor_temp_c=scenario.outdoor_temp_c,
+        )
+        env=ScenarioMultizoneEnvironment(scenario,horizon_steps=1)
+        exterior=[e.id for e in scenario.topology.openings.values() if e.source==scenario.topology.outside_id or e.target==scenario.topology.outside_id]
+        def unsafe(_):
+            return [TransitionAction(e,100) for e in exterior]
+        trajectory=rollout(env,unsafe,scenario.id,"unsafe",max_steps=1,safety_resolver=SafetyResolver())
+        step=trajectory.steps[0]
+        self.assertTrue(any(a.target_pct==100 for a in step.proposed_actions))
+        self.assertTrue(all(a.target_pct==0 for a in step.executed_actions))
+        self.assertEqual(step.intervention,"RAIN_SAFE_CLOSE")
+        self.assertTrue(step.info["safety_intervened"])
+
+
     def test_offline_q_never_selects_unseen_action(self):
         rows=[
           {"observation":{"co2":1400},"next_observation":{"co2":1300},"action":[{"opening_id":"W1","target_pct":50}],"reward":1.0,"terminated":False,"is_counterfactual":False},

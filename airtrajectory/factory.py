@@ -2,6 +2,7 @@
 from .agents import MultiWindowRuleAgent
 from .environment import ScenarioMultizoneEnvironment
 from .rollout import rollout
+from .physical import SafetyResolver
 from .scenario import generate_chain_scenario
 
 class TrajectoryFactory:
@@ -14,7 +15,7 @@ class TrajectoryFactory:
         scenario=generate_chain_scenario(seed,room_count)
         env=ScenarioMultizoneEnvironment(scenario,horizon_steps=self.horizon_steps)
         agent=MultiWindowRuleAgent(scenario.topology)
-        trajectory=rollout(env,agent,scenario.id,"multi-window-rule-v1",max_steps=self.horizon_steps)
+        trajectory=rollout(env,agent,scenario.id,"multi-window-rule-v1",max_steps=self.horizon_steps,safety_resolver=SafetyResolver())
         trajectory.context.update({
             "scenario_seed":seed,
             "room_count":room_count,

@@ -12,6 +12,7 @@ def rollout(
     topology_id: str,
     policy_id: str,
     max_steps: int = 120,
+    safety_resolver=None,
 ) -> Trajectory:
     observation, reset_info = env.reset()
     trajectory = Trajectory(
@@ -23,10 +24,18 @@ def rollout(
     for index in range(max_steps):
         proposed = list(policy(observation))
 
-        # Safety resolver will sit between proposed and executed.
-        executed = list(proposed)
+        intervention = None
+        if safety_resolver is None:
+            executed = list(proposed)
+        else:
+            decision = safety_resolver.resolve(observation, proposed)
+            proposed = list(decision.proposed)
+            executed = list(decision.executed)
+            intervention = decision.intervention
 
         next_observation, reward, terminated, truncated, info = env.step(executed)
+        info = dict(info)
+        info["safety_intervened"] = intervention is not None
 
         trajectory.append(
             TrajectoryStep(
@@ -36,6 +45,7 @@ def rollout(
                 executed_actions=executed,
                 next_observation=next_observation,
                 reward=reward,
+                intervention=intervention,
                 terminated=terminated or truncated,
                 info=info,
             )

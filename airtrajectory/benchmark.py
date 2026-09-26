@@ -6,6 +6,7 @@ from .environment import ScenarioMultizoneEnvironment
 from .factory import TrajectoryFactory
 from .learning import TopologyBCPolicy, TopologyOfflineQPolicy
 from .rollout import rollout
+from .physical import SafetyResolver
 from .scenario import generate_chain_scenario
 
 def _rows(trajectories):
@@ -17,11 +18,13 @@ def _summary(trajectories):
     returns=[t.return_value for t in trajectories]
     final_max=[max(t.steps[-1].next_observation["co2_ppm"].values()) for t in trajectories]
     safety_steps=sum(1 for t in trajectories for s in t.steps if s.reward.safety < 0)
+    interventions=sum(1 for t in trajectories for s in t.steps if s.intervention)
     return {
         "episodes":len(trajectories),
         "mean_return":mean(returns),
         "mean_final_max_co2_ppm":mean(final_max),
         "safety_violation_steps":safety_steps,
+        "safety_intervention_steps":interventions,
     }
 
 def unseen_topology_benchmark(train_count=24,test_count=8,horizon_steps=30,seed=100):
@@ -40,7 +43,7 @@ def unseen_topology_benchmark(train_count=24,test_count=8,horizon_steps=30,seed=
         }
         for name,policy in policies.items():
             env=ScenarioMultizoneEnvironment(s,horizon_steps=horizon_steps)
-            t=rollout(env,policy,s.id,name,max_steps=horizon_steps)
+            t=rollout(env,policy,s.id,name,max_steps=horizon_steps,safety_resolver=SafetyResolver())
             t.context.update({"benchmark_split":"unseen-topology","room_count":5,"physics_fidelity":"toy"})
             results[name].append(t)
     return {
