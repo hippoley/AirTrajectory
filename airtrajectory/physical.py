@@ -152,6 +152,18 @@ def validate_physical_tau0(trajectory: Trajectory) -> PhysicalEvidenceReport:
     if not runtime_id: reasons.append("trajectory missing runtime hardware identity")
     elif commission_id and runtime_id!=commission_id:
         reasons.append("commissioning/runtime hardware identity mismatch")
+
+    preflight_receipt=trajectory.context.get("preflight_receipt_sha256")
+    preflight_id=trajectory.context.get("preflight_hardware_identity_sha256")
+    gateway_contract=trajectory.context.get("gateway_contract_sha256")
+    if not preflight_receipt:
+        reasons.append("trajectory missing read-only preflight receipt lineage")
+    if not preflight_id:
+        reasons.append("trajectory missing preflight hardware identity")
+    elif commission_id and preflight_id!=commission_id:
+        reasons.append("preflight/commissioning hardware identity mismatch")
+    if not gateway_contract:
+        reasons.append("trajectory missing gateway contract lineage")
     for step in trajectory.steps:
         sensor_types={r.sensor_type for r in step.sensor_readings}
         if "co2" not in sensor_types: reasons.append(f"step {step.index} missing CO2 evidence")
