@@ -30,7 +30,8 @@ jobs:
       - name: Install official contamxpy runtime
         run: python -m pip install -e ".[contam]"
       - name: Download official contamxpy source demo
-        run: python -m pip download --no-deps --no-binary=:all: contamxpy==0.0.9 -d _contam_sdist
+        run: |
+          python -m pip download --no-deps "--no-binary=:all:" contamxpy==0.0.9 -d _contam_sdist
       - name: Extract a real NIST demo PRJ
         shell: pwsh
         run: |
