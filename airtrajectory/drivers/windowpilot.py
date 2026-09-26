@@ -52,6 +52,18 @@ class WindowPilotHTTPDriver(PhysicalWindowDriver):
             sensor_types=("co2","rain","temperature","humidity","wind_speed"),
         )
 
+
+    def physical_readiness(self):
+        payload=self._request_json("GET","/api/physical-readiness",None)
+        if not isinstance(payload,dict):
+            raise RuntimeError("WindowPilot physical readiness response is not an object")
+        if "capture_preconditions" not in payload:
+            raise RuntimeError("WindowPilot physical readiness response missing capture_preconditions")
+        reasons=payload.get("reasons",[])
+        if not isinstance(reasons,list):
+            raise RuntimeError("WindowPilot physical readiness reasons must be a list")
+        return payload
+
     def _stdlib_request(self, method: str, path: str, payload=None):
         body=None if payload is None else json.dumps(payload).encode("utf-8")
         req=Request(
