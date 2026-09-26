@@ -118,10 +118,13 @@ class PhysicalWindowEnvironment:
             "next_sensor_readings":list(nxt.get("sensor_readings",[])),
         }
 
-def record_physical_trajectory(env,policy,resolver,topology_id,store,steps=1):
+def record_physical_trajectory(env,policy,resolver,topology_id,store,steps=1,context_extra=None):
     observation,reset_info=env.reset()
     environment_kind="synthetic" if reset_info.get("driver_capabilities",{}).get("simulated",True) else "physical"
-    trajectory=Trajectory(topology_id=topology_id,policy_id="rule-policy-v1",environment_kind=environment_kind,context={"reset_info":reset_info})
+    context={"reset_info":reset_info}
+    if context_extra:
+        context.update(dict(context_extra))
+    trajectory=Trajectory(topology_id=topology_id,policy_id="rule-policy-v1",environment_kind=environment_kind,context=context)
     for index in range(steps):
         semantic=policy.semantic_action(observation);decision=resolver.resolve(observation,policy(observation))
         nxt,reward,terminated,truncated,info=env.step(decision.executed)
