@@ -7,9 +7,10 @@ from airtrajectory.topology import BuildingTopology, OpeningEdge, ZoneNode
 from airtrajectory.trajectory import TransitionAction
 
 class FakeCx:
-    def __init__(self,*_):
+    def __init__(self,prj_file_path,wp_mode=0,cb_option=False,*_):
+        self.path=prj_file_path; self.wp_mode=wp_mode; self.cb_option=cb_option
         self.nZones=2; self.nPaths=1; self.controls={}; self.steps=0; self.ended=False
-    def setupSimulation(self,path,use_cosim): self.path=path; self.use_cosim=use_cosim
+    def setupSimulation(self,use_cosim=1): self.use_cosim=use_cosim
     def getVersion(self): return "fake-contract"
     def getSimTimeStep(self): return 60
     def setInputControlValue(self,n,v): self.controls[n]=v
@@ -30,6 +31,10 @@ class ContamAdapterTests(unittest.TestCase):
             prj=Path(d)/"demo.prj"; prj.write_text("fixture")
             s=ContamXSession(prj,binding_factory=FakeCx)
             meta=s.setup(); self.assertEqual(meta["time_step_s"],60)
+            self.assertEqual(s.engine.path,str(prj))
+            self.assertEqual(s.engine.wp_mode,0)
+            self.assertTrue(s.engine.cb_option)
+            self.assertEqual(s.engine.use_cosim,1)
             s.set_input_control(7,.5); s.step()
             self.assertAlmostEqual(s.zone_mass_fraction(1,1),.00119)
             self.assertAlmostEqual(s.path_flow(1),.26)
