@@ -12,7 +12,7 @@ from airtrajectory import (
 
 
 from airtrajectory.physical import DriverCapabilities, PhysicalWindowEnvironment, RulePolicy, SafetyResolver, record_physical_trajectory, validate_physical_tau0
-from airtrajectory.drivers import FakePhysicalWindowDriver
+from airtrajectory.drivers import FakePhysicalWindowDriver, WindowPilotHTTPDriver
 from airtrajectory.api import fork_request
 from airtrajectory.telemetry import DecisionTelemetry
 from airtrajectory.dataset import transition_rows, counterfactual_rows
@@ -21,6 +21,44 @@ from airtrajectory.offline_rl import OfflineQ
 
 
 class CoreTests(unittest.TestCase):
+    def test_windowpilot_bridge_is_explicitly_simulated_and_estimated_only(self):
+        state={
+            "thing_model":{
+                "window":{"open_pct":40},
+                "sensors":{"co2_ppm":1350,"rain":False,"temp_indoor":25.0,"humidity":55,"wind_speed":2.2},
+            }
+        }
+        calls=[]
+        def request(method,path,payload):
+            calls.append((method,path,payload))
+            return state
+        driver=WindowPilotHTTPDriver(request_json=request)
+        caps=driver.capabilities()
+        self.assertTrue(caps.simulated)
+        self.assertFalse(caps.measured_position)
+        readings=driver.read_sensors()
+        self.assertEqual({r.sensor_type for r in readings},{"co2","rain","temperature","humidity","wind_speed"})
+        feedback=driver.set_position("w1",40)
+        self.assertIsNone(feedback.measured_position_pct)
+        self.assertEqual(feedback.estimated_position_pct,40)
+        self.assertIn(("POST","/api/window/open",{"target_pct":40.0}),calls)
+
+    def test_windowpilot_bridge_cannot_claim_real_tau0(self):
+        state={
+            "thing_model":{
+                "window":{"open_pct":50},
+                "sensors":{"co2_ppm":1400,"rain":False},
+            }
+        }
+        def request(method,path,payload): return state
+        env=PhysicalWindowEnvironment(WindowPilotHTTPDriver(request_json=request),"w1")
+        with tempfile.TemporaryDirectory() as d:
+            trajectory=record_physical_trajectory(env,RulePolicy("w1"),SafetyResolver(),"windowpilot-bridge",TrajectoryStore(Path(d)/"tau.jsonl"))
+        report=validate_physical_tau0(trajectory)
+        self.assertFalse(report.valid_tau0)
+        self.assertTrue(any("simulated" in reason for reason in report.reasons))
+
+
     def test_rollout_safety_gate_preserves_proposal_and_records_intervention(self):
         from airtrajectory.scenario import generate_chain_scenario
         from airtrajectory.environment import ScenarioMultizoneEnvironment
