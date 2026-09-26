@@ -1,4 +1,5 @@
 import json
+import importlib.util
 import tempfile
 import unittest
 from airtrajectory.trajectory import Trajectory, TrajectoryStep, TransitionAction, RewardVector
@@ -21,6 +22,27 @@ from airtrajectory.offline_rl import OfflineQ
 
 
 class CoreTests(unittest.TestCase):
+    def test_physical_capture_aborts_before_command_on_simulator(self):
+        spec=importlib.util.spec_from_file_location(
+            "capture_physical_tau0",
+            Path(__file__).resolve().parents[1]/"examples"/"capture_physical_tau0.py",
+        )
+        module=importlib.util.module_from_spec(spec); spec.loader.exec_module(module)
+        driver=FakePhysicalWindowDriver(co2_ppm=1400,measured_feedback=True)
+        with tempfile.TemporaryDirectory() as d:
+            with self.assertRaisesRegex(RuntimeError,"still simulated"):
+                module.capture_physical_tau0(
+                    driver=driver,
+                    opening_id="w1",
+                    topology_id="physical-test",
+                    steps=1,
+                    out=Path(d)/"tau.jsonl",
+                    receipt=Path(d)/"receipt.json",
+                )
+            self.assertFalse((Path(d)/"tau.jsonl").exists())
+            self.assertFalse((Path(d)/"receipt.json").exists())
+
+
     def test_windowpilot_bridge_is_explicitly_simulated_and_estimated_only(self):
         state={
             "thing_model":{
