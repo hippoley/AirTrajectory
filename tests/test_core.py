@@ -415,10 +415,32 @@ class CoreTests(unittest.TestCase):
             def capabilities(self):
                 return DriverCapabilities("external-test-contract",False,True,("co2","rain"))
         env=PhysicalWindowEnvironment(ContractReal(co2_ppm=1400,measured_feedback=True),"w1",require_measured_feedback=True)
+        identity={"identity_sha256":"same-hardware","device_id":"physical_dev_home_001.window.combo01"}
         with tempfile.TemporaryDirectory() as d:
-            trajectory=record_physical_trajectory(env,RulePolicy("w1"),SafetyResolver(),"physical-contract",TrajectoryStore(Path(d)/"tau0.jsonl"))
+            trajectory=record_physical_trajectory(
+                env,RulePolicy("w1"),SafetyResolver(),"physical-contract",
+                TrajectoryStore(Path(d)/"tau0.jsonl"),
+                context_extra={
+                    "commissioning_identity_sha256":"same-hardware",
+                    "runtime_hardware_identity":identity,
+                },
+            )
         report=validate_physical_tau0(trajectory)
         self.assertTrue(report.valid_tau0,report.reasons)
+
+    def test_tau0_audit_rejects_missing_commissioning_identity(self):
+        class ContractReal(FakePhysicalWindowDriver):
+            def capabilities(self):
+                return DriverCapabilities("external-test-contract",False,True,("co2","rain"))
+        env=PhysicalWindowEnvironment(ContractReal(co2_ppm=1400,measured_feedback=True),"w1",require_measured_feedback=True)
+        with tempfile.TemporaryDirectory() as d:
+            trajectory=record_physical_trajectory(
+                env,RulePolicy("w1"),SafetyResolver(),"physical-contract",
+                TrajectoryStore(Path(d)/"tau0.jsonl"),
+            )
+        report=validate_physical_tau0(trajectory)
+        self.assertFalse(report.valid_tau0)
+        self.assertTrue(any("commissioning hardware identity" in reason for reason in report.reasons))
 
     def test_tau0_records_post_action_environmental_evidence(self):
         driver=FakePhysicalWindowDriver(co2_ppm=1400,measured_feedback=True)
