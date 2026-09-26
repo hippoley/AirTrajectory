@@ -43,6 +43,46 @@ class CoreTests(unittest.TestCase):
         self.assertEqual(feedback.estimated_position_pct,40)
         self.assertIn(("POST","/api/window/open",{"target_pct":40.0}),calls)
 
+    def test_windowpilot_bridge_can_accept_verified_measured_feedback(self):
+        now=1234.0
+        state={
+            "thing_model":{
+                "window":{"open_pct":40},
+                "sensors":{"co2_ppm":1350,"rain":False,"temp_indoor":25.0,"humidity":55,"wind_speed":2.2},
+                "sensor_timestamps":{"co2_ppm":now,"rain":now,"temperature":now,"humidity":now,"wind_speed":now},
+            }
+        }
+        caps={
+            "execution":{"transport":"rs485-verified","simulated":False,"measured_position":True},
+            "position_feedback":{"position_pct":41.5,"timestamp":now,"measured":True,"quality":"encoder-measured"},
+        }
+        def request(method,path,payload):
+            if path=="/api/capabilities": return caps
+            return state
+        driver=WindowPilotHTTPDriver(request_json=request)
+        dc=driver.capabilities()
+        self.assertFalse(dc.simulated)
+        self.assertTrue(dc.measured_position)
+        feedback=driver.set_position("w1",40)
+        self.assertEqual(feedback.measured_position_pct,41.5)
+        self.assertIsNone(feedback.estimated_position_pct)
+        self.assertEqual(feedback.timestamp,now)
+
+    def test_windowpilot_hardware_sensor_requires_source_timestamp(self):
+        state={
+            "thing_model":{
+                "window":{"open_pct":40},
+                "sensors":{"co2_ppm":1350,"rain":False},
+            }
+        }
+        caps={"execution":{"transport":"rs485-verified","simulated":False,"measured_position":True}}
+        def request(method,path,payload):
+            if path=="/api/capabilities": return caps
+            return state
+        driver=WindowPilotHTTPDriver(request_json=request)
+        with self.assertRaises(RuntimeError):
+            driver.read_sensors()
+
     def test_windowpilot_bridge_cannot_claim_real_tau0(self):
         state={
             "thing_model":{
