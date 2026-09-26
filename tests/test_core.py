@@ -28,8 +28,20 @@ class CoreTests(unittest.TestCase):
             Path(__file__).resolve().parents[1]/"examples"/"capture_physical_tau0.py",
         )
         module=importlib.util.module_from_spec(spec); spec.loader.exec_module(module)
-        driver=FakePhysicalWindowDriver(co2_ppm=1400,measured_feedback=True)
+        class CommissionedFake(FakePhysicalWindowDriver):
+            def physical_readiness(self):
+                return {
+                    "capture_preconditions":True,
+                    "hardware_identity":{"identity_sha256":"same"},
+                    "reasons":[],
+                }
+        driver=CommissionedFake(co2_ppm=1400,measured_feedback=True)
         with tempfile.TemporaryDirectory() as d:
+            bundle=Path(d)/"commission.json"
+            bundle.write_text(json.dumps({
+                "status":"PASS",
+                "hardware_identity":{"identity_sha256":"same"},
+            }))
             with self.assertRaisesRegex(RuntimeError,"still simulated"):
                 module.capture_physical_tau0(
                     driver=driver,
@@ -38,9 +50,51 @@ class CoreTests(unittest.TestCase):
                     steps=1,
                     out=Path(d)/"tau.jsonl",
                     receipt=Path(d)/"receipt.json",
+                    commission_bundle=bundle,
                 )
             self.assertFalse((Path(d)/"tau.jsonl").exists())
             self.assertFalse((Path(d)/"receipt.json").exists())
+
+    def test_physical_capture_rejects_commissioned_runtime_identity_mismatch_before_command(self):
+        spec=importlib.util.spec_from_file_location(
+            "capture_physical_tau0_identity",
+            Path(__file__).resolve().parents[1]/"examples"/"capture_physical_tau0.py",
+        )
+        module=importlib.util.module_from_spec(spec); spec.loader.exec_module(module)
+        class IdentityMismatch(FakePhysicalWindowDriver):
+            def __init__(self):
+                super().__init__(co2_ppm=1400,measured_feedback=True)
+                self.commanded=False
+            def capabilities(self):
+                return DriverCapabilities("verified",False,True,("co2","rain"))
+            def physical_readiness(self):
+                return {
+                    "capture_preconditions":True,
+                    "hardware_identity":{"identity_sha256":"runtime-B"},
+                    "reasons":[],
+                }
+            def set_position(self,opening_id,target_pct):
+                self.commanded=True
+                return super().set_position(opening_id,target_pct)
+        driver=IdentityMismatch()
+        with tempfile.TemporaryDirectory() as d:
+            bundle=Path(d)/"commission.json"
+            bundle.write_text(json.dumps({
+                "status":"PASS",
+                "hardware_identity":{"identity_sha256":"commission-A"},
+            }))
+            with self.assertRaisesRegex(RuntimeError,"does not match"):
+                module.capture_physical_tau0(
+                    driver=driver,
+                    opening_id="w1",
+                    topology_id="physical-test",
+                    steps=1,
+                    out=Path(d)/"tau.jsonl",
+                    receipt=Path(d)/"receipt.json",
+                    commission_bundle=bundle,
+                )
+            self.assertFalse(driver.commanded)
+
 
 
     def test_windowpilot_bridge_is_explicitly_simulated_and_estimated_only(self):
