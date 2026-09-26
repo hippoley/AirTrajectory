@@ -50,18 +50,28 @@ def _fork_request(req: ForkRequest, decision_trace) -> Dict[str, Any]:
         raise ValueError("unsupported topology_id; arbitrary topology transport is not implemented yet")
     topology=demo_topology()
     co2=req.origin["co2_ppm"]
-    if isinstance(co2,(int,float)):
-        co2={"living":float(co2),"bedroom":980.0,"study":840.0}
-    env=ToyMultizoneEnvironment(topology,co2,dt_minutes=1,horizon_steps=max(60,req.horizon_minutes+1))
+    supplied=req.origin["opening_pct"]
+    if not isinstance(co2,dict) or not isinstance(supplied,dict):
+        raise ValueError("demo-3zone origin requires complete co2_ppm and opening_pct mappings")
+    required_zones=set(topology.zones)
+    required_openings=set(topology.openings)
+    missing_zones=required_zones-set(co2)
+    missing_openings=required_openings-set(supplied)
+    extra_zones=set(co2)-required_zones
+    extra_openings=set(supplied)-required_openings
+    if missing_zones or missing_openings or extra_zones or extra_openings:
+        detail=[]
+        if missing_zones: detail.append("missing zones="+",".join(sorted(missing_zones)))
+        if missing_openings: detail.append("missing openings="+",".join(sorted(missing_openings)))
+        if extra_zones: detail.append("unknown zones="+",".join(sorted(extra_zones)))
+        if extra_openings: detail.append("unknown openings="+",".join(sorted(extra_openings)))
+        raise ValueError("incomplete demo-3zone origin: "+"; ".join(detail))
+    env=ToyMultizoneEnvironment(topology,{k:float(v) for k,v in co2.items()},dt_minutes=1,horizon_steps=max(60,req.horizon_minutes+1))
     env.reset()
     snapshot=env.snapshot()
     snapshot["co2"]={k:float(v) for k,v in co2.items()}
-    supplied=req.origin["opening_pct"]
-    if isinstance(supplied,(int,float)):
-        snapshot["openings"][req.opening_id]=float(supplied)
-    else:
-        for key,value in supplied.items():
-            if key in snapshot["openings"]: snapshot["openings"][key]=float(value)
+    for key,value in supplied.items():
+        snapshot["openings"][key]=float(value)
     env.restore(snapshot)
     decision_trace.attributes["origin.co2_ppm"]=co2
     decision_trace.attributes["origin.opening_pct"]=supplied
