@@ -14,6 +14,12 @@ def transition_rows(trajectory: Trajectory):
             "topology_id":trajectory.topology_id,
             "policy_id":trajectory.policy_id,
             "environment_kind":trajectory.environment_kind,
+            "commissioning_identity_sha256":trajectory.context.get("commissioning_identity_sha256"),
+            "runtime_hardware_identity_sha256":(
+                trajectory.context.get("runtime_hardware_identity",{}).get("identity_sha256")
+                if isinstance(trajectory.context.get("runtime_hardware_identity"),dict) else None
+            ),
+            "commissioning_bundle_sha256":trajectory.context.get("commissioning_bundle_sha256"),
             "step_index":step.index,
             "observation":step.observation,
             "proposed_actions":[asdict(a) for a in step.proposed_actions],
@@ -57,3 +63,14 @@ def counterfactual_rows(artifact: dict):
             "provenance":branch["provenance"],
             "is_counterfactual":True,
         }
+
+
+def audited_physical_transition_rows(trajectory: Trajectory):
+    """Yield rows only when a physical trajectory passes the complete tau0 evidence audit."""
+    from .physical import validate_physical_tau0
+    if trajectory.environment_kind!="physical":
+        raise ValueError("audited physical dataset requires environment_kind=physical")
+    report=validate_physical_tau0(trajectory)
+    if not report.valid_tau0:
+        raise ValueError("physical trajectory failed evidence audit: "+"; ".join(report.reasons))
+    yield from transition_rows(trajectory)

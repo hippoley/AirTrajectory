@@ -16,7 +16,7 @@ from airtrajectory.physical import DriverCapabilities, PhysicalWindowEnvironment
 from airtrajectory.drivers import FakePhysicalWindowDriver, WindowPilotHTTPDriver
 from airtrajectory.api import fork_request
 from airtrajectory.telemetry import DecisionTelemetry
-from airtrajectory.dataset import transition_rows, counterfactual_rows
+from airtrajectory.dataset import transition_rows, counterfactual_rows, audited_physical_transition_rows
 from airtrajectory.bc import TabularBC
 from airtrajectory.offline_rl import OfflineQ
 
@@ -28,8 +28,20 @@ class CoreTests(unittest.TestCase):
             Path(__file__).resolve().parents[1]/"examples"/"capture_physical_tau0.py",
         )
         module=importlib.util.module_from_spec(spec); spec.loader.exec_module(module)
-        driver=FakePhysicalWindowDriver(co2_ppm=1400,measured_feedback=True)
+        class CommissionedFake(FakePhysicalWindowDriver):
+            def physical_readiness(self):
+                return {
+                    "capture_preconditions":True,
+                    "hardware_identity":{"identity_sha256":"same"},
+                    "reasons":[],
+                }
+        driver=CommissionedFake(co2_ppm=1400,measured_feedback=True)
         with tempfile.TemporaryDirectory() as d:
+            bundle=Path(d)/"commission.json"
+            bundle.write_text(json.dumps({
+                "status":"PASS",
+                "hardware_identity":{"identity_sha256":"same"},
+            }))
             with self.assertRaisesRegex(RuntimeError,"still simulated"):
                 module.capture_physical_tau0(
                     driver=driver,
@@ -38,9 +50,51 @@ class CoreTests(unittest.TestCase):
                     steps=1,
                     out=Path(d)/"tau.jsonl",
                     receipt=Path(d)/"receipt.json",
+                    commission_bundle=bundle,
                 )
             self.assertFalse((Path(d)/"tau.jsonl").exists())
             self.assertFalse((Path(d)/"receipt.json").exists())
+
+    def test_physical_capture_rejects_commissioned_runtime_identity_mismatch_before_command(self):
+        spec=importlib.util.spec_from_file_location(
+            "capture_physical_tau0_identity",
+            Path(__file__).resolve().parents[1]/"examples"/"capture_physical_tau0.py",
+        )
+        module=importlib.util.module_from_spec(spec); spec.loader.exec_module(module)
+        class IdentityMismatch(FakePhysicalWindowDriver):
+            def __init__(self):
+                super().__init__(co2_ppm=1400,measured_feedback=True)
+                self.commanded=False
+            def capabilities(self):
+                return DriverCapabilities("verified",False,True,("co2","rain"))
+            def physical_readiness(self):
+                return {
+                    "capture_preconditions":True,
+                    "hardware_identity":{"identity_sha256":"runtime-B"},
+                    "reasons":[],
+                }
+            def set_position(self,opening_id,target_pct):
+                self.commanded=True
+                return super().set_position(opening_id,target_pct)
+        driver=IdentityMismatch()
+        with tempfile.TemporaryDirectory() as d:
+            bundle=Path(d)/"commission.json"
+            bundle.write_text(json.dumps({
+                "status":"PASS",
+                "hardware_identity":{"identity_sha256":"commission-A"},
+            }))
+            with self.assertRaisesRegex(RuntimeError,"does not match"):
+                module.capture_physical_tau0(
+                    driver=driver,
+                    opening_id="w1",
+                    topology_id="physical-test",
+                    steps=1,
+                    out=Path(d)/"tau.jsonl",
+                    receipt=Path(d)/"receipt.json",
+                    commission_bundle=bundle,
+                )
+            self.assertFalse(driver.commanded)
+
 
 
     def test_windowpilot_bridge_is_explicitly_simulated_and_estimated_only(self):
@@ -247,6 +301,21 @@ class CoreTests(unittest.TestCase):
         model.fit([{"observation":{"co2":1300},"action":[{"opening_id":"W1","target_pct":50}],"is_counterfactual":False}])
         self.assertEqual(model.predict({"co2":700}),0)
 
+    def test_audited_physical_dataset_rejects_uncommissioned_physical_trajectory(self):
+        trajectory=Trajectory(
+            "physical","rule",environment_kind="physical",
+            context={"reset_info":{"driver_capabilities":{"simulated":False,"measured_position":True}}}
+        )
+        trajectory.append(TrajectoryStep(
+            0,{"co2_ppm":1400,"rain":False},[TransitionAction("w1",50)],[TransitionAction("w1",50)],
+            {"co2_ppm":1300,"rain":False},RewardVector(),
+            sensor_readings=[SensorReading("co2","co2",1400,"ppm",10),SensorReading("rain","rain",0,"bool",10)],
+            next_sensor_readings=[SensorReading("co2","co2",1300,"ppm",12),SensorReading("rain","rain",0,"bool",12)],
+            actuator_feedback=[ActuatorFeedback("w1",11,measured_position_pct=50)],
+        ))
+        with self.assertRaisesRegex(ValueError,"failed evidence audit"):
+            list(audited_physical_transition_rows(trajectory))
+
     def test_dataset_uses_executed_action_and_preserves_proposal(self):
         trajectory=Trajectory("demo","rule")
         trajectory.append(TrajectoryStep(0,{"co2":1400},[TransitionAction("W1",50)],[TransitionAction("W1",0)],{"co2":1390},RewardVector(safety=-1),intervention="RAIN_SAFE_CLOSE",info={"trace_id":"trace-1","provenance":"physical"}))
@@ -361,10 +430,32 @@ class CoreTests(unittest.TestCase):
             def capabilities(self):
                 return DriverCapabilities("external-test-contract",False,True,("co2","rain"))
         env=PhysicalWindowEnvironment(ContractReal(co2_ppm=1400,measured_feedback=True),"w1",require_measured_feedback=True)
+        identity={"identity_sha256":"same-hardware","device_id":"physical_dev_home_001.window.combo01"}
         with tempfile.TemporaryDirectory() as d:
-            trajectory=record_physical_trajectory(env,RulePolicy("w1"),SafetyResolver(),"physical-contract",TrajectoryStore(Path(d)/"tau0.jsonl"))
+            trajectory=record_physical_trajectory(
+                env,RulePolicy("w1"),SafetyResolver(),"physical-contract",
+                TrajectoryStore(Path(d)/"tau0.jsonl"),
+                context_extra={
+                    "commissioning_identity_sha256":"same-hardware",
+                    "runtime_hardware_identity":identity,
+                },
+            )
         report=validate_physical_tau0(trajectory)
         self.assertTrue(report.valid_tau0,report.reasons)
+
+    def test_tau0_audit_rejects_missing_commissioning_identity(self):
+        class ContractReal(FakePhysicalWindowDriver):
+            def capabilities(self):
+                return DriverCapabilities("external-test-contract",False,True,("co2","rain"))
+        env=PhysicalWindowEnvironment(ContractReal(co2_ppm=1400,measured_feedback=True),"w1",require_measured_feedback=True)
+        with tempfile.TemporaryDirectory() as d:
+            trajectory=record_physical_trajectory(
+                env,RulePolicy("w1"),SafetyResolver(),"physical-contract",
+                TrajectoryStore(Path(d)/"tau0.jsonl"),
+            )
+        report=validate_physical_tau0(trajectory)
+        self.assertFalse(report.valid_tau0)
+        self.assertTrue(any("commissioning hardware identity" in reason for reason in report.reasons))
 
     def test_tau0_records_post_action_environmental_evidence(self):
         driver=FakePhysicalWindowDriver(co2_ppm=1400,measured_feedback=True)

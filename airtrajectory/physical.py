@@ -118,10 +118,13 @@ class PhysicalWindowEnvironment:
             "next_sensor_readings":list(nxt.get("sensor_readings",[])),
         }
 
-def record_physical_trajectory(env,policy,resolver,topology_id,store,steps=1):
+def record_physical_trajectory(env,policy,resolver,topology_id,store,steps=1,context_extra=None):
     observation,reset_info=env.reset()
     environment_kind="synthetic" if reset_info.get("driver_capabilities",{}).get("simulated",True) else "physical"
-    trajectory=Trajectory(topology_id=topology_id,policy_id="rule-policy-v1",environment_kind=environment_kind,context={"reset_info":reset_info})
+    context={"reset_info":reset_info}
+    if context_extra:
+        context.update(dict(context_extra))
+    trajectory=Trajectory(topology_id=topology_id,policy_id="rule-policy-v1",environment_kind=environment_kind,context=context)
     for index in range(steps):
         semantic=policy.semantic_action(observation);decision=resolver.resolve(observation,policy(observation))
         nxt,reward,terminated,truncated,info=env.step(decision.executed)
@@ -142,6 +145,13 @@ def validate_physical_tau0(trajectory: Trajectory) -> PhysicalEvidenceReport:
     if caps.get("simulated",True): reasons.append("driver is simulated or provenance is missing")
     if not caps.get("measured_position",False): reasons.append("driver does not advertise measured position")
     if not trajectory.steps: reasons.append("trajectory has no steps")
+    commission_id=trajectory.context.get("commissioning_identity_sha256")
+    runtime_identity=trajectory.context.get("runtime_hardware_identity") or {}
+    runtime_id=runtime_identity.get("identity_sha256") if isinstance(runtime_identity,dict) else None
+    if not commission_id: reasons.append("trajectory missing commissioning hardware identity")
+    if not runtime_id: reasons.append("trajectory missing runtime hardware identity")
+    elif commission_id and runtime_id!=commission_id:
+        reasons.append("commissioning/runtime hardware identity mismatch")
     for step in trajectory.steps:
         sensor_types={r.sensor_type for r in step.sensor_readings}
         if "co2" not in sensor_types: reasons.append(f"step {step.index} missing CO2 evidence")

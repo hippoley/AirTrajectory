@@ -42,6 +42,12 @@ class WindowPilotHTTPDriver(PhysicalWindowDriver):
             return {}
         return payload if isinstance(payload,dict) else {}
 
+    def physical_readiness(self):
+        payload=self._request_json("GET","/api/physical-readiness",None)
+        if not isinstance(payload,dict):
+            raise RuntimeError("WindowPilot /api/physical-readiness returned invalid payload")
+        return payload
+
     def capabilities(self):
         payload=self._capability_payload()
         execution=payload.get("execution") if isinstance(payload.get("execution"),dict) else {}
