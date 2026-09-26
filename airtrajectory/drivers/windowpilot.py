@@ -15,10 +15,25 @@ from ..trajectory import ActuatorFeedback, SensorReading
 
 
 class WindowPilotHTTPDriver(PhysicalWindowDriver):
-    def __init__(self, base_url: str="http://127.0.0.1:8000", timeout_s: float=2.0, request_json: Callable|None=None):
+    def __init__(
+        self,
+        base_url: str="http://127.0.0.1:8000",
+        timeout_s: float=2.0,
+        request_json: Callable|None=None,
+        feedback_timeout_s: float=5.0,
+        feedback_poll_interval_s: float=0.1,
+        position_tolerance_pct: float=1.0,
+        sleep_fn=time.sleep,
+        clock_fn=time.time,
+    ):
         self.base_url=base_url.rstrip("/")
         self.timeout_s=float(timeout_s)
+        self.feedback_timeout_s=float(feedback_timeout_s)
+        self.feedback_poll_interval_s=float(feedback_poll_interval_s)
+        self.position_tolerance_pct=float(position_tolerance_pct)
         self._request_json=request_json or self._stdlib_request
+        self._sleep=sleep_fn
+        self._clock=clock_fn
 
     def _capability_payload(self):
         try:
@@ -97,25 +112,35 @@ class WindowPilotHTTPDriver(PhysicalWindowDriver):
         target=float(target_pct)
         if not 0 <= target <= 100:
             raise ValueError("target_pct must be in [0,100]")
+        command_started=self._clock()
         if target <= 0:
             self._request_json("POST","/api/window/close",{})
         else:
             self._request_json("POST","/api/window/open",{"target_pct":target})
         caps_payload=self._capability_payload()
         execution=caps_payload.get("execution") if isinstance(caps_payload.get("execution"),dict) else {}
-        feedback=caps_payload.get("position_feedback") if isinstance(caps_payload.get("position_feedback"),dict) else {}
         if execution.get("simulated") is False and execution.get("measured_position") is True:
-            if feedback.get("measured") is not True or feedback.get("position_pct") is None:
-                raise RuntimeError("WindowPilot advertises measured position but returned no measured feedback")
-            ts=float(feedback.get("timestamp") or 0)
-            if ts <= 0:
-                raise RuntimeError("WindowPilot measured feedback missing timestamp")
-            return ActuatorFeedback(
-                actuator_id=opening_id,
-                timestamp=ts,
-                measured_position_pct=float(feedback["position_pct"]),
-                quality=str(feedback.get("quality") or "measured-windowpilot"),
-            )
+            deadline=command_started+self.feedback_timeout_s
+            last_reason="no measured feedback"
+            while self._clock() <= deadline:
+                caps_payload=self._capability_payload()
+                feedback=caps_payload.get("position_feedback") if isinstance(caps_payload.get("position_feedback"),dict) else {}
+                if feedback.get("measured") is True and feedback.get("position_pct") is not None:
+                    ts=float(feedback.get("timestamp") or 0)
+                    pct=float(feedback["position_pct"])
+                    if ts < command_started:
+                        last_reason="feedback predates command"
+                    elif abs(pct-target) > self.position_tolerance_pct:
+                        last_reason=f"measured position {pct:.2f}% has not reached target {target:.2f}%"
+                    else:
+                        return ActuatorFeedback(
+                            actuator_id=opening_id,
+                            timestamp=ts,
+                            measured_position_pct=pct,
+                            quality=str(feedback.get("quality") or "measured-windowpilot"),
+                        )
+                self._sleep(self.feedback_poll_interval_s)
+            raise RuntimeError("WindowPilot measured feedback timeout: "+last_reason)
 
         state=self._state()
         position=state.get("window",{}).get("open_pct")

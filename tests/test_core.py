@@ -54,19 +54,46 @@ class CoreTests(unittest.TestCase):
         }
         caps={
             "execution":{"transport":"rs485-verified","simulated":False,"measured_position":True},
-            "position_feedback":{"position_pct":41.5,"timestamp":now,"measured":True,"quality":"encoder-measured"},
+            "position_feedback":{"position_pct":40.5,"timestamp":now,"measured":True,"quality":"encoder-measured"},
         }
         def request(method,path,payload):
             if path=="/api/capabilities": return caps
             return state
-        driver=WindowPilotHTTPDriver(request_json=request)
+        driver=WindowPilotHTTPDriver(request_json=request,clock_fn=lambda: now,sleep_fn=lambda _:None)
         dc=driver.capabilities()
         self.assertFalse(dc.simulated)
         self.assertTrue(dc.measured_position)
         feedback=driver.set_position("w1",40)
-        self.assertEqual(feedback.measured_position_pct,41.5)
+        self.assertEqual(feedback.measured_position_pct,40.5)
         self.assertIsNone(feedback.estimated_position_pct)
         self.assertEqual(feedback.timestamp,now)
+
+    def test_windowpilot_rejects_pre_command_measured_feedback(self):
+        clock={"now":100.0}
+        state={
+            "thing_model":{
+                "window":{"open_pct":0},
+                "sensors":{"co2_ppm":1350,"rain":False},
+                "sensor_timestamps":{"co2_ppm":100.0,"rain":100.0},
+            }
+        }
+        caps={
+            "execution":{"transport":"verified","simulated":False,"measured_position":True},
+            "position_feedback":{"position_pct":40.0,"timestamp":99.0,"measured":True,"quality":"stale"},
+        }
+        def request(method,path,payload):
+            if path=="/api/capabilities": return caps
+            return state
+        def now():
+            value=clock["now"]
+            clock["now"]+=1.0
+            return value
+        driver=WindowPilotHTTPDriver(
+            request_json=request,clock_fn=now,sleep_fn=lambda _:None,
+            feedback_timeout_s=1.0,feedback_poll_interval_s=0,
+        )
+        with self.assertRaises(RuntimeError):
+            driver.set_position("w1",40)
 
     def test_windowpilot_hardware_sensor_requires_source_timestamp(self):
         state={
