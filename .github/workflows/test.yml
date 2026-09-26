@@ -29,6 +29,9 @@ jobs:
           python-version: "3.11"
       - name: Install official contamxpy runtime
         run: python -m pip install -e ".[contam]"
+      - name: Inspect installed contamxpy API
+        run: |
+          python -c "import inspect,contamxpy; print('cxLib', inspect.signature(contamxpy.cxLib)); print('setupSimulation', inspect.signature(contamxpy.cxLib.setupSimulation)); print('doSimStep', inspect.signature(contamxpy.cxLib.doSimStep)); print('endSimulation', inspect.signature(contamxpy.cxLib.endSimulation))"
       - name: Download official contamxpy source demo
         run: |
           python -m pip download --no-deps "--no-binary=:all:" contamxpy==0.0.9 -d _contam_sdist
