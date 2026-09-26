@@ -56,7 +56,10 @@ class WindowPilotHTTPDriver(PhysicalWindowDriver):
         return thing
 
     def read_sensors(self):
-        sensors=self._state().get("sensors",{})
+        state=self._state()
+        sensors=state.get("sensors",{})
+        timestamps=state.get("sensor_timestamps",{}) if isinstance(state.get("sensor_timestamps"),dict) else {}
+        caps=self.capabilities()
         now=time.time()
         rows=[]
         mapping=(
@@ -71,13 +74,22 @@ class WindowPilotHTTPDriver(PhysicalWindowDriver):
                 continue
             value=sensors[key]
             if isinstance(value,bool): value=float(value)
+            if caps.simulated:
+                ts=now
+                quality="simulated-windowpilot-receipt-time"
+            else:
+                ts_key="temperature" if key=="temp_indoor" else key
+                ts=float(timestamps.get(ts_key) or 0)
+                if ts <= 0:
+                    raise RuntimeError(f"WindowPilot hardware sensor {key} missing source timestamp")
+                quality="measured-windowpilot-source-time"
             rows.append(SensorReading(
                 sensor_id="windowpilot-"+key,
                 sensor_type=sensor_type,
                 value=float(value),
                 unit=unit,
-                timestamp=now,
-                quality="simulated-windowpilot-receipt-time",
+                timestamp=ts,
+                quality=quality,
             ))
         return rows
 
