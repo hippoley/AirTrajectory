@@ -336,14 +336,33 @@ renderPhysicalObservation();
    const m=data.metrics;
    bench.innerHTML=["rule","bc","offline_q"].map(k=>'<div class="bench-row"><span>'+names[k]+'</span><b>'+fmt(m[k].mean_return)+'</b><small>return · final max CO₂ '+Math.round(m[k].mean_final_max_co2_ppm)+' ppm</small></div>').join("");
  }
+ function spatialLayout(rooms){
+   const cols=3,positions={};
+   rooms.forEach((room,i)=>{
+     const row=Math.floor(i/cols),slot=i%cols,col=row%2===0?slot:(cols-1-slot);
+     positions[room]={x:5+col*31,y:8+row*44,w:27,h:34};
+   });
+   return positions;
+ }
+ function topologyLayer(topology,positions){
+   if(!topology?.openings)return "";
+   const internal=topology.openings.filter(e=>e.source!==topology.outside_id&&e.target!==topology.outside_id);
+   const lines=internal.map(e=>{
+     const a=positions[e.source],b=positions[e.target]; if(!a||!b)return "";
+     const x1=a.x+a.w/2,y1=a.y+a.h/2,x2=b.x+b.w/2,y2=b.y+b.h/2;
+     return '<line x1="'+x1+'" y1="'+y1+'" x2="'+x2+'" y2="'+y2+'" class="topology-door-line"/><text x="'+((x1+x2)/2)+'" y="'+((y1+y2)/2-1)+'" class="topology-door-label">'+e.id+'</text>';
+   }).join("");
+   return '<svg class="episode-topology-links" viewBox="0 0 100 100" preserveAspectRatio="none">'+lines+'</svg>';
+ }
  function render(){
    const ep=current(); if(!ep||!ep.steps.length) return;
    step=Math.max(0,Math.min(step,ep.steps.length-1)); const s=ep.steps[step],o=s.observation,actions=Object.fromEntries(s.executed_actions.map(a=>[a.opening_id,a.target_pct]));
    const rooms=Object.keys(o.co2_ppm),openingZone=o.opening_zone||{};
    if(!selectedRoom||!rooms.includes(selectedRoom)) selectedRoom=rooms[0];
-   house.innerHTML=rooms.map((room,i)=>{
-     const win=Object.entries(openingZone).find(([,z])=>z===room)?.[0],pct=win?Number(actions[win]??o.opening_pct?.[win]??0):0,co2=Number(o.co2_ppm[room]),occ=o.occupancy?.[room]??0;
-     return '<button class="episode-room '+(room===selectedRoom?'selected':'')+'" data-episode-room="'+room+'"><header><b>'+room.toUpperCase()+'</b><span>ROOM '+String(i+1).padStart(2,"0")+'</span></header><div class="room-co2">'+Math.round(co2)+' <small>ppm</small></div><div class="room-occ">'+occ+' occupant'+(occ===1?'':'s')+'</div>'+(win?'<div class="episode-window"><i style="height:'+pct+'%"></i><span>'+win+' · '+pct+'%</span></div>':'')+'</button>';
+   const positions=spatialLayout(rooms),topology=ep.context?.topology;
+   house.innerHTML=topologyLayer(topology,positions)+rooms.map((room,i)=>{
+     const win=Object.entries(openingZone).find(([,z])=>z===room)?.[0],pct=win?Number(actions[win]??o.opening_pct?.[win]??0):0,co2=Number(o.co2_ppm[room]),occ=o.occupancy?.[room]??0,pos=positions[room];
+     return '<button class="episode-room '+(room===selectedRoom?'selected':'')+'" data-episode-room="'+room+'" style="left:'+pos.x+'%;top:'+pos.y+'%;width:'+pos.w+'%;height:'+pos.h+'%"><header><b>'+room.toUpperCase()+'</b><span>ROOM '+String(i+1).padStart(2,"0")+'</span></header><div class="room-co2">'+Math.round(co2)+' <small>ppm</small></div><div class="room-occ">'+occ+' occupant'+(occ===1?'':'s')+'</div>'+(win?'<div class="episode-window"><i style="height:'+pct+'%"></i><span>'+win+' · '+pct+'%</span></div>':'')+'</button>';
    }).join("");
    house.querySelectorAll("[data-episode-room]").forEach(el=>el.onclick=()=>{selectedRoom=el.dataset.episodeRoom;render()});
    const chosenWin=Object.entries(openingZone).find(([,z])=>z===selectedRoom)?.[0],selectedAction=chosenWin?actions[chosenWin]:undefined;
