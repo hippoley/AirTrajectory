@@ -33,19 +33,23 @@ Real devices / WindowPilot / BMS
 Real trajectories back into AirTrajectory
 ```
 
-## What already runs
+## Verified capability matrix
 
-- topology-native zones and openings
-- replaceable environment contract
-- deterministic fast multizone baseline
-- training-grade trajectory schema
-- proposed vs executed action separation
-- vector rewards
-- JSONL trajectory store
-- deterministic rollout demo
-- unit tests for topology + trajectory plumbing
+| Capability | Status | Evidence boundary |
+| --- | --- | --- |
+| Multi-room / multi-window scenario simulator | ✅ verified | deterministic toy/surrogate physics; not engineering truth |
+| Agent → safety gate → executed action → reward → trajectory | ✅ verified | proposed/executed/intervention are preserved |
+| Behavior Cloning baseline | ✅ verified | topology-local discrete policy trained from behavior rows |
+| Offline RL baseline | ✅ verified | conservative batch fitted-Q; unseen actions remain unavailable |
+| Unseen-topology benchmark | ✅ verified | train on 2–4 rooms, evaluate on unseen 5-room chains |
+| Spatial Episode Lab | ✅ verified | generated from the Python benchmark artifact |
+| Counterfactual fork runtime | ✅ verified | strict full-state HTTP origin; no hidden state invention |
+| CONTAM adapter | ✅ verified | official `contamxpy==0.0.9` + real NIST PRJ executes in Windows CI |
+| WindowPilot runtime bridge | ✅ verified | HTTP bridge is intentionally marked simulated / estimated-only |
+| Real hardware driver | ❌ not connected | no verified device protocol + measured-position source in this repo |
+| Physical τ₀ | ❌ not captured | requires non-simulated driver, fresh sensors, actual movement, measured feedback |
 
-The fast multizone backend is **not** an engineering airflow solver. It exists so the learning pipeline is runnable before CONTAM is connected.
+The fast multizone backend remains a learning surrogate. CONTAM is now an executable higher-fidelity backend, but a real room trajectory is still the final evidence gate.
 
 ## Quick start
 
@@ -54,7 +58,7 @@ python -m unittest discover -s tests -v
 python examples/single_room_rollout.py
 ```
 
-The demo writes a trajectory to:
+The single-room demo writes a trajectory to:
 
 ```text
 artifacts/trajectories.jsonl
@@ -76,15 +80,13 @@ docs/
   architecture.md
 ```
 
-## Roadmap
+## Next gates
 
-1. Safety resolver and explicit intervention trajectories
-2. CONTAM backend adapter
-3. Floor-plan / ThingModel → topology compiler
-4. Counterfactual branching from any trajectory step
-5. Offline-RL + Decision Transformer dataset exporters
-6. Train / validation / unseen-topology benchmark splits
-7. WindowPilot and BMS deployment adapters
+1. Connect a non-simulated device driver from a documented actuator/sensor protocol.
+2. Capture physical τ₀: fresh sensor → proposal → safety → actual command → movement → measured feedback → environmental response.
+3. Add topology compilation from the real ThingModel/floor-plan source rather than generated chain scenarios.
+4. Expand the learning stack beyond the current BC / conservative Offline-Q baselines.
+5. Add held-out structural families beyond chain topologies and quantify the sim→real transfer gap.
 
 ## Non-goals
 
