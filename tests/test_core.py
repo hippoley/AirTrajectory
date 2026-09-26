@@ -16,7 +16,7 @@ from airtrajectory.physical import DriverCapabilities, PhysicalWindowEnvironment
 from airtrajectory.drivers import FakePhysicalWindowDriver, WindowPilotHTTPDriver
 from airtrajectory.api import fork_request
 from airtrajectory.telemetry import DecisionTelemetry
-from airtrajectory.dataset import transition_rows, counterfactual_rows
+from airtrajectory.dataset import transition_rows, counterfactual_rows, audited_physical_transition_rows
 from airtrajectory.bc import TabularBC
 from airtrajectory.offline_rl import OfflineQ
 
@@ -300,6 +300,21 @@ class CoreTests(unittest.TestCase):
         model=TabularBC()
         model.fit([{"observation":{"co2":1300},"action":[{"opening_id":"W1","target_pct":50}],"is_counterfactual":False}])
         self.assertEqual(model.predict({"co2":700}),0)
+
+    def test_audited_physical_dataset_rejects_uncommissioned_physical_trajectory(self):
+        trajectory=Trajectory(
+            "physical","rule",environment_kind="physical",
+            context={"reset_info":{"driver_capabilities":{"simulated":False,"measured_position":True}}}
+        )
+        trajectory.append(TrajectoryStep(
+            0,{"co2_ppm":1400,"rain":False},[TransitionAction("w1",50)],[TransitionAction("w1",50)],
+            {"co2_ppm":1300,"rain":False},RewardVector(),
+            sensor_readings=[SensorReading("co2","co2",1400,"ppm",10),SensorReading("rain","rain",0,"bool",10)],
+            next_sensor_readings=[SensorReading("co2","co2",1300,"ppm",12),SensorReading("rain","rain",0,"bool",12)],
+            actuator_feedback=[ActuatorFeedback("w1",11,measured_position_pct=50)],
+        ))
+        with self.assertRaisesRegex(ValueError,"failed evidence audit"):
+            list(audited_physical_transition_rows(trajectory))
 
     def test_dataset_uses_executed_action_and_preserves_proposal(self):
         trajectory=Trajectory("demo","rule")
