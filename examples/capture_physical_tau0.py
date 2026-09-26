@@ -11,6 +11,34 @@ from airtrajectory.physical import (
 from airtrajectory.trajectory import TrajectoryStore
 
 
+def capture_physical_tau0(*, driver, opening_id, topology_id, steps, out, receipt):
+    caps=driver.capabilities()
+    if caps.simulated:
+        raise RuntimeError("WindowPilot execution is still simulated; physical capture aborted")
+    if not caps.measured_position:
+        raise RuntimeError("WindowPilot has no measured position feedback; physical capture aborted")
+
+    env=PhysicalWindowEnvironment(driver,opening_id,require_measured_feedback=True)
+    trajectory=record_physical_trajectory(
+        env,RulePolicy(opening_id),SafetyResolver(),
+        topology_id,TrajectoryStore(out),steps=steps,
+    )
+    report=validate_physical_tau0(trajectory)
+    payload={
+        "trajectory_id":trajectory.id,
+        "valid_tau0":report.valid_tau0,
+        "reasons":list(report.reasons),
+        "environment_kind":trajectory.environment_kind,
+        "steps":len(trajectory.steps),
+        "output":str(out),
+    }
+    receipt_path=Path(receipt); receipt_path.parent.mkdir(parents=True,exist_ok=True)
+    receipt_path.write_text(json.dumps(payload,ensure_ascii=False,indent=2),encoding="utf-8")
+    if not report.valid_tau0:
+        raise RuntimeError("physical trajectory failed tau0 audit: "+"; ".join(report.reasons))
+    return payload
+
+
 def main(argv=None):
     parser=argparse.ArgumentParser(description="Capture one audited physical AirTrajectory trajectory")
     parser.add_argument("--windowpilot",default="http://127.0.0.1:8000")
@@ -22,31 +50,15 @@ def main(argv=None):
     args=parser.parse_args(argv)
 
     driver=WindowPilotHTTPDriver(args.windowpilot)
-    caps=driver.capabilities()
-    if caps.simulated:
-        raise RuntimeError("WindowPilot execution is still simulated; physical capture aborted")
-    if not caps.measured_position:
-        raise RuntimeError("WindowPilot has no measured position feedback; physical capture aborted")
-
-    env=PhysicalWindowEnvironment(driver,args.opening_id,require_measured_feedback=True)
-    trajectory=record_physical_trajectory(
-        env,RulePolicy(args.opening_id),SafetyResolver(),
-        args.topology_id,TrajectoryStore(args.out),steps=args.steps,
+    receipt=capture_physical_tau0(
+        driver=driver,
+        opening_id=args.opening_id,
+        topology_id=args.topology_id,
+        steps=args.steps,
+        out=args.out,
+        receipt=args.receipt,
     )
-    report=validate_physical_tau0(trajectory)
-    receipt={
-        "trajectory_id":trajectory.id,
-        "valid_tau0":report.valid_tau0,
-        "reasons":list(report.reasons),
-        "environment_kind":trajectory.environment_kind,
-        "steps":len(trajectory.steps),
-        "output":str(args.out),
-    }
-    receipt_path=Path(args.receipt); receipt_path.parent.mkdir(parents=True,exist_ok=True)
-    receipt_path.write_text(json.dumps(receipt,ensure_ascii=False,indent=2),encoding="utf-8")
     print(json.dumps(receipt,ensure_ascii=False))
-    if not report.valid_tau0:
-        raise RuntimeError("physical trajectory failed tau0 audit: "+"; ".join(report.reasons))
     return 0
 
 
