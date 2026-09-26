@@ -82,6 +82,7 @@ class TrajectoryStep:
     reward: RewardVector
     semantic_actions: List[SemanticAction] = field(default_factory=list)
     sensor_readings: List[SensorReading] = field(default_factory=list)
+    next_sensor_readings: List[SensorReading] = field(default_factory=list)
     actuator_feedback: List[ActuatorFeedback] = field(default_factory=list)
     intervention: Optional[str] = None
     terminated: bool = False
@@ -92,7 +93,7 @@ class TrajectoryStep:
 class Trajectory:
     topology_id: str
     policy_id: str
-    schema_version: str = "0.2"
+    schema_version: str = "0.3"
     environment_kind: str = "simulation"
     id: str = field(default_factory=lambda: str(uuid.uuid4()))
     created_at: float = field(default_factory=time.time)

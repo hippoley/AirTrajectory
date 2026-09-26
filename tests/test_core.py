@@ -228,11 +228,13 @@ class CoreTests(unittest.TestCase):
         step = trajectory.steps[0]
         step.semantic_actions.append(SemanticAction("window_group", "living_windows", "VENT", 50))
         step.sensor_readings.append(SensorReading("co2-living", "co2", 1400, "ppm", 1.0, "good"))
+        step.next_sensor_readings.append(SensorReading("co2-living", "co2", 1320, "ppm", 3.0, "good"))
         step.actuator_feedback.append(ActuatorFeedback("actuator-w1", 2.0, measured_position_pct=48))
         payload = trajectory.to_dict()
-        self.assertEqual(payload["schema_version"], "0.2")
+        self.assertEqual(payload["schema_version"], "0.3")
         self.assertEqual(payload["steps"][0]["semantic_actions"][0]["command"], "VENT")
         self.assertEqual(payload["steps"][0]["actuator_feedback"][0]["measured_position_pct"], 48)
+        self.assertEqual(payload["steps"][0]["next_sensor_readings"][0]["value"], 1320)
         self.assertIsNone(payload["steps"][0]["actuator_feedback"][0]["estimated_position_pct"])
 
     def test_feedback_separates_measured_and_estimated_position(self):
@@ -289,6 +291,28 @@ class CoreTests(unittest.TestCase):
             trajectory=record_physical_trajectory(env,RulePolicy("w1"),SafetyResolver(),"physical-contract",TrajectoryStore(Path(d)/"tau0.jsonl"))
         report=validate_physical_tau0(trajectory)
         self.assertTrue(report.valid_tau0,report.reasons)
+
+    def test_tau0_records_post_action_environmental_evidence(self):
+        driver=FakePhysicalWindowDriver(co2_ppm=1400,measured_feedback=True)
+        env=PhysicalWindowEnvironment(driver,"w1")
+        with tempfile.TemporaryDirectory() as d:
+            trajectory=record_physical_trajectory(env,RulePolicy("w1"),SafetyResolver(),"post-action-evidence",TrajectoryStore(Path(d)/"tau.jsonl"))
+        step=trajectory.steps[0]
+        self.assertEqual({r.sensor_type for r in step.next_sensor_readings},{"co2","rain"})
+        feedback_ts=max(f.timestamp for f in step.actuator_feedback)
+        self.assertTrue(all(r.timestamp>feedback_ts for r in step.next_sensor_readings))
+
+    def test_tau0_audit_rejects_missing_post_action_environmental_evidence(self):
+        trajectory=Trajectory("physical-contract","policy",environment_kind="physical",context={"reset_info":{"driver_capabilities":{"simulated":False,"measured_position":True}}})
+        trajectory.append(TrajectoryStep(
+            0,{"co2_ppm":1400,"rain":False},[TransitionAction("w1",50)],[TransitionAction("w1",50)],
+            {"co2_ppm":1300,"rain":False},RewardVector(),
+            sensor_readings=[SensorReading("co2","co2",1400,"ppm",10),SensorReading("rain","rain",0,"bool",10)],
+            actuator_feedback=[ActuatorFeedback("w1",11,measured_position_pct=50)],
+        ))
+        report=validate_physical_tau0(trajectory)
+        self.assertFalse(report.valid_tau0)
+        self.assertTrue(any("post-action CO2" in reason for reason in report.reasons))
 
     def test_rain_safety_intervention_overrides_rule_policy(self):
         driver=FakePhysicalWindowDriver(co2_ppm=1400,rain=True)
