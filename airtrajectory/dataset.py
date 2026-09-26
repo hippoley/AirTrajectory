@@ -20,6 +20,9 @@ def transition_rows(trajectory: Trajectory):
                 if isinstance(trajectory.context.get("runtime_hardware_identity"),dict) else None
             ),
             "commissioning_bundle_sha256":trajectory.context.get("commissioning_bundle_sha256"),
+            "preflight_receipt_sha256":trajectory.context.get("preflight_receipt_sha256"),
+            "preflight_hardware_identity_sha256":trajectory.context.get("preflight_hardware_identity_sha256"),
+            "gateway_contract_sha256":trajectory.context.get("gateway_contract_sha256"),
             "step_index":step.index,
             "observation":step.observation,
             "proposed_actions":[asdict(a) for a in step.proposed_actions],
