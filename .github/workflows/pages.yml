@@ -65,6 +65,8 @@ jobs:
           assert set(p["episode"]) == {"rule","bc","offline_q"}
           assert all(len(ep["steps"]) == 20 for ep in p["episode"].values())
           assert all(ep["context"]["room_count"] == 5 for ep in p["episode"].values())
+          assert all(len(ep["context"]["topology"]["zones"]) == 5 for ep in p["episode"].values())
+          assert all(len(ep["context"]["topology"]["openings"]) >= 9 for ep in p["episode"].values())
           assert "not engineering truth" in p["provenance"]
           print("validated learning experiment")
           PY
@@ -83,6 +85,9 @@ jobs:
           grep -q 'function reseedForField' web/lab.js
           grep -q 'function drawFlowSkeleton' web/lab.js
           grep -q 'function drawCo2Overlay' web/lab.js
+          grep -q 'function spatialLayout' web/lab.js
+          grep -q 'function topologyLayer' web/lab.js
+          grep -q 'episode-topology-links' web/lab.js
           grep -q 'viewMode!=="dead"' web/lab.js
           grep -q 'data-view="flow"' web/index.html
           grep -q 'data-view="co2"' web/index.html

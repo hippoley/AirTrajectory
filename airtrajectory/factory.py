@@ -3,7 +3,7 @@ from .agents import MultiWindowRuleAgent
 from .environment import ScenarioMultizoneEnvironment
 from .rollout import rollout
 from .physical import SafetyResolver
-from .scenario import generate_chain_scenario
+from .scenario import generate_chain_scenario, topology_manifest
 
 class TrajectoryFactory:
     def __init__(self,horizon_steps=120,rooms=(2,3,4,5)):
@@ -23,6 +23,7 @@ class TrajectoryFactory:
             "rain":scenario.rain,
             "outdoor_temp_c":scenario.outdoor_temp_c,
             "physics_fidelity":"toy",
+            "topology":topology_manifest(scenario.topology),
         })
         return trajectory
 

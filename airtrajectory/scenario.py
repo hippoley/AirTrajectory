@@ -30,3 +30,25 @@ def generate_chain_scenario(seed:int, rooms:int=3)->VentilationScenario:
         id=f"chain-{rooms}-s{seed}",topology=topo,initial_co2=initial,occupancy=occupancy,
         rain=rng.random()<.2,outdoor_temp_c=rng.uniform(5,34)
     )
+
+
+def topology_manifest(topology: BuildingTopology) -> dict:
+    """Stable JSON-safe topology used by the Episode Lab and benchmark artifacts."""
+    return {
+        "outside_id": topology.outside_id,
+        "zones": [
+            {"id": z.id, "volume_m3": z.volume_m3}
+            for z in topology.zones.values()
+        ],
+        "openings": [
+            {
+                "id": e.id,
+                "source": e.source,
+                "target": e.target,
+                "kind": e.kind,
+                "max_area_m2": e.max_area_m2,
+                "controllable": e.controllable,
+            }
+            for e in topology.openings.values()
+        ],
+    }

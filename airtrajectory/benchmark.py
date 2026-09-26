@@ -7,7 +7,7 @@ from .factory import TrajectoryFactory
 from .learning import TopologyBCPolicy, TopologyOfflineQPolicy
 from .rollout import rollout
 from .physical import SafetyResolver
-from .scenario import generate_chain_scenario
+from .scenario import generate_chain_scenario, topology_manifest
 
 def _rows(trajectories):
     out=[]
@@ -44,7 +44,7 @@ def unseen_topology_benchmark(train_count=24,test_count=8,horizon_steps=30,seed=
         for name,policy in policies.items():
             env=ScenarioMultizoneEnvironment(s,horizon_steps=horizon_steps)
             t=rollout(env,policy,s.id,name,max_steps=horizon_steps,safety_resolver=SafetyResolver())
-            t.context.update({"benchmark_split":"unseen-topology","room_count":5,"physics_fidelity":"toy"})
+            t.context.update({"benchmark_split":"unseen-topology","room_count":5,"physics_fidelity":"toy","topology":topology_manifest(s.topology)})
             results[name].append(t)
     return {
         "contract":{"train_rooms":[2,3,4],"test_rooms":[5],"backend":"toy-scenario-v1"},
