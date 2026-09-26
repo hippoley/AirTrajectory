@@ -22,6 +22,21 @@ def capture_physical_tau0(*, driver, opening_id, topology_id, steps, out, receip
     expected=(bundle.get("hardware_identity") or {}).get("identity_sha256")
     if not expected:
         raise RuntimeError("commissioning evidence bundle missing hardware identity")
+
+    preflight=bundle.get("preflight")
+    if not isinstance(preflight,dict):
+        raise RuntimeError("commissioning evidence bundle missing read-only preflight lineage")
+    preflight_receipt_sha256=str(preflight.get("receipt_sha256") or "")
+    preflight_identity_sha256=str(preflight.get("hardware_identity_sha256") or "")
+    gateway_contract_sha256=str(preflight.get("gateway_contract_sha256") or "")
+    for label,value in (
+        ("preflight receipt",preflight_receipt_sha256),
+        ("gateway contract",gateway_contract_sha256),
+    ):
+        if len(value)!=64 or any(ch not in "0123456789abcdefABCDEF" for ch in value):
+            raise RuntimeError(f"commissioning evidence bundle has invalid {label} SHA-256")
+    if preflight_identity_sha256!=expected:
+        raise RuntimeError("preflight hardware identity does not match commissioning hardware identity")
     readiness=driver.physical_readiness()
     if readiness.get("capture_preconditions") is not True:
         reasons="; ".join(readiness.get("reasons") or [])
@@ -45,6 +60,9 @@ def capture_physical_tau0(*, driver, opening_id, topology_id, steps, out, receip
             "commissioning_identity_sha256":expected,
             "runtime_hardware_identity":readiness.get("hardware_identity"),
             "commissioning_bundle_sha256":commission_bundle_sha256,
+            "preflight_receipt_sha256":preflight_receipt_sha256,
+            "preflight_hardware_identity_sha256":preflight_identity_sha256,
+            "gateway_contract_sha256":gateway_contract_sha256,
         },
     )
     report=validate_physical_tau0(trajectory)
@@ -58,6 +76,9 @@ def capture_physical_tau0(*, driver, opening_id, topology_id, steps, out, receip
         "commissioning_identity_sha256":expected,
         "runtime_hardware_identity":readiness.get("hardware_identity"),
         "commissioning_bundle_sha256":commission_bundle_sha256,
+        "preflight_receipt_sha256":preflight_receipt_sha256,
+        "preflight_hardware_identity_sha256":preflight_identity_sha256,
+        "gateway_contract_sha256":gateway_contract_sha256,
         "trajectory_sha256":hashlib.sha256(Path(out).read_bytes()).hexdigest(),
     }
     receipt_path=Path(receipt); receipt_path.parent.mkdir(parents=True,exist_ok=True)
