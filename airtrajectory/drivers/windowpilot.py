@@ -74,6 +74,7 @@ class WindowPilotHTTPDriver(PhysicalWindowDriver):
         state=self._state()
         sensors=state.get("sensors",{})
         timestamps=state.get("sensor_timestamps",{}) if isinstance(state.get("sensor_timestamps"),dict) else {}
+        evidence=state.get("sensor_evidence",{}) if isinstance(state.get("sensor_evidence"),dict) else {}
         caps=self.capabilities()
         now=time.time()
         rows=[]
@@ -92,14 +93,35 @@ class WindowPilotHTTPDriver(PhysicalWindowDriver):
             if caps.simulated:
                 ts=now
                 quality="simulated-windowpilot-receipt-time"
+                sensor_id="windowpilot-"+key
             else:
                 ts_key="temperature" if key=="temp_indoor" else key
+                evidence_key="co2_ppm" if key=="co2_ppm" else ("rain" if key=="rain" else ts_key)
+                required=key in ("co2_ppm","rain")
                 ts=float(timestamps.get(ts_key) or 0)
-                if ts <= 0:
-                    raise RuntimeError(f"WindowPilot hardware sensor {key} missing source timestamp")
-                quality="measured-windowpilot-source-time"
+                ev=evidence.get(evidence_key) if isinstance(evidence.get(evidence_key),dict) else {}
+                ev_ts=float(ev.get("timestamp") or 0)
+                source=str(ev.get("source") or "")
+                valid=(
+                    ts > 0
+                    and ev.get("measured") is True
+                    and ev_ts == ts
+                    and bool(source)
+                )
+                if not valid:
+                    if required:
+                        if ts <= 0:
+                            raise RuntimeError(f"WindowPilot hardware sensor {key} missing source timestamp")
+                        if ev.get("measured") is not True:
+                            raise RuntimeError(f"WindowPilot hardware sensor {key} is not backed by measured evidence")
+                        if ev_ts != ts:
+                            raise RuntimeError(f"WindowPilot hardware sensor {key} evidence timestamp mismatch")
+                        raise RuntimeError(f"WindowPilot hardware sensor {key} missing evidence source")
+                    continue
+                sensor_id=source
+                quality=str(ev.get("quality") or "measured-windowpilot-source-time")
             rows.append(SensorReading(
-                sensor_id="windowpilot-"+key,
+                sensor_id=sensor_id,
                 sensor_type=sensor_type,
                 value=float(value),
                 unit=unit,

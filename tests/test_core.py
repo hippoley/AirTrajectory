@@ -117,6 +117,58 @@ class CoreTests(unittest.TestCase):
         with self.assertRaises(RuntimeError):
             driver.set_position("w1",40)
 
+    def test_windowpilot_hardware_sensor_requires_measured_provenance_for_tau0_sensors(self):
+        now=100.0
+        state={
+            "thing_model":{
+                "window":{"open_pct":40},
+                "sensors":{"co2_ppm":1350,"rain":False},
+                "sensor_timestamps":{"co2_ppm":now,"rain":now},
+                "sensor_evidence":{
+                    "co2_ppm":{"timestamp":now,"quality":"synthetic","source":"ui","measured":False},
+                    "rain":{"timestamp":now,"quality":"measured","source":"rain-1","measured":True},
+                },
+            }
+        }
+        caps={"execution":{"transport":"verified","simulated":False,"measured_position":True}}
+        def request(method,path,payload):
+            if path=="/api/capabilities": return caps
+            return state
+        driver=WindowPilotHTTPDriver(request_json=request)
+        with self.assertRaisesRegex(RuntimeError,"not backed by measured evidence"):
+            driver.read_sensors()
+
+    def test_windowpilot_hardware_sensor_accepts_measured_co2_rain_and_skips_optional_defaults(self):
+        now=100.0
+        state={
+            "thing_model":{
+                "window":{"open_pct":40},
+                "sensors":{
+                    "co2_ppm":1350,"rain":False,
+                    "temp_indoor":25.0,"humidity":55.0,"wind_speed":2.0,
+                },
+                "sensor_timestamps":{
+                    "co2_ppm":now,"rain":now,
+                    "temperature":0.0,"humidity":0.0,"wind_speed":0.0,
+                },
+                "sensor_evidence":{
+                    "co2_ppm":{"timestamp":now,"quality":"measured","source":"KCWQ-WF01","measured":True},
+                    "rain":{"timestamp":now,"quality":"measured","source":"RAIN-01","measured":True},
+                },
+            }
+        }
+        caps={"execution":{"transport":"verified","simulated":False,"measured_position":True}}
+        def request(method,path,payload):
+            if path=="/api/capabilities": return caps
+            return state
+        driver=WindowPilotHTTPDriver(request_json=request)
+        readings=driver.read_sensors()
+        self.assertEqual({r.sensor_type for r in readings},{"co2","rain"})
+        by_type={r.sensor_type:r for r in readings}
+        self.assertEqual(by_type["co2"].sensor_id,"KCWQ-WF01")
+        self.assertEqual(by_type["rain"].sensor_id,"RAIN-01")
+        self.assertEqual(by_type["co2"].quality,"measured")
+
     def test_windowpilot_hardware_sensor_requires_source_timestamp(self):
         state={
             "thing_model":{
