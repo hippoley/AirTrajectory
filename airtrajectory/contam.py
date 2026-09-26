@@ -48,9 +48,10 @@ class ContamXSession:
         if not self.prj_path.exists():
             raise FileNotFoundError(self.prj_path)
         factory=self._factory()
-        self.engine=factory(0,True)
+        # contamxpy 0.0.9 binds one cxLib instance to a specific PRJ path.
+        self.engine=factory(str(self.prj_path),0,True)
         if hasattr(self.engine,"setVerbosity"): self.engine.setVerbosity(self.verbosity)
-        self.engine.setupSimulation(str(self.prj_path),1)
+        self.engine.setupSimulation(1)
         self.started=True
         return {
             "version":self.engine.getVersion() if hasattr(self.engine,"getVersion") else "unknown",
