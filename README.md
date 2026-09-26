@@ -45,9 +45,10 @@ Real trajectories back into AirTrajectory
 | Spatial Episode Lab | ✅ verified | generated from the Python benchmark artifact |
 | Counterfactual fork runtime | ✅ verified | strict full-state HTTP origin; no hidden state invention |
 | CONTAM adapter | ✅ verified | official `contamxpy==0.0.9` + real NIST PRJ executes in Windows CI |
-| WindowPilot runtime bridge | ✅ verified | HTTP bridge is intentionally marked simulated / estimated-only |
-| Real hardware driver | ❌ not connected | no verified device protocol + measured-position source in this repo |
-| Physical τ₀ | ❌ not captured | requires non-simulated driver, fresh sensors, actual movement, measured feedback |
+| WindowPilot runtime bridge | ✅ verified | runtime capabilities/readiness are discovered over HTTP and fail closed when provenance is incomplete |
+| WindowPilot hardware integration path | ✅ software-verified | CWDS-CA01 driver lives in WindowPilot; AirTrajectory requires matching commissioning/runtime identity |
+| Real device commissioning | ❌ not captured | requires real gateway endpoint/auth/device ID and a physical READ → OPEN 5% → STOP → CLOSE pass |
+| Physical τ₀ | ❌ not captured | requires preflight lineage, commissioned hardware identity, fresh measured sensors, actual movement, and post-action evidence |
 
 The fast multizone backend remains a learning surrogate. CONTAM is now an executable higher-fidelity backend, but a real room trajectory is still the final evidence gate.
 
@@ -82,11 +83,41 @@ docs/
 
 ## Next gates
 
-1. Connect a non-simulated device driver from a documented actuator/sensor protocol.
-2. Capture physical τ₀: fresh sensor → proposal → safety → actual command → movement → measured feedback → environmental response.
-3. Add topology compilation from the real ThingModel/floor-plan source rather than generated chain scenarios.
-4. Expand the learning stack beyond the current BC / conservative Offline-Q baselines.
-5. Add held-out structural families beyond chain topologies and quantify the sim→real transfer gap.
+1. Supply the real WindowPilot gateway contract: property set/get endpoints, device ID, authentication, timestamp path, quality path, and measured-position source.
+2. Run WindowPilot read-only preflight, then the bounded `READ → OPEN 5% → STOP → CLOSE` commissioning sequence on one real window.
+3. Start WindowPilot hardware mode with fresh measured CO₂/rain evidence and capture the first audited physical τ₀.
+4. Add topology compilation from the real ThingModel/floor-plan source rather than generated chain scenarios.
+5. Expand the learning stack and quantify sim→real transfer on held-out structural families.
+
+## Physical τ₀ evidence chain
+
+AirTrajectory now accepts a commissioning bundle only when it carries the WindowPilot read-only preflight lineage:
+
+```text
+read-only preflight PASS
+→ preflight receipt SHA-256
+→ preflight hardware identity
+→ gateway contract SHA-256
+→ bounded commissioning PASS
+→ same runtime hardware identity
+→ fresh measured CO₂ + rain
+→ real window command
+→ post-command measured position
+→ newer post-action environment sample
+→ τ₀ audit PASS
+```
+
+The capture CLI is:
+
+```bash
+python examples/capture_physical_tau0.py \
+  --windowpilot http://127.0.0.1:8001 \
+  --commission-bundle /path/to/physical-bringup.json \
+  --out artifacts/physical-tau0.jsonl \
+  --receipt artifacts/physical-tau0-audit.json
+```
+
+Older commissioning bundles that do not prove the read-only preflight lineage are rejected before AirTrajectory asks WindowPilot for a physical command.
 
 ## Non-goals
 
