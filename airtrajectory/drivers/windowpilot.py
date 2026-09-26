@@ -1,8 +1,8 @@
-"""Bridge AirTrajectory to the existing WindowPilot HTTP simulator.
+"""Bridge AirTrajectory to WindowPilot with runtime evidence discovery.
 
-WindowPilot currently exposes simulated actuator state, not hardware feedback.
-This driver therefore advertises simulated=True and measured_position=False so
-it can never satisfy the physical tau0 evidence gate.
+The bridge fails closed when /api/capabilities is absent or incomplete.
+Only a WindowPilot backend that explicitly reports non-simulated execution and
+measured position feedback can become eligible for physical tau0 evidence.
 """
 from __future__ import annotations
 import json
@@ -20,11 +20,20 @@ class WindowPilotHTTPDriver(PhysicalWindowDriver):
         self.timeout_s=float(timeout_s)
         self._request_json=request_json or self._stdlib_request
 
+    def _capability_payload(self):
+        try:
+            payload=self._request_json("GET","/api/capabilities",None)
+        except Exception:
+            return {}
+        return payload if isinstance(payload,dict) else {}
+
     def capabilities(self):
+        payload=self._capability_payload()
+        execution=payload.get("execution") if isinstance(payload.get("execution"),dict) else {}
         return DriverCapabilities(
-            transport="windowpilot-http-simulator",
-            simulated=True,
-            measured_position=False,
+            transport=str(execution.get("transport") or "windowpilot-http-unknown"),
+            simulated=bool(execution.get("simulated",True)),
+            measured_position=bool(execution.get("measured_position",False)),
             sensor_types=("co2","rain","temperature","humidity","wind_speed"),
         )
 
@@ -80,6 +89,22 @@ class WindowPilotHTTPDriver(PhysicalWindowDriver):
             self._request_json("POST","/api/window/close",{})
         else:
             self._request_json("POST","/api/window/open",{"target_pct":target})
+        caps_payload=self._capability_payload()
+        execution=caps_payload.get("execution") if isinstance(caps_payload.get("execution"),dict) else {}
+        feedback=caps_payload.get("position_feedback") if isinstance(caps_payload.get("position_feedback"),dict) else {}
+        if execution.get("simulated") is False and execution.get("measured_position") is True:
+            if feedback.get("measured") is not True or feedback.get("position_pct") is None:
+                raise RuntimeError("WindowPilot advertises measured position but returned no measured feedback")
+            ts=float(feedback.get("timestamp") or 0)
+            if ts <= 0:
+                raise RuntimeError("WindowPilot measured feedback missing timestamp")
+            return ActuatorFeedback(
+                actuator_id=opening_id,
+                timestamp=ts,
+                measured_position_pct=float(feedback["position_pct"]),
+                quality=str(feedback.get("quality") or "measured-windowpilot"),
+            )
+
         state=self._state()
         position=state.get("window",{}).get("open_pct")
         if position is None:
@@ -88,5 +113,5 @@ class WindowPilotHTTPDriver(PhysicalWindowDriver):
             actuator_id=opening_id,
             timestamp=time.time(),
             estimated_position_pct=float(position),
-            quality="simulated-windowpilot-state",
+            quality="windowpilot-estimated-state",
         )
