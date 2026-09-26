@@ -24,6 +24,7 @@ def transition_rows(trajectory: Trajectory):
             "next_observation":step.next_observation,
             "terminated":step.terminated,
             "sensor_readings":[asdict(x) for x in step.sensor_readings],
+            "next_sensor_readings":[asdict(x) for x in step.next_sensor_readings],
             "actuator_feedback":[asdict(x) for x in step.actuator_feedback],
             "trace_id":step.info.get("trace_id"),
             "provenance":step.info.get("provenance"),
