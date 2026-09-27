@@ -119,6 +119,29 @@ python examples/capture_physical_tau0.py \
 
 Older commissioning bundles that do not prove the read-only preflight lineage are rejected before AirTrajectory asks WindowPilot for a physical command.
 
+After capture, re-verify the persisted artifacts independently:
+
+```bash
+python examples/verify_physical_tau0.py \
+  --trajectory artifacts/physical-tau0.jsonl \
+  --receipt artifacts/physical-tau0-audit.json \
+  --commission-bundle /path/to/physical-bringup.json
+```
+
+This verifier does not contact hardware. It re-checks:
+
+```text
+trajectory SHA-256
++ commissioning bundle SHA-256
++ commissioning/runtime/preflight identity continuity
++ gateway contract lineage
++ measured actuator position
++ pre-action CO₂/rain
++ newer post-action CO₂/rain
+```
+
+The physical closeout is complete only when capture returned `valid_tau0=true` **and** this independent artifact verification returns `valid_artifacts=true`.
+
 ## Non-goals
 
 AirTrajectory is not a window actuator driver, not a BMS, and not a UI dashboard. Those are integration surfaces, not the learning core.
