@@ -33,6 +33,26 @@ Real devices / WindowPilot / BMS
 Real trajectories back into AirTrajectory
 ```
 
+## Layout contract: fixed now, replaceable later
+
+The current interactive lab intentionally keeps room and wall geometry fixed while allowing every declared window and door to move along its own wall and change opening state.
+
+`web/data/home_topology.fixed.json` is now the layout source of truth for the browser. Its contract explicitly declares:
+
+```text
+floorplan_geometry_editable = false
+opening_position_editable   = true
+opening_state_editable      = true
+arbitrary_topology_import   = reserved
+contam_compiler             = reserved
+```
+
+This is a staging boundary, not a permanent limitation. The renderer consumes the layout contract rather than owning room geometry. A future 2D-plan importer can emit the same contract, and a future topology → CONTAM compiler can consume it without changing the current door/window interaction model.
+
+Moving a door or window changes its normalized `position_t`, increments the topology revision, and makes old trajectory results stale. Room and wall geometry remain locked in the current release.
+
+The Python `LayoutContract` independently validates this fixed-layout boundary and projects the same file into the existing graph-level `BuildingTopology`. That keeps UI geometry and learning connectivity behind one contract instead of two hand-maintained topology definitions.
+
 ## Verified capability matrix
 
 | Capability | Status | Evidence boundary |

@@ -70,6 +70,25 @@ jobs:
           assert "not engineering truth" in p["provenance"]
           print("validated learning experiment")
           PY
+      - name: Validate fixed layout contract
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          from airtrajectory.layout import LayoutContract
+          p=json.loads(Path("web/data/home_topology.fixed.json").read_text())
+          contract=LayoutContract.from_dict(p)
+          topology=contract.to_building_topology()
+          assert contract.source_kind == "fixed-floorplan"
+          assert contract.capabilities["floorplan_geometry_editable"] is False
+          assert contract.capabilities["opening_position_editable"] is True
+          assert contract.capabilities["arbitrary_topology_import"] == "reserved"
+          assert contract.capabilities["contam_compiler"] == "reserved"
+          assert set(topology.zones) == {"living","bedroom","study"}
+          assert set(topology.openings) == {"W1","W2","W3","D1","D2"}
+          assert all(o.position_editable for o in contract.openings)
+          print("validated fixed layout contract")
+          PY
       - name: Validate mock physical fallback artifact
         run: |
           python - <<'PY'
@@ -100,7 +119,6 @@ jobs:
           grep -q 'function jetResponse' web/lab.js
           grep -q 'function wallResponse' web/lab.js
           grep -q 'function crossesSolidWall' web/lab.js
-          grep -q 'throughD2' web/lab.js
           grep -q 'function emissionWeight' web/lab.js
           grep -q 'function reseedForField' web/lab.js
           grep -q 'function drawFlowSkeleton' web/lab.js
@@ -119,14 +137,16 @@ jobs:
           grep -q 'function constrainOpeningToWall' web/lab.js
           grep -q 'pointerdown' web/lab.js
           grep -q 'pointerup' web/lab.js
-          grep -q 'moved along wall' web/lab.js
-          grep -q 'function hitSharedWall' web/lab.js
-          grep -q 'function resizeLivingBedroomWall' web/lab.js
+          grep -q 'moved along "+edited.wallId' web/lab.js
+          grep -q 'function loadTopologyContract' web/lab.js
+          grep -q 'function currentTopologySnapshot' web/lab.js
           grep -q 'function wallSegment' web/lab.js
           grep -q 'function syncOpeningGeometry' web/lab.js
-          grep -q 'wallId:"living-bedroom"' web/lab.js
-          grep -q 'wallId:"living-study"' web/lab.js
-          grep -q 'shared wall resized' web/lab.js
+          grep -q 'function segmentIntersection' web/lab.js
+          grep -q 'opening_position_editable' web/lab.js
+          grep -q 'ROOMS LOCKED · WINDOWS + DOORS MOVABLE' web/index.html
+          ! grep -q 'resizeLivingBedroomWall' web/lab.js
+          ! grep -q 'shared wall resized' web/lab.js
           grep -q 'PHYSICAL CONTROL CONSOLE / τ₀ GATE' web/index.html
           grep -q 'REAL τ₀ · NOT CAPTURED' web/index.html
           grep -q 'REAL / RESERVED' web/index.html
@@ -152,7 +172,7 @@ jobs:
           grep -q 'next_observation:nextObservation' web/lab.js
           grep -q 'IMMUTABLE POST-ACTION ORIGIN' web/lab.js
           grep -q 'origin.next_observation||origin.observation' web/lab.js
-          grep -q 'id:"D2"' web/lab.js
+          grep -q '"id": "D2"' web/data/home_topology.fixed.json
           grep -q 'p.trail.length>20' web/lab.js
           grep -q 'Midpoint/RK2 advection' web/lab.js
           ! grep -q 'Array.from({length:720}' web/lab.js

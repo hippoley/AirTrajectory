@@ -1,11 +1,72 @@
 const canvas=document.querySelector("#lab"),ctx=canvas.getContext("2d"),windEl=document.querySelector("#wind"),speedEl=document.querySelector("#speed");
-const rooms=[{id:"living",x:180,y:120,w:350,h:250,name:"LIVING"},{id:"bedroom",x:530,y:120,w:300,h:250,name:"BEDROOM"},{id:"study",x:350,y:370,w:480,h:170,name:"STUDY"}],openings=[{id:"W1",wallId:"living-west",t:.36,x:180,y:210,side:"left",open:.65},{id:"W2",wallId:"bedroom-east",t:.34,x:830,y:205,side:"right",open:.35},{id:"W3",wallId:"study-south",t:.77,x:720,y:540,side:"bottom",open:.55},{id:"D1",wallId:"living-bedroom",t:.56,x:530,y:260,side:"internal",open:1},{id:"D2",wallId:"living-study",t:.5,x:440,y:370,side:"internal-horizontal",open:1}];
+let topologyContract=null,rooms=[],walls=[],openings=[];
+let topologyCapabilities={
+  floorplan_geometry_editable:false,
+  opening_position_editable:true,
+  opening_state_editable:true,
+  arbitrary_topology_import:"reserved",
+  contam_compiler:"reserved"
+};
+function validateTopologyPayload(p){
+  if(!p||p.schema_version!=="0.1"||p.source_kind!=="fixed-floorplan")throw new Error("unsupported topology contract");
+  if(p.capabilities?.floorplan_geometry_editable!==false)throw new Error("current floorplan must remain fixed");
+  if(p.capabilities?.opening_position_editable!==true)throw new Error("opening position editing must remain enabled");
+  if(!Array.isArray(p.rooms)||!p.rooms.length||!Array.isArray(p.walls)||!p.walls.length||!Array.isArray(p.openings)||!p.openings.length)throw new Error("incomplete topology contract");
+  const roomIds=new Set(p.rooms.map(r=>r.id)),wallIds=new Set(p.walls.map(w=>w.id)),outside=p.outside_id||"OUTSIDE";
+  if(roomIds.size!==p.rooms.length||wallIds.size!==p.walls.length)throw new Error("duplicate room/wall id");
+  for(const o of p.openings){
+    if(!wallIds.has(o.wall_id))throw new Error("opening "+o.id+" references unknown wall");
+    if(!(o.position_t>=0&&o.position_t<=1))throw new Error("opening "+o.id+" position_t out of range");
+    if(o.position_editable!==true)throw new Error("opening "+o.id+" must be position editable in current product mode");
+  }
+  for(const w of p.walls){
+    if(!roomIds.has(w.source)&&w.source!==outside)throw new Error("wall "+w.id+" has unknown source");
+    if(!roomIds.has(w.target)&&w.target!==outside)throw new Error("wall "+w.id+" has unknown target");
+  }
+}
+async function loadTopologyContract(){
+  const r=await fetch("./data/home_topology.fixed.json",{cache:"no-store"});
+  if(!r.ok)throw new Error("topology artifact "+r.status);
+  const p=await r.json();validateTopologyPayload(p);topologyContract=p;topologyCapabilities={...topologyCapabilities,...p.capabilities};
+  rooms=p.rooms.map(r=>({...r}));
+  walls=p.walls.map(w=>({...w}));
+  openings=p.openings.map(o=>({
+    id:o.id,kind:o.kind,wallId:o.wall_id,source:o.source,target:o.target,
+    t:Number(o.position_t),open:Number(o.initial_open_pct)/100,
+    maxAreaM2:Number(o.max_area_m2),side:o.render_side,
+    positionEditable:o.position_editable===true,stateEditable:o.state_editable===true,
+    x:0,y:0
+  }));
+  if(p.canvas){canvas.width=Number(p.canvas.width)||canvas.width;canvas.height=Number(p.canvas.height)||canvas.height}
+  syncAllOpeningGeometry();
+  const source=document.querySelector("#topologySource"),mode=document.querySelector("#topologyEditMode");
+  if(source)source.textContent=(p.topology_id||"FIXED FLOORPLAN").toUpperCase();
+  if(mode)mode.textContent="ROOMS LOCKED · WINDOWS + DOORS MOVABLE";
+}
+function currentTopologySnapshot(){
+  return {
+    schema_version:topologyContract?.schema_version||"0.1",
+    topology_id:topologyContract?.topology_id||null,
+    source_kind:topologyContract?.source_kind||"fixed-floorplan",
+    topology_revision:topologyRevision,
+    capabilities:{...topologyCapabilities},
+    rooms:rooms.map(r=>({id:r.id,name:r.name,x:r.x,y:r.y,w:r.w,h:r.h,volume_m3:r.volume_m3})),
+    walls:walls.map(w=>({...w})),
+    openings:openings.map(o=>({
+      id:o.id,kind:o.kind,wall_id:o.wallId,source:o.source,target:o.target,
+      position_t:Number(o.t.toFixed(6)),opening_pct:Number((o.open*100).toFixed(3)),
+      max_area_m2:o.maxAreaM2,position_editable:o.positionEditable,state_editable:o.stateEditable
+    })),
+    compiler_contract:topologyContract?.compiler_contract||null
+  };
+}
 const fallback=[{name:"W1 · 25%",opens:[.25,.35,.55,1],co2:1045,series:[1260,1205,1162,1119,1081,1045],return:-8.2},{name:"W1 · 50%",opens:[.5,.35,.55,1],co2:925,series:[1260,1168,1090,1025,971,925],return:-7.1},{name:"W1 · 75%",opens:[.75,.35,.55,1],co2:842,series:[1260,1130,1030,952,891,842],return:-6.5},{name:"Cross-flow · W1 + W3",opens:[.55,.25,.85,1],co2:795,series:[1260,1108,1001,915,847,795],return:-6.1}];
-let scenarios=fallback,baseline=1260,selected=0,cursor=0,timer=null,currentFrame=null,selectedOpening=null,objective="balanced",viewMode="flow",topologyRevision=0,trajectoryRevision=0,trajectoryStale=false,dragOpening=null,dragMoved=false,dragWall=null;
+let scenarios=fallback,baseline=1260,selected=0,cursor=0,timer=null,currentFrame=null,selectedOpening=null,objective="balanced",viewMode="flow",topologyRevision=0,trajectoryRevision=0,trajectoryStale=false,dragOpening=null,dragMoved=false;
 async function loadScenarios(){const h=document.querySelector("#health");try{const r=await fetch("./data/scenarios.json",{cache:"no-store"});if(!r.ok)throw 0;const p=await r.json();if(!Array.isArray(p.scenarios)||p.scenarios.length<4)throw 0;scenarios=p.scenarios;baseline=p.baseline_co2;document.querySelector("#backendName").textContent=p.backend.toUpperCase();h.className="health ok";h.querySelector("b").textContent="BACKEND ARTIFACT READY"}catch(e){h.className="health fallback";h.querySelector("b").textContent="INTERACTIVE FALLBACK";document.querySelector("#backendName").textContent="FAST FALLBACK"}renderBranches();applyFrame(0,0);updateVector(scenarios[0])}
 // Filament renderer: persistent pathlines, not decorative dots.
 const PARTICLE_BUDGET=620;
-const particles=Array.from({length:PARTICLE_BUDGET},(_,i)=>spawn(i));
+let particles=[];
+function initializeParticles(){particles=Array.from({length:PARTICLE_BUDGET},(_,i)=>spawn(i))}
 function emissionWeight(o){
   const backend=currentFrame?.openings?.[o.id];
   const open=(backend!=null?backend/100:o.open);
@@ -95,19 +156,25 @@ function velocity(x,y,p){
   const curlY=-Math.cos(x*.010-t+p.seed*.025)*.045+Math.cos((x-y)*.004+t)*.02;
   return[shaped[0]+curlX*(.22+mag*.06),shaped[1]+curlY*(.22+mag*.06)];
 }
+function segmentIntersection(a,b,c,d){
+  const r={x:b.x-a.x,y:b.y-a.y},s={x:d.x-c.x,y:d.y-c.y},cross=(u,v)=>u.x*v.y-u.y*v.x,den=cross(r,s);
+  if(Math.abs(den)<1e-9)return null;
+  const q={x:c.x-a.x,y:c.y-a.y},t=cross(q,s)/den,u=cross(q,r)/den;
+  if(t<0||t>1||u<0||u>1)return null;
+  return{x:a.x+r.x*t,y:a.y+r.y*t,t,u};
+}
 function crossesSolidWall(x0,y0,x1,y1){
-  // Shared vertical wall: living <-> bedroom. Only D1 is permeable.
-  if((x0<530&&x1>=530)||(x0>530&&x1<=530)){
-    const t=(530-x0)/(x1-x0),y=y0+(y1-y0)*t;
-    if(y>=120&&y<=370 && !(Math.abs(y-260)<=34 && openings.find(o=>o.id==="D1")?.open>.03))return true;
-  }
-  // Shared horizontal wall at y=370. D2 connects living <-> study only.
-  if((y0<370&&y1>=370)||(y0>370&&y1<=370)){
-    const t=(370-y0)/(y1-y0),x=x0+(x1-x0)*t;
-    if(x>=350&&x<=830){
-      const throughD2=x<=530&&Math.abs(x-440)<=34&&openings.find(o=>o.id==="D2")?.open>.03;
-      if(!throughD2)return true;
-    }
+  for(const wall of walls){
+    if(wall.kind!=="internal")continue;
+    const hit=segmentIntersection(
+      {x:x0,y:y0},{x:x1,y:y1},
+      {x:wall.x1,y:wall.y1},{x:wall.x2,y:wall.y2}
+    );
+    if(!hit)continue;
+    const passable=openings.some(o=>
+      o.wallId===wall.id&&o.open>.03&&Math.hypot(o.x-hit.x,o.y-hit.y)<=34
+    );
+    if(!passable)return true;
   }
   return false;
 }
@@ -160,29 +227,21 @@ function renderInspector(){
 }
 function room(id){return rooms.find(r=>r.id===id)}
 function wallSegment(id){
-  const l=room("living"),b=room("bedroom"),s=room("study");
-  if(id==="living-west")return{x1:l.x,y1:l.y,x2:l.x,y2:l.y+l.h};
-  if(id==="bedroom-east")return{x1:b.x+b.w,y1:b.y,x2:b.x+b.w,y2:b.y+b.h};
-  if(id==="study-south")return{x1:s.x,y1:s.y+s.h,x2:s.x+s.w,y2:s.y+s.h};
-  if(id==="living-bedroom")return{x1:l.x+l.w,y1:Math.max(l.y,b.y),x2:l.x+l.w,y2:Math.min(l.y+l.h,b.y+b.h)};
-  if(id==="living-study"){const x1=Math.max(l.x,s.x),x2=Math.min(l.x+l.w,s.x+s.w);return{x1,y1:l.y+l.h,x2,y2:l.y+l.h}}
-  return null;
+  const w=walls.find(w=>w.id===id);
+  return w?{x1:w.x1,y1:w.y1,x2:w.x2,y2:w.y2,kind:w.kind,source:w.source,target:w.target}:null;
 }
 function syncOpeningGeometry(o){
   const w=wallSegment(o.wallId);if(!w)return;
   o.x=w.x1+(w.x2-w.x1)*o.t;o.y=w.y1+(w.y2-w.y1)*o.t;
 }
 function syncAllOpeningGeometry(){openings.forEach(syncOpeningGeometry)}
-function hitSharedWall(x,y){const w=wallSegment("living-bedroom");return !!w&&Math.abs(x-w.x1)<12&&y>=w.y1+38&&y<=w.y2-38}
-function resizeLivingBedroomWall(x){
-  const living=room("living"),bed=room("bedroom"),left=living.x,right=bed.x+bed.w,minW=220;
-  const split=Math.max(left+minW,Math.min(right-minW,x));
-  living.w=split-left;bed.x=split;bed.w=right-split;
-  syncAllOpeningGeometry();
+function floorplanEditReserved(){
+  return topologyCapabilities.floorplan_geometry_editable===true;
 }
 function canvasPoint(e){const rect=canvas.getBoundingClientRect();return{x:(e.clientX-rect.left)*canvas.width/rect.width,y:(e.clientY-rect.top)*canvas.height/rect.height}}
 function hitOpening(x,y){let hit=null,dist=Infinity;for(const o of openings){const d=Math.hypot(o.x-x,o.y-y);if(d<dist&&d<55){hit=o;dist=d}}return hit}
 function constrainOpeningToWall(o,x,y){
+  if(!topologyCapabilities.opening_position_editable||o.positionEditable!==true)return;
   const w=wallSegment(o.wallId);if(!w)return;
   const dx=w.x2-w.x1,dy=w.y2-w.y1,len2=dx*dx+dy*dy;
   const raw=len2?((x-w.x1)*dx+(y-w.y1)*dy)/len2:.5;
@@ -190,7 +249,7 @@ function constrainOpeningToWall(o,x,y){
   o.t=Math.max(margin,Math.min(1-margin,raw));syncOpeningGeometry(o);
 }
 function selectOpening(id){selectedOpening=id;document.querySelector("#selectedOpening").textContent=id+" · BACKEND FLOW";renderInspector()}
-function cycleOpening(id){const o=openings.find(x=>x.id===id);if(!o)return;o.open=(((Math.round(o.open*4)+1)%5)/4);renderInspector();invalidateTrajectory(id+" → "+Math.round(o.open*100)+"%") }
+function cycleOpening(id){const o=openings.find(x=>x.id===id);if(!o||!topologyCapabilities.opening_state_editable||o.stateEditable!==true)return;o.open=(((Math.round(o.open*4)+1)%5)/4);renderInspector();invalidateTrajectory(id+" → "+Math.round(o.open*100)+"%") }
 function drawDeadZones(){if(viewMode!=="dead")return;for(const r of rooms){for(let y=r.y+24;y<r.y+r.h-16;y+=30)for(let x=r.x+24;x<r.x+r.w-16;x+=30){const q={seed:0},v=backendVelocity(x,y)||flowAt(x,y,q),s=Math.hypot(...v);if(s<.48){ctx.strokeStyle="rgba(132,91,91,.18)";ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(x-6,y+6);ctx.lineTo(x+6,y-6);ctx.stroke()}}}}
 function drawPlan(){ctx.fillStyle="#080c0e";ctx.fillRect(0,0,1100,650);ctx.strokeStyle="#172126";ctx.lineWidth=1;for(let x=0;x<1100;x+=25){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,650);ctx.stroke()}for(let y=0;y<650;y+=25){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(1100,y);ctx.stroke()}for(const r of rooms){ctx.fillStyle="#0f1619";ctx.fillRect(r.x,r.y,r.w,r.h);ctx.strokeStyle="#6f8086";ctx.lineWidth=3;ctx.strokeRect(r.x,r.y,r.w,r.h);ctx.fillStyle="#728187";ctx.font="600 11px ui-monospace";ctx.fillText(r.name,r.x+14,r.y+22)}drawDeadZones();for(const o of openings){ctx.strokeStyle=o.open>.05?"#dce7e9":"#664f4f";ctx.lineWidth=8;ctx.beginPath();if(o.side==="bottom"||o.side==="internal-horizontal"){ctx.moveTo(o.x-32,o.y);ctx.lineTo(o.x+32,o.y)}else{ctx.moveTo(o.x,o.y-32);ctx.lineTo(o.x,o.y+32)}ctx.stroke();ctx.fillStyle="#9aa8ad";ctx.font="9px ui-monospace";ctx.fillText(o.id+" "+Math.round(o.open*100)+"%",o.x+9,o.y-38)}}
 function drawCo2Overlay(){
@@ -237,7 +296,14 @@ function frame(){
   ctx.restore();
   requestAnimationFrame(frame);
 }
-function ensureFrames(s){if(s.frames)return s.frames;return s.series.map((v,i)=>({step:i,co2:{living:v},openings:{W1:(s.opens[0]??0)*100,W2:(s.opens[1]??0)*100,W3:(s.opens[2]??0)*100,D1:(s.opens[3]??1)*100}}))}
+function ensureFrames(s){
+  if(s.frames)return s.frames;
+  return s.series.map((v,i)=>{
+    const frameOpenings={};
+    openings.forEach((o,index)=>{frameOpenings[o.id]=((s.opens??[])[index]??o.open)*100});
+    return{step:i,co2:{living:v},openings:frameOpenings};
+  });
+}
 function metrics(s){const d=Math.max(0,baseline-s.co2);return{coverage:Math.min(96,Math.round(60+d/15)),dead:Math.max(3,Math.round(24-d/22))}}function applyFrame(i,step){selected=i;const s=scenarios[i],frames=ensureFrames(s),k=Math.max(0,Math.min(step,frames.length-1)),fr=frames[k],living=fr.co2.living??s.series[k]??s.co2,m=metrics({...s,co2:living});cursor=k;currentFrame=fr;for(const o of openings){if(fr.openings&&fr.openings[o.id]!=null)o.open=fr.openings[o.id]/100}document.querySelector("#scenario").textContent="PLAYING COUNTERFACTUAL";document.querySelector("#scenarioTitle").textContent=s.name;document.querySelector("#co2").textContent=Math.round(living).toLocaleString();document.querySelector("#coverage").textContent=m.coverage;document.querySelector("#dead").textContent=m.dead;document.querySelector("#clock").textContent=`t+${String(k+1).padStart(2,"0")}`;document.querySelector("#frameCount").textContent=`${String(k+1).padStart(2,"0")} / ${frames.length}`;const scrub=document.querySelector("#scrubber");scrub.max=Math.max(0,frames.length-1);scrub.value=k;renderInspector();reseedForField();document.querySelectorAll(".branch").forEach((b,j)=>b.classList.toggle("active",i===j));document.querySelectorAll(".node").forEach((n,j)=>{n.classList.toggle("cursor",j===Math.floor(k/Math.max(1,frames.length-1)*8));n.classList.toggle("past",j<=Math.floor(k/Math.max(1,frames.length-1)*8))})}
 function applyScenario(i){stop();applyFrame(i,ensureFrames(scenarios[i]).length-1);updateVector(scenarios[i])}
 function stop(){if(timer){clearInterval(timer);timer=null}document.querySelector("#play").textContent="▶";document.querySelector("#timeline").classList.remove("playing")}
@@ -246,13 +312,41 @@ function scoreVector(s){if(s.metrics)return{iaq:s.metrics.iaq,flow:s.metrics.flo
 function objectiveScore(s){const v=scoreVector(s);if(objective==="fresh")return v.iaq*.7+v.flow*.3;if(objective==="quiet")return v.iaq*.35+v.motion*.65;return v.iaq*.55+v.flow*.2+v.motion*.25}
 function updateVector(s){const v=scoreVector(s);document.querySelector("#compareTitle").textContent=s.name+" · t+30";document.querySelector("#vector").innerHTML=`<span>IAQ <b>${v.iaq}</b></span><span>FLOW <b>${v.flow}</b></span><span>MOTION <b>${v.motion}</b></span><span>RETURN <b>${Number(v.ret).toFixed(2)}</b></span>`}
 function spark(series){const min=Math.min(...series),max=Math.max(...series),span=Math.max(1,max-min);return series.map(v=>"▁▂▃▄▅▆▇█"[Math.min(7,Math.floor((v-min)/span*7))]).join("")}function renderBranches(){const best=scenarios.reduce((b,s,i,a)=>objectiveScore(s)>objectiveScore(a[b])?i:b,0);document.querySelector("#branches").innerHTML=scenarios.map((s,i)=>`<article class="branch ${i===best?"best":""}" data-i="${i}"><b>${s.name}</b><div class="outcome">${s.co2} ppm</div><span class="delta">↓ ${baseline-s.co2} ppm · t+30</span><div class="spark">${spark(s.series)}</div><small>return ${s.return}</small></article>`).join("");document.querySelectorAll(".branch").forEach(b=>b.onclick=()=>{const i=+b.dataset.i;applyScenario(i);updateVector(scenarios[i])})}
-document.querySelector("#fork").onclick=()=>{if(trajectoryStale)return;renderBranches();stop();document.querySelector("#forkState").textContent="BACKEND ORIGIN";applyFrame(2,0)};document.querySelector("#strategy").onclick=()=>{if(trajectoryStale)return;renderBranches();const best=scenarios.reduce((b,s,i,a)=>objectiveScore(s)>objectiveScore(a[b])?i:b,0);stop();applyFrame(best,0);updateVector(scenarios[best]);play()};document.querySelector("#play").onclick=play;document.querySelector("#scrubber").oninput=e=>{stop();applyFrame(selected,+e.target.value)};windEl.oninput=()=>document.querySelector("#windLabel").textContent=`${windEl.value}°`;speedEl.oninput=()=>{document.querySelector("#speedLabel").textContent=`${(+speedEl.value).toFixed(1)} m/s`;renderInspector()};const tl=document.querySelector("#timeline");for(let i=0;i<9;i++){const n=document.createElement("div");n.className="node"+(i===5?" active":"");tl.append(n);if(i<8){const l=document.createElement("div");l.className="line";tl.append(l)}}loadScenarios();frame();
-canvas.addEventListener("mousemove",e=>{const rect=canvas.getBoundingClientRect(),x=(e.clientX-rect.left)*canvas.width/rect.width,y=(e.clientY-rect.top)*canvas.height/rect.height,r=inside(x,y),p=document.querySelector("#probe");if(!r){p.classList.add("hidden");return}const key=r.name.toLowerCase(),co2=currentFrame?.co2?.[key],v=backendVelocity(x,y)||flowAt(x,y,{seed:0}),speed=Math.hypot(...v);p.classList.remove("hidden");p.style.left=Math.min(rect.width-155,e.clientX-rect.left+14)+"px";p.style.top=Math.max(55,e.clientY-rect.top-18)+"px";document.querySelector("#probeRoom").textContent=r.name;document.querySelector("#probeValue").textContent=(co2!=null?co2+" ppm · ":"")+speed.toFixed(2)+(currentFrame?.field?" backend field":" flow proxy")});canvas.addEventListener("mouseleave",()=>document.querySelector("#probe").classList.add("hidden"));renderInspector();
+document.querySelector("#fork").onclick=()=>{if(trajectoryStale)return;renderBranches();stop();document.querySelector("#forkState").textContent="BACKEND ORIGIN";applyFrame(2,0)};document.querySelector("#strategy").onclick=()=>{if(trajectoryStale)return;renderBranches();const best=scenarios.reduce((b,s,i,a)=>objectiveScore(s)>objectiveScore(a[b])?i:b,0);stop();applyFrame(best,0);updateVector(scenarios[best]);play()};document.querySelector("#play").onclick=play;document.querySelector("#scrubber").oninput=e=>{stop();applyFrame(selected,+e.target.value)};windEl.oninput=()=>document.querySelector("#windLabel").textContent=`${windEl.value}°`;speedEl.oninput=()=>{document.querySelector("#speedLabel").textContent=`${(+speedEl.value).toFixed(1)} m/s`;renderInspector()};const tl=document.querySelector("#timeline");for(let i=0;i<9;i++){const n=document.createElement("div");n.className="node"+(i===5?" active":"");tl.append(n);if(i<8){const l=document.createElement("div");l.className="line";tl.append(l)}}
+async function bootSpatialLab(){
+  const h=document.querySelector("#health");
+  try{
+    await loadTopologyContract();
+    initializeParticles();
+    await loadScenarios();
+    renderInspector();
+    frame();
+  }catch(err){
+    h.className="health fallback";
+    h.querySelector("b").textContent="TOPOLOGY CONTRACT BLOCKED";
+    document.querySelector("#scenario").textContent="FIXED FLOORPLAN UNAVAILABLE";
+    document.querySelector("#scenarioTitle").textContent=err.message;
+    throw err;
+  }
+}
+bootSpatialLab();
+canvas.addEventListener("mousemove",e=>{const rect=canvas.getBoundingClientRect(),x=(e.clientX-rect.left)*canvas.width/rect.width,y=(e.clientY-rect.top)*canvas.height/rect.height,r=inside(x,y),p=document.querySelector("#probe");if(!r){p.classList.add("hidden");return}const key=r.name.toLowerCase(),co2=currentFrame?.co2?.[key],v=backendVelocity(x,y)||flowAt(x,y,{seed:0}),speed=Math.hypot(...v);p.classList.remove("hidden");p.style.left=Math.min(rect.width-155,e.clientX-rect.left+14)+"px";p.style.top=Math.max(55,e.clientY-rect.top-18)+"px";document.querySelector("#probeRoom").textContent=r.name;document.querySelector("#probeValue").textContent=(co2!=null?co2+" ppm · ":"")+speed.toFixed(2)+(currentFrame?.field?" backend field":" flow proxy")});canvas.addEventListener("mouseleave",()=>document.querySelector("#probe").classList.add("hidden"));
 document.querySelectorAll(".preset").forEach(btn=>btn.onclick=()=>{objective=btn.dataset.preset;document.querySelectorAll(".preset").forEach(x=>x.classList.toggle("active",x===btn));renderBranches()});
-canvas.addEventListener("pointerdown",e=>{const p=canvasPoint(e),hit=hitOpening(p.x,p.y);if(hit){dragOpening=hit;dragMoved=false;canvas.classList.add("dragging-opening");selectOpening(hit.id);document.querySelector("#selectedOpening").textContent=hit.id+" · DRAG ALONG WALL";canvas.setPointerCapture(e.pointerId);return}if(hitSharedWall(p.x,p.y)){dragWall={startX:p.x};canvas.classList.add("resizing-wall");canvas.setPointerCapture(e.pointerId)}});
-canvas.addEventListener("pointermove",e=>{const p=canvasPoint(e);if(dragOpening){const ox=dragOpening.x,oy=dragOpening.y;constrainOpeningToWall(dragOpening,p.x,p.y);if(Math.hypot(dragOpening.x-ox,dragOpening.y-oy)>.5)dragMoved=true;return}if(dragWall)resizeLivingBedroomWall(p.x)});
-canvas.addEventListener("pointerup",e=>{if(dragWall){const changed=Math.abs(canvasPoint(e).x-dragWall.startX)>1;dragWall=null;canvas.classList.remove("resizing-wall");if(canvas.hasPointerCapture(e.pointerId))canvas.releasePointerCapture(e.pointerId);if(changed)invalidateTrajectory("Living / Bedroom shared wall resized");return}if(!dragOpening)return;const edited=dragOpening,moved=dragMoved;dragOpening=null;dragMoved=false;canvas.classList.remove("dragging-opening");if(canvas.hasPointerCapture(e.pointerId))canvas.releasePointerCapture(e.pointerId);if(moved)invalidateTrajectory(edited.id+" moved along wall");else cycleOpening(edited.id)});
-canvas.addEventListener("pointercancel",()=>{dragOpening=null;dragMoved=false;dragWall=null;canvas.classList.remove("dragging-opening","resizing-wall")});
+canvas.addEventListener("pointerdown",e=>{
+ const p=canvasPoint(e),hit=hitOpening(p.x,p.y);
+ if(!hit)return;
+ selectOpening(hit.id);
+ if(topologyCapabilities.opening_position_editable&&hit.positionEditable===true){
+   dragOpening=hit;dragMoved=false;canvas.classList.add("dragging-opening");
+   document.querySelector("#selectedOpening").textContent=hit.id+" · DRAG ALONG "+hit.wallId.toUpperCase();
+   canvas.setPointerCapture(e.pointerId);
+ }else{
+   document.querySelector("#selectedOpening").textContent=hit.id+" · POSITION LOCKED";
+ }
+});
+canvas.addEventListener("pointermove",e=>{const p=canvasPoint(e);if(dragOpening){const ox=dragOpening.x,oy=dragOpening.y;constrainOpeningToWall(dragOpening,p.x,p.y);if(Math.hypot(dragOpening.x-ox,dragOpening.y-oy)>.5)dragMoved=true}});
+canvas.addEventListener("pointerup",e=>{if(!dragOpening)return;const edited=dragOpening,moved=dragMoved;dragOpening=null;dragMoved=false;canvas.classList.remove("dragging-opening");if(canvas.hasPointerCapture(e.pointerId))canvas.releasePointerCapture(e.pointerId);if(moved)invalidateTrajectory(edited.id+" moved along "+edited.wallId);else cycleOpening(edited.id)});
+canvas.addEventListener("pointercancel",()=>{dragOpening=null;dragMoved=false;canvas.classList.remove("dragging-opening")});
 document.querySelectorAll(".view").forEach(btn=>btn.onclick=()=>{viewMode=btn.dataset.view;document.querySelectorAll(".view").forEach(x=>x.classList.toggle("active",x===btn));const legend=document.querySelector("#viewLegend");legend.innerHTML=viewMode==="flow"?"<span>→ backend direction</span><span>· filament magnitude</span><span>∷ opening flow</span>":viewMode==="co2"?"<span>room fill · backend CO₂</span><span>timeline frame aware</span>":"<span>× low-flow cells</span><span>backend field threshold</span>"});
 
 document.querySelector("#rerun").onclick=requestPhysicsRerun;
@@ -278,7 +372,7 @@ async function loadMockFallbackArtifact(){
 }
 function applyMockFallback(){
  if(!mockFallback)return;
- browserTau=mockFallback.trajectory.map(step=>JSON.parse(JSON.stringify(step)));selectedTauOrigin=null;
+ browserTau=mockFallback.trajectory.map(step=>({...JSON.parse(JSON.stringify(step)),context:{topology:currentTopologySnapshot()}}));selectedTauOrigin=null;
  const s=mockFallback.scenario,last=browserTau[browserTau.length-1].next_observation;
  physicalCo2.value=String(last.co2_ppm);physicalRain.checked=!!last.rain;physicalPosition=Number(last.opening_pct);
  speedEl.value=String(s.wind_speed_mps);document.querySelector("#speedLabel").textContent=Number(s.wind_speed_mps).toFixed(1)+" m/s";
@@ -322,7 +416,7 @@ function physicalStep(target,semantic){
  const o=physicalObservation(),proposed=target,executed=o.rain&&target>0?0:target,intervention=o.rain&&target>0?"RAIN_SAFE_CLOSE":null;
  physicalPosition=executed;
  const nextObservation={co2_ppm:o.co2_ppm,rain:o.rain,opening_pct:executed};
- const step={index:browserTau.length,environment_kind:"mock-browser-contract",evidence_class:"tau_sim",physical_evidence:false,observation:o,semantic_action:semantic,proposed_action:{opening_id:"W1",target_pct:proposed},intervention,executed_action:{opening_id:"W1",target_pct:executed},actuator_feedback:{measured_position_pct:null,estimated_position_pct:executed,quality:"browser-simulated"},next_observation:nextObservation};
+ const step={index:browserTau.length,environment_kind:"mock-browser-contract",evidence_class:"tau_sim",physical_evidence:false,context:{topology:currentTopologySnapshot()},observation:o,semantic_action:semantic,proposed_action:{opening_id:"W1",target_pct:proposed},intervention,executed_action:{opening_id:"W1",target_pct:executed},actuator_feedback:{measured_position_pct:null,estimated_position_pct:executed,quality:"browser-simulated"},next_observation:nextObservation};
  browserTau.push(step);
  const w1=openings.find(o=>o.id==="W1");w1.open=executed/100;
  selectedOpening="W1";renderOpeningInspector();
