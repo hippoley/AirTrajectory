@@ -14,7 +14,10 @@ from .commissioning import (
     require_commissioning_behavior,
     validate_commissioning_behavior_context,
 )
-from .sensor_lineage import validate_sensor_evidence_context
+from .sensor_lineage import (
+    reverify_sensor_apply_receipts,
+    validate_sensor_evidence_context,
+)
 from .lineage import (
     compare_hardware_site_lineage,
     compare_hardware_thingmodel_lineage,
@@ -74,7 +77,13 @@ def _check_sensor_rows(rows, *, step_index, phase, reasons, site_lineage):
             )
 
 
-def verify_physical_tau0_artifacts(*, trajectory_path, receipt_path, commission_bundle_path):
+def verify_physical_tau0_artifacts(
+    *,
+    trajectory_path,
+    receipt_path,
+    commission_bundle_path,
+    sensor_apply_receipt_paths=None,
+):
     trajectory_path=Path(trajectory_path)
     receipt_path=Path(receipt_path)
     commission_bundle_path=Path(commission_bundle_path)
@@ -200,6 +209,39 @@ def verify_physical_tau0_artifacts(*, trajectory_path, receipt_path, commission_
             )
         except RuntimeError as exc:
             reasons.append(str(exc))
+
+    sensor_apply_receipt_paths=list(sensor_apply_receipt_paths or [])
+    sensor_staging_replay_status="NOT_APPLICABLE"
+    sensor_staging_receipts_reverified=False
+
+    if sensor_apply_receipt_paths:
+        if receipt_sensor_fields["sensor_evidence_origin"]!="probe-apply-audited":
+            sensor_staging_replay_status="REJECTED"
+            reasons.append(
+                "sensor_apply receipt files were supplied but tau0 evidence "
+                "does not claim probe-apply-audited sensor staging"
+            )
+        else:
+            try:
+                reverify_sensor_apply_receipts(
+                    sensor_apply_receipt_paths,
+                    expected_staging_lineage=receipt_sensor_fields[
+                        "sensor_staging_lineage"
+                    ],
+                    runtime_lineage=receipt_sensor_fields[
+                        "runtime_sensor_lineage"
+                    ],
+                    commissioning_identity_sha256=commissioning_id,
+                    commissioning_bundle_sha256=expected_commission_sha,
+                    site_lineage=expected_site_lineage or {},
+                )
+                sensor_staging_replay_status="VERIFIED"
+                sensor_staging_receipts_reverified=True
+            except RuntimeError as exc:
+                sensor_staging_replay_status="REJECTED"
+                reasons.append(str(exc))
+    elif receipt_sensor_fields["sensor_evidence_origin"]=="probe-apply-audited":
+        sensor_staging_replay_status="NOT_SUPPLIED"
 
     bundle={}
     try:
@@ -402,4 +444,6 @@ def verify_physical_tau0_artifacts(*, trajectory_path, receipt_path, commission_
         "commissioning_behavior_sha256":receipt_behavior_sha or None,
         "sensor_evidence_origin":receipt_sensor_fields["sensor_evidence_origin"],
         "sensor_evidence_sha256":receipt_sensor_fields["sensor_evidence_sha256"],
+        "sensor_staging_replay_status":sensor_staging_replay_status,
+        "sensor_staging_receipts_reverified":sensor_staging_receipts_reverified,
     }
