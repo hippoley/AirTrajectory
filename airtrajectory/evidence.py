@@ -104,6 +104,35 @@ def verify_physical_tau0_artifacts(*, trajectory_path, receipt_path, commission_
     if receipt.get("environment_kind")!="physical":
         reasons.append("tau0 receipt environment_kind is not physical")
 
+    receipt_capture_policy=receipt.get("tau0_capture_policy")
+    capture_target=None
+    capture_min_delta=None
+    capture_tolerance=None
+    if not isinstance(receipt_capture_policy,dict):
+        reasons.append("tau0 receipt missing capture policy")
+    else:
+        if receipt_capture_policy.get("policy_id")!="physical-tau0-probe-v1":
+            reasons.append("tau0 receipt capture policy is not physical-tau0-probe-v1")
+        try:
+            capture_target=float(receipt_capture_policy.get("target_pct"))
+            max_target=float(receipt_capture_policy.get("max_target_pct"))
+            capture_min_delta=float(receipt_capture_policy.get("minimum_reality_delta_pct"))
+            capture_tolerance=float(receipt_capture_policy.get("position_tolerance_pct"))
+            if not 0 < capture_target <= 5.0:
+                reasons.append("tau0 receipt capture target must be >0 and <=5%")
+            if max_target!=5.0:
+                reasons.append("tau0 receipt max target must remain 5%")
+            if not 0 < capture_min_delta <= capture_target:
+                reasons.append("tau0 receipt minimum Reality Delta must be >0 and <= target")
+            if not 0 <= capture_tolerance <= 1.0:
+                reasons.append("tau0 receipt capture tolerance must be in [0,1]%")
+            if int(receipt_capture_policy.get("steps") or 0)!=1:
+                reasons.append("tau0 receipt capture policy must require exactly one probe step")
+            if receipt_capture_policy.get("requires_safe_closeout") is not True:
+                reasons.append("tau0 receipt capture policy must require safe closeout")
+        except (TypeError,ValueError):
+            reasons.append("tau0 receipt capture policy has invalid numeric fields")
+
     trajectory_sha=_sha256(trajectory_path)
     receipt_sha=_sha256(receipt_path)
     commission_sha=_sha256(commission_bundle_path)
@@ -270,6 +299,8 @@ def verify_physical_tau0_artifacts(*, trajectory_path, receipt_path, commission_
                 reasons.append("persisted trajectory environment_kind is not physical")
 
             context=trajectory.get("context") or {}
+            if context.get("tau0_capture_policy")!=receipt_capture_policy:
+                reasons.append("trajectory tau0 capture policy does not match receipt")
             if context.get("commissioning_identity_sha256")!=commissioning_id:
                 reasons.append("trajectory commissioning identity lineage mismatch")
             if context.get("commissioning_hardware_identity")!=commissioning_identity:
@@ -296,6 +327,8 @@ def verify_physical_tau0_artifacts(*, trajectory_path, receipt_path, commission_
 
             receipt_tolerance=receipt.get("position_tolerance_pct")
             receipt_baseline=receipt.get("baseline_position_feedback")
+            baseline_pct=None
+            baseline_ts=None
             if context.get("position_tolerance_pct")!=receipt_tolerance:
                 reasons.append("trajectory position tolerance does not match tau0 receipt")
             if context.get("baseline_position_feedback")!=receipt_baseline:
@@ -304,6 +337,11 @@ def verify_physical_tau0_artifacts(*, trajectory_path, receipt_path, commission_
                 tolerance=float(receipt_tolerance)
                 if not 0 < tolerance <= 1.0:
                     raise ValueError("out of range")
+                if (
+                    capture_tolerance is not None
+                    and abs(tolerance-capture_tolerance)>1e-9
+                ):
+                    reasons.append("tau0 capture tolerance does not match preflight tolerance")
             except Exception:
                 reasons.append("tau0 receipt position_tolerance_pct must be >0 and <=1%")
                 tolerance=None
@@ -367,8 +405,41 @@ def verify_physical_tau0_artifacts(*, trajectory_path, receipt_path, commission_
                 reasons.append("persisted trajectory step count does not match tau0 receipt")
             if not steps:
                 reasons.append("persisted trajectory has no steps")
+            if len(steps)!=1:
+                reasons.append("persisted physical tau0 must contain exactly one probe step")
 
+            reality_delta_observed=False
             for index,step in enumerate(steps):
+                actions=[
+                    item for item in (
+                        list(step.get("proposed_actions") or [])
+                        + list(step.get("executed_actions") or [])
+                    )
+                    if isinstance(item,dict)
+                ]
+                for action in actions:
+                    try:
+                        action_target=float(action.get("target_pct"))
+                    except (TypeError,ValueError):
+                        reasons.append(f"step {index} has invalid tau0 action target")
+                        continue
+                    if action_target<0 or action_target>5.0:
+                        reasons.append(f"step {index} exceeds bounded tau0 target")
+
+                executed=[
+                    item for item in (step.get("executed_actions") or [])
+                    if isinstance(item,dict)
+                ]
+                if capture_target is not None and executed:
+                    for action in executed:
+                        try:
+                            actual=float(action.get("target_pct"))
+                        except (TypeError,ValueError):
+                            continue
+                        if abs(actual-capture_target)>1e-9:
+                            reasons.append(
+                                f"step {index} executed target does not match tau0 capture policy"
+                            )
                 pre_rows=[
                     item for item in (step.get("sensor_readings") or [])
                     if isinstance(item,dict)
@@ -395,6 +466,31 @@ def verify_physical_tau0_artifacts(*, trajectory_path, receipt_path, commission_
                     if any(ts<=0 for ts in timestamps):
                         reasons.append(f"step {index} actuator feedback missing timestamp")
                     feedback_ts=max(timestamps) if timestamps else None
+                    if baseline_pct is not None and baseline_ts is not None:
+                        for item in feedback:
+                            measured=item.get("measured_position_pct")
+                            if measured is None:
+                                continue
+                            measured=float(measured)
+                            ts=float(item.get("timestamp") or 0)
+                            if ts<=baseline_ts:
+                                reasons.append(
+                                    f"step {index} actuator feedback is not newer than baseline"
+                                )
+                            delta=measured-baseline_pct
+                            if (
+                                capture_min_delta is not None
+                                and delta >= capture_min_delta
+                            ):
+                                reality_delta_observed=True
+                            if (
+                                capture_target is not None
+                                and capture_tolerance is not None
+                                and abs(measured-capture_target)>capture_tolerance
+                            ):
+                                reasons.append(
+                                    f"step {index} measured position does not reach bounded tau0 target"
+                                )
 
                 post_rows=[
                     item for item in (step.get("next_sensor_readings") or [])
@@ -415,6 +511,11 @@ def verify_physical_tau0_artifacts(*, trajectory_path, receipt_path, commission_
                                     f"step {index} post-action sensor evidence is not newer than actuator feedback"
                                 )
                                 break
+
+            if not reality_delta_observed:
+                reasons.append(
+                    "persisted physical tau0 has no required positive measured Reality Delta"
+                )
 
             try:
                 last_feedback_ts=persisted_last_feedback_timestamp(steps)
@@ -441,6 +542,7 @@ def verify_physical_tau0_artifacts(*, trajectory_path, receipt_path, commission_
         "preflight_receipt_sha256":preflight_receipt_sha or None,
         "gateway_contract_sha256":gateway_contract_sha or None,
         "commissioning_behavior_sha256":receipt_behavior_sha or None,
+        "tau0_capture_policy":receipt_capture_policy,
         "sensor_evidence_origin":receipt_sensor_fields["sensor_evidence_origin"],
         "sensor_evidence_sha256":receipt_sensor_fields["sensor_evidence_sha256"],
         "closeout_confirmed":not any("closeout" in reason for reason in reasons),
