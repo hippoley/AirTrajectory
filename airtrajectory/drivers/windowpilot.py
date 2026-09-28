@@ -24,6 +24,7 @@ class WindowPilotHTTPDriver(PhysicalWindowDriver):
         feedback_timeout_s: float=5.0,
         feedback_poll_interval_s: float=0.1,
         position_tolerance_pct: float=1.0,
+        stop_on_feedback_timeout: bool=True,
         sleep_fn=time.sleep,
         clock_fn=time.time,
     ):
@@ -32,6 +33,7 @@ class WindowPilotHTTPDriver(PhysicalWindowDriver):
         self.feedback_timeout_s=float(feedback_timeout_s)
         self.feedback_poll_interval_s=float(feedback_poll_interval_s)
         self.position_tolerance_pct=float(position_tolerance_pct)
+        self.stop_on_feedback_timeout=bool(stop_on_feedback_timeout)
         self._request_json=request_json or self._stdlib_request
         self._sleep=sleep_fn
         self._clock=clock_fn
@@ -177,7 +179,19 @@ class WindowPilotHTTPDriver(PhysicalWindowDriver):
                             quality=str(feedback.get("quality") or "measured-windowpilot"),
                         )
                 self._sleep(self.feedback_poll_interval_s)
-            raise RuntimeError("WindowPilot measured feedback timeout: "+last_reason)
+            stop_note=""
+            if self.stop_on_feedback_timeout:
+                try:
+                    ack=self._request_json("POST","/api/window/stop",{})
+                    if isinstance(ack,dict) and ack.get("ok") is True:
+                        stop_note="; safety STOP acknowledged"
+                    else:
+                        stop_note="; safety STOP was not acknowledged"
+                except Exception as exc:
+                    stop_note=f"; safety STOP failed: {exc}"
+            raise RuntimeError(
+                "WindowPilot measured feedback timeout: "+last_reason+stop_note
+            )
 
         state=self._state()
         position=state.get("window",{}).get("open_pct")
