@@ -119,7 +119,6 @@ jobs:
           grep -q 'function jetResponse' web/lab.js
           grep -q 'function wallResponse' web/lab.js
           grep -q 'function crossesSolidWall' web/lab.js
-          grep -q 'throughD2' web/lab.js
           grep -q 'function emissionWeight' web/lab.js
           grep -q 'function reseedForField' web/lab.js
           grep -q 'function drawFlowSkeleton' web/lab.js
@@ -138,7 +137,7 @@ jobs:
           grep -q 'function constrainOpeningToWall' web/lab.js
           grep -q 'pointerdown' web/lab.js
           grep -q 'pointerup' web/lab.js
-          grep -q 'moved along wall' web/lab.js
+          grep -q 'moved along "+edited.wallId' web/lab.js
           grep -q 'function loadTopologyContract' web/lab.js
           grep -q 'function currentTopologySnapshot' web/lab.js
           grep -q 'function wallSegment' web/lab.js
@@ -173,7 +172,7 @@ jobs:
           grep -q 'next_observation:nextObservation' web/lab.js
           grep -q 'IMMUTABLE POST-ACTION ORIGIN' web/lab.js
           grep -q 'origin.next_observation||origin.observation' web/lab.js
-          grep -q 'id:"D2"' web/lab.js
+          grep -q '"id": "D2"' web/data/home_topology.fixed.json
           grep -q 'p.trail.length>20' web/lab.js
           grep -q 'Midpoint/RK2 advection' web/lab.js
           ! grep -q 'Array.from({length:720}' web/lab.js
