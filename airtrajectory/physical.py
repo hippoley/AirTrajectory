@@ -3,7 +3,13 @@ from dataclasses import asdict, dataclass
 import time
 from typing import Iterable, List, Optional
 from .trajectory import ActuatorFeedback, RewardVector, SemanticAction, Trajectory, TrajectoryStep, TrajectoryStore, TransitionAction
-from .lineage import (\n    compare_hardware_site_lineage, compare_hardware_thingmodel_lineage,\n    sensor_binding_matches_site, sensor_binding_valid,\n)\n
+from .lineage import (
+    compare_hardware_site_lineage,
+    compare_hardware_thingmodel_lineage,
+    sensor_binding_matches_site,
+    sensor_binding_valid,
+)
+
 @dataclass(frozen=True)
 class DriverCapabilities:
     transport: str
