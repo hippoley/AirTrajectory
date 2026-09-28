@@ -12,7 +12,9 @@ PASS means:
 - live CO2 and rain evidence is fresh, measured, registry-bound and site-bound;
 - optional sensor_apply receipts, when supplied, validate against the same
   commissioning/runtime/site lineage;
-- the runtime is non-simulated and advertises measured position feedback.
+- the runtime is non-simulated and advertises measured position feedback;
+- the latest measured position proves the window is closed within the same
+  <=1% commissioning tolerance before the capture crosses the motion boundary.
 """
 from __future__ import annotations
 
@@ -60,6 +62,9 @@ def validate_physical_tau0_preconditions(
     commissioning_behavior=require_commissioning_behavior(bundle)
     commissioning_behavior_witness=commissioning_behavior["normalized"]
     commissioning_behavior_sha256=commissioning_behavior["sha256"]
+    position_tolerance_pct=float(
+        commissioning_behavior_witness["acceptance_policy"]["position_tolerance_pct"]
+    )
     commission_bundle_sha256=hashlib.sha256(bundle_path.read_bytes()).hexdigest()
 
     commissioning_identity=bundle.get("hardware_identity") or {}
@@ -105,6 +110,32 @@ def validate_physical_tau0_preconditions(
         raise RuntimeError(
             "WindowPilot physical write gate is not ready"
             +((": "+blockers) if blockers else "")
+        )
+
+    baseline=readiness.get("latest_position_feedback")
+    if not isinstance(baseline,dict) or baseline.get("measured") is not True:
+        raise RuntimeError(
+            "WindowPilot physical tau0 requires measured baseline position feedback"
+        )
+    try:
+        baseline_pct=float(baseline.get("position_pct"))
+        baseline_ts=float(baseline.get("timestamp"))
+    except Exception as exc:
+        raise RuntimeError(
+            "WindowPilot physical tau0 baseline position feedback is invalid"
+        ) from exc
+    if baseline_ts<=0:
+        raise RuntimeError(
+            "WindowPilot physical tau0 baseline position feedback has no source timestamp"
+        )
+    if baseline_pct<0 or baseline_pct>100:
+        raise RuntimeError(
+            "WindowPilot physical tau0 baseline position is outside [0,100]"
+        )
+    if baseline_pct>position_tolerance_pct:
+        raise RuntimeError(
+            f"physical tau0 requires an initially closed window: "
+            f"measured={baseline_pct:.3f}% > tolerance={position_tolerance_pct:.3f}%"
         )
 
     runtime_identity=readiness.get("hardware_identity") or {}
@@ -171,4 +202,12 @@ def validate_physical_tau0_preconditions(
         "sensor_staging_lineage":sensor_evidence["sensor_staging_lineage"],
         "sensor_evidence_sha256":sensor_evidence["sensor_evidence_sha256"],
         "driver_capabilities":asdict(caps),
+        "position_tolerance_pct":position_tolerance_pct,
+        "baseline_position_feedback":{
+            "position_pct":baseline_pct,
+            "timestamp":baseline_ts,
+            "measured":True,
+            "quality":str(baseline.get("quality") or ""),
+            "source":str(baseline.get("source") or ""),
+        },
     }

@@ -149,6 +149,7 @@ read-only preflight PASS
    initial closed + OPEN positive delta + STOP hold + CLOSE negative delta
 → commissioning behavior SHA-256 (policy + measured behavior)
 → same runtime hardware + same ThingModel + same physical-site lineage
+→ latest measured position proves the window is initially closed (≤1%)
 → fresh measured CO₂ + rain with verified product-property + site-instance bindings
 → runtime sensor source lineage (timestamp / quality / source / binding)
 → optional stronger proof: CO₂ + rain sensor_apply receipts
@@ -159,6 +160,8 @@ read-only preflight PASS
 → real window command
 → post-command measured position
 → newer post-action CO₂/rain with the same ThingModel + site-instance provenance
+→ measured safe closeout to 0% after the trajectory
+→ closeout timestamp newer than the final trajectory actuator feedback
 → τ₀ audit PASS
 ```
 
@@ -244,9 +247,14 @@ trajectory SHA-256
 + measured actuator position
 + pre-action CO₂/rain ThingModel + site-instance provenance
 + newer post-action CO₂/rain ThingModel + site-instance provenance
++ initially-closed measured baseline within the commissioning tolerance
++ post-trajectory measured closeout ≤1%
++ closeout feedback newer than the final trajectory actuator feedback
 ```
 
 AirTrajectory deliberately does **not** copy the raw vendor ThingModel bundle or the private deployment manifest. WindowPilot owns product-registry and physical-site validation; AirTrajectory carries only the non-secret site/room/device-instance identity plus cryptographic lineage required to prove that the same verified installed device produced the physical trajectory.
+
+The capture command also restores the commissioned closed baseline after the trajectory. A successful audit receipt is not written unless that closeout is measured within the commissioning tolerance, and the independent verifier rejects missing, stale, estimated-only, or still-open closeout evidence.
 
 The physical closeout is complete only when capture returned `valid_tau0=true` **and** this independent artifact verification returns `valid_artifacts=true`.
 
