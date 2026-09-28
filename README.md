@@ -47,10 +47,14 @@ Real trajectories back into AirTrajectory
 | CONTAM adapter | ✅ verified | official `contamxpy==0.0.9` + real NIST PRJ executes in Windows CI |
 | WindowPilot runtime bridge | ✅ verified | runtime capabilities/readiness are discovered over HTTP and fail closed when provenance is incomplete |
 | WindowPilot hardware integration path | ✅ software-verified | CWDS-CA01 driver lives in WindowPilot; AirTrajectory requires matching commissioning/runtime identity |
-| Real device commissioning | ❌ not captured | requires real gateway endpoint/auth/device ID and a physical READ → OPEN 5% → STOP → CLOSE pass |
-| Physical τ₀ | ❌ not captured | requires preflight lineage, commissioned hardware identity, fresh measured sensors, actual movement, and post-action evidence |
+| Real device commissioning | ❌ not captured | reserved real-hardware gate; requires real gateway endpoint/auth/device ID and a physical READ → OPEN 5% → STOP → CLOSE pass |
+| Physical τ₀ | ❌ not captured | reserved real-evidence gate; requires preflight lineage, commissioned hardware identity, fresh measured sensors, actual movement, and post-action evidence |
+| Mock hardware fallback | ✅ runnable | deterministic mock API/actuator path keeps the interaction loop usable while real integration is unavailable; never promoted as hardware evidence |
+| Mock τ_sim artifact | ✅ runnable | `web/data/mock_physical_fallback.json`; `physical_evidence=false`, illustrative simulation only |
 
 The fast multizone backend remains a learning surrogate. CONTAM is now an executable higher-fidelity backend, but a real room trajectory is still the final evidence gate.
+
+The real-device rows above are intentionally **not removed when hardware is unavailable**. The web console keeps those gates visible as `REAL / RESERVED` and activates a clearly labeled mock fallback beside them. The bundled fallback starts from the illustrative single-room seed used during development: 30 m² / 75 m³, 2 occupants, indoor CO₂ 1400 ppm, outdoor CO₂ 430 ppm, dry weather, 0% initial opening, 1.5 m/s wind and a 20% simulated target. Its trajectory is `τ_sim`, not `physical τ₀`.
 
 ## Quick start
 
