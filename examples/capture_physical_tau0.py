@@ -1,10 +1,14 @@
 """Capture and audit a physical trajectory through a configured WindowPilot runtime."""
 import argparse
-import json
 import hashlib
+import json
 from pathlib import Path
 
 from airtrajectory.drivers import WindowPilotHTTPDriver
+from airtrajectory.lineage import (
+    compare_hardware_thingmodel_lineage,
+    require_hardware_thingmodel_lineage,
+)
 from airtrajectory.physical import (
     PhysicalWindowEnvironment, RulePolicy, SafetyResolver,
     record_physical_trajectory, validate_physical_tau0,
@@ -12,16 +16,34 @@ from airtrajectory.physical import (
 from airtrajectory.trajectory import TrajectoryStore
 
 
-def capture_physical_tau0(*, driver, opening_id, topology_id, steps, out, receipt, commission_bundle=None):
+def _is_sha256(value) -> bool:
+    text=str(value or "")
+    return len(text)==64 and all(ch in "0123456789abcdefABCDEF" for ch in text)
+
+
+def capture_physical_tau0(
+    *, driver, opening_id, topology_id, steps, out, receipt, commission_bundle=None,
+):
     if commission_bundle is None:
         raise RuntimeError("commissioning evidence bundle is required before physical tau0 capture")
+
     bundle_path=Path(commission_bundle)
     bundle=json.loads(bundle_path.read_text(encoding="utf-8"))
     if bundle.get("status")!="PASS":
         raise RuntimeError("commissioning evidence bundle did not pass")
-    expected=(bundle.get("hardware_identity") or {}).get("identity_sha256")
+
+    commissioning_identity=bundle.get("hardware_identity") or {}
+    expected=commissioning_identity.get("identity_sha256")
     if not expected:
         raise RuntimeError("commissioning evidence bundle missing hardware identity")
+
+    # This is the cross-repository evidence contract. AirTrajectory does not
+    # embed WindowPilot's vendor registry; it requires the commissioned runtime
+    # to carry the product/source/registry/contract hashes it verified.
+    thingmodel_lineage=require_hardware_thingmodel_lineage(
+        commissioning_identity,
+        label="commissioning hardware identity",
+    )
 
     preflight=bundle.get("preflight")
     if not isinstance(preflight,dict):
@@ -33,17 +55,31 @@ def capture_physical_tau0(*, driver, opening_id, topology_id, steps, out, receip
         ("preflight receipt",preflight_receipt_sha256),
         ("gateway contract",gateway_contract_sha256),
     ):
-        if len(value)!=64 or any(ch not in "0123456789abcdefABCDEF" for ch in value):
+        if not _is_sha256(value):
             raise RuntimeError(f"commissioning evidence bundle has invalid {label} SHA-256")
     if preflight_identity_sha256!=expected:
         raise RuntimeError("preflight hardware identity does not match commissioning hardware identity")
+
     readiness=driver.physical_readiness()
     if readiness.get("capture_preconditions") is not True:
         reasons="; ".join(readiness.get("reasons") or [])
         raise RuntimeError("WindowPilot physical capture preconditions not met: "+reasons)
-    current=(readiness.get("hardware_identity") or {}).get("identity_sha256")
+
+    runtime_identity=readiness.get("hardware_identity") or {}
+    current=runtime_identity.get("identity_sha256")
     if not current or current!=expected:
         raise RuntimeError("commissioned hardware identity does not match current WindowPilot runtime")
+    compare_hardware_thingmodel_lineage(
+        commissioning_identity,
+        runtime_identity,
+        label="runtime",
+    )
+
+    registry_bound=readiness.get("registry_bound_sensors")
+    if registry_bound != {"co2_ppm":True,"rain":True}:
+        raise RuntimeError(
+            "WindowPilot physical capture requires registry-bound CO2 and rain evidence"
+        )
 
     caps=driver.capabilities()
     if caps.simulated:
@@ -58,13 +94,16 @@ def capture_physical_tau0(*, driver, opening_id, topology_id, steps, out, receip
         topology_id,TrajectoryStore(out),steps=steps,
         context_extra={
             "commissioning_identity_sha256":expected,
-            "runtime_hardware_identity":readiness.get("hardware_identity"),
+            "commissioning_hardware_identity":commissioning_identity,
+            "runtime_hardware_identity":runtime_identity,
+            "thingmodel_lineage":thingmodel_lineage,
             "commissioning_bundle_sha256":commission_bundle_sha256,
             "preflight_receipt_sha256":preflight_receipt_sha256,
             "preflight_hardware_identity_sha256":preflight_identity_sha256,
             "gateway_contract_sha256":gateway_contract_sha256,
         },
     )
+
     report=validate_physical_tau0(trajectory)
     payload={
         "trajectory_id":trajectory.id,
@@ -74,17 +113,26 @@ def capture_physical_tau0(*, driver, opening_id, topology_id, steps, out, receip
         "steps":len(trajectory.steps),
         "output":str(out),
         "commissioning_identity_sha256":expected,
-        "runtime_hardware_identity":readiness.get("hardware_identity"),
+        "commissioning_hardware_identity":commissioning_identity,
+        "runtime_hardware_identity":runtime_identity,
+        "thingmodel_lineage":thingmodel_lineage,
         "commissioning_bundle_sha256":commission_bundle_sha256,
         "preflight_receipt_sha256":preflight_receipt_sha256,
         "preflight_hardware_identity_sha256":preflight_identity_sha256,
         "gateway_contract_sha256":gateway_contract_sha256,
         "trajectory_sha256":hashlib.sha256(Path(out).read_bytes()).hexdigest(),
     }
-    receipt_path=Path(receipt); receipt_path.parent.mkdir(parents=True,exist_ok=True)
-    receipt_path.write_text(json.dumps(payload,ensure_ascii=False,indent=2),encoding="utf-8")
+
+    receipt_path=Path(receipt)
+    receipt_path.parent.mkdir(parents=True,exist_ok=True)
+    receipt_path.write_text(
+        json.dumps(payload,ensure_ascii=False,indent=2),
+        encoding="utf-8",
+    )
     if not report.valid_tau0:
-        raise RuntimeError("physical trajectory failed tau0 audit: "+"; ".join(report.reasons))
+        raise RuntimeError(
+            "physical trajectory failed tau0 audit: "+"; ".join(report.reasons)
+        )
     return payload
 
 
@@ -96,7 +144,11 @@ def main(argv=None):
     parser.add_argument("--steps",type=int,default=1)
     parser.add_argument("--out",default="artifacts/physical-tau0.jsonl")
     parser.add_argument("--receipt",default="artifacts/physical-tau0-audit.json")
-    parser.add_argument("--commission-bundle",required=True,help="WindowPilot physical bring-up evidence bundle")
+    parser.add_argument(
+        "--commission-bundle",
+        required=True,
+        help="WindowPilot physical bring-up evidence bundle",
+    )
     args=parser.parse_args(argv)
 
     driver=WindowPilotHTTPDriver(args.windowpilot)
