@@ -10,6 +10,10 @@ import hashlib
 import json
 from pathlib import Path
 
+from .commissioning import (
+    require_commissioning_behavior,
+    validate_commissioning_behavior_context,
+)
 from .lineage import (
     compare_hardware_site_lineage,
     compare_hardware_thingmodel_lineage,
@@ -110,6 +114,16 @@ def verify_physical_tau0_artifacts(*, trajectory_path, receipt_path, commission_
     elif commission_sha!=expected_commission_sha:
         reasons.append("commissioning bundle SHA-256 does not match tau0 receipt")
 
+    receipt_behavior_witness=receipt.get("commissioning_behavior_witness")
+    receipt_behavior_sha=str(receipt.get("commissioning_behavior_sha256") or "")
+    try:
+        validate_commissioning_behavior_context(
+            receipt_behavior_witness,
+            receipt_behavior_sha,
+        )
+    except RuntimeError as exc:
+        reasons.append(str(exc))
+
     commissioning_id=str(receipt.get("commissioning_identity_sha256") or "")
     commissioning_identity=receipt.get("commissioning_hardware_identity") or {}
     runtime_identity=receipt.get("runtime_hardware_identity") or {}
@@ -168,6 +182,20 @@ def verify_physical_tau0_artifacts(*, trajectory_path, receipt_path, commission_
         bundle=_load_json(commission_bundle_path)
         if bundle.get("status")!="PASS":
             reasons.append("commissioning bundle status is not PASS")
+
+        try:
+            bundle_behavior=require_commissioning_behavior(bundle)
+            if bundle_behavior["sha256"]!=receipt_behavior_sha:
+                reasons.append(
+                    "commissioning behavior SHA-256 does not match tau0 receipt"
+                )
+            if bundle_behavior["normalized"]!=receipt_behavior_witness:
+                reasons.append(
+                    "commissioning behavior witness does not match tau0 receipt"
+                )
+        except RuntimeError as exc:
+            reasons.append(str(exc))
+
         bundle_identity=bundle.get("hardware_identity") or {}
         bundle_id=bundle_identity.get("identity_sha256")
         if bundle_id!=commissioning_id:
@@ -233,6 +261,17 @@ def verify_physical_tau0_artifacts(*, trajectory_path, receipt_path, commission_
                 reasons.append("trajectory preflight hardware identity lineage mismatch")
             if context.get("gateway_contract_sha256")!=gateway_contract_sha:
                 reasons.append("trajectory gateway contract lineage mismatch")
+            if context.get("commissioning_behavior_sha256")!=receipt_behavior_sha:
+                reasons.append("trajectory commissioning behavior hash mismatch")
+            if context.get("commissioning_behavior_witness")!=receipt_behavior_witness:
+                reasons.append("trajectory commissioning behavior witness mismatch")
+            try:
+                validate_commissioning_behavior_context(
+                    context.get("commissioning_behavior_witness"),
+                    context.get("commissioning_behavior_sha256"),
+                )
+            except RuntimeError as exc:
+                reasons.append(str(exc))
 
             steps=trajectory.get("steps") or []
             if len(steps)!=int(receipt.get("steps") or 0):
@@ -303,4 +342,5 @@ def verify_physical_tau0_artifacts(*, trajectory_path, receipt_path, commission_
         "site_lineage":expected_site_lineage,
         "preflight_receipt_sha256":preflight_receipt_sha or None,
         "gateway_contract_sha256":gateway_contract_sha or None,
+        "commissioning_behavior_sha256":receipt_behavior_sha or None,
     }
