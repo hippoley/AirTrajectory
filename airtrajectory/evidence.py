@@ -14,6 +14,7 @@ from .commissioning import (
     require_commissioning_behavior,
     validate_commissioning_behavior_context,
 )
+from .sensor_lineage import validate_sensor_evidence_context
 from .lineage import (
     compare_hardware_site_lineage,
     compare_hardware_thingmodel_lineage,
@@ -177,6 +178,29 @@ def verify_physical_tau0_artifacts(*, trajectory_path, receipt_path, commission_
     except RuntimeError as exc:
         reasons.append(str(exc))
 
+    receipt_sensor_fields={
+        "sensor_evidence_origin":receipt.get("sensor_evidence_origin"),
+        "runtime_sensor_lineage":receipt.get("runtime_sensor_lineage"),
+        "sensor_staging_lineage":receipt.get("sensor_staging_lineage"),
+        "sensor_evidence_sha256":receipt.get("sensor_evidence_sha256"),
+    }
+    receipt_has_sensor_lineage=any(
+        value is not None for value in receipt_sensor_fields.values()
+    )
+    if receipt_has_sensor_lineage:
+        try:
+            validate_sensor_evidence_context(
+                sensor_evidence_origin=receipt_sensor_fields["sensor_evidence_origin"],
+                runtime_sensor_lineage=receipt_sensor_fields["runtime_sensor_lineage"],
+                sensor_staging_lineage=receipt_sensor_fields["sensor_staging_lineage"],
+                sensor_evidence_sha256=receipt_sensor_fields["sensor_evidence_sha256"],
+                site_lineage=expected_site_lineage or {},
+                commissioning_identity_sha256=commissioning_id,
+                commissioning_bundle_sha256=expected_commission_sha,
+            )
+        except RuntimeError as exc:
+            reasons.append(str(exc))
+
     bundle={}
     try:
         bundle=_load_json(commission_bundle_path)
@@ -273,6 +297,39 @@ def verify_physical_tau0_artifacts(*, trajectory_path, receipt_path, commission_
             except RuntimeError as exc:
                 reasons.append(str(exc))
 
+            trajectory_sensor_fields={
+                "sensor_evidence_origin":context.get("sensor_evidence_origin"),
+                "runtime_sensor_lineage":context.get("runtime_sensor_lineage"),
+                "sensor_staging_lineage":context.get("sensor_staging_lineage"),
+                "sensor_evidence_sha256":context.get("sensor_evidence_sha256"),
+            }
+            trajectory_has_sensor_lineage=any(
+                value is not None
+                for value in trajectory_sensor_fields.values()
+            )
+            if trajectory_has_sensor_lineage != receipt_has_sensor_lineage:
+                reasons.append(
+                    "trajectory/tau0 receipt sensor evidence presence mismatch"
+                )
+            elif trajectory_has_sensor_lineage:
+                for key,value in receipt_sensor_fields.items():
+                    if trajectory_sensor_fields.get(key)!=value:
+                        reasons.append(
+                            f"trajectory {key} does not match tau0 receipt"
+                        )
+                try:
+                    validate_sensor_evidence_context(
+                        sensor_evidence_origin=trajectory_sensor_fields["sensor_evidence_origin"],
+                        runtime_sensor_lineage=trajectory_sensor_fields["runtime_sensor_lineage"],
+                        sensor_staging_lineage=trajectory_sensor_fields["sensor_staging_lineage"],
+                        sensor_evidence_sha256=trajectory_sensor_fields["sensor_evidence_sha256"],
+                        site_lineage=expected_site_lineage or {},
+                        commissioning_identity_sha256=commissioning_id,
+                        commissioning_bundle_sha256=expected_commission_sha,
+                    )
+                except RuntimeError as exc:
+                    reasons.append(str(exc))
+
             steps=trajectory.get("steps") or []
             if len(steps)!=int(receipt.get("steps") or 0):
                 reasons.append("persisted trajectory step count does not match tau0 receipt")
@@ -343,4 +400,6 @@ def verify_physical_tau0_artifacts(*, trajectory_path, receipt_path, commission_
         "preflight_receipt_sha256":preflight_receipt_sha or None,
         "gateway_contract_sha256":gateway_contract_sha or None,
         "commissioning_behavior_sha256":receipt_behavior_sha or None,
+        "sensor_evidence_origin":receipt_sensor_fields["sensor_evidence_origin"],
+        "sensor_evidence_sha256":receipt_sensor_fields["sensor_evidence_sha256"],
     }
