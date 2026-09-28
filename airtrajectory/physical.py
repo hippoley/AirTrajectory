@@ -95,30 +95,38 @@ class Tau0ProbePolicy:
             "max_target_pct":5.0,
             "start_tolerance_pct":self.start_tolerance_pct,
             "minimum_reality_delta_pct":self.minimum_reality_delta_pct,
+            "steps":2,
             "requires_measured_pre_action_position":True,
+            "requires_final_closed":True,
         }
 
-    def _require_start(self, observation):
+    def _position(self, observation):
         position=observation.get("opening_pct")
         if position is None:
-            raise RuntimeError("physical tau0 requires measured pre-action position")
+            raise RuntimeError("physical tau0 requires measured position")
         position=float(position)
         if not 0 <= position <= 100:
-            raise RuntimeError("physical tau0 pre-action position is outside [0,100]")
-        if position > self.start_tolerance_pct:
-            raise RuntimeError(
-                f"physical tau0 requires near-closed start <= {self.start_tolerance_pct:.2f}%; "
-                f"observed {position:.2f}%"
-            )
+            raise RuntimeError("physical tau0 position is outside [0,100]")
         return position
 
+    def _target(self, observation):
+        position=self._position(observation)
+        if position <= self.start_tolerance_pct:
+            return self.target_pct,"TAU0_PROBE_OPEN"
+        if position >= self.minimum_reality_delta_pct:
+            return 0.0,"TAU0_PROBE_CLOSE"
+        raise RuntimeError(
+            "physical tau0 observed ambiguous mid-excursion position "
+            f"{position:.2f}%"
+        )
+
     def semantic_action(self, observation):
-        self._require_start(observation)
-        return SemanticAction("window",self.opening_id,"TAU0_PROBE",self.target_pct)
+        target,command=self._target(observation)
+        return SemanticAction("window",self.opening_id,command,target)
 
     def __call__(self, observation):
-        self._require_start(observation)
-        return [TransitionAction(self.opening_id,self.target_pct)]
+        target,_=self._target(observation)
+        return [TransitionAction(self.opening_id,target)]
 
 class PhysicalWindowEnvironment:
     def __init__(
