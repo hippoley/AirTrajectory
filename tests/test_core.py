@@ -78,9 +78,25 @@ def _sensor_binding(kind):
     }
 
 
+def _acceptance_policy():
+    return {
+        "max_first_excursion_pct":5.0,
+        "requested_excursion_pct":5.0,
+        "position_tolerance_pct":1.0,
+        "minimum_stop_hold_samples":2,
+        "stop_hold_samples":2,
+        "max_polls":20,
+        "poll_interval_s":0.25,
+        "source_timestamps_strictly_increasing":True,
+        "requires_positive_open_delta":True,
+        "requires_negative_close_delta":True,
+    }
+
+
 def _commissioning_payload():
     return {
         "excursion_pct":5.0,
+        "acceptance_policy":_acceptance_policy(),
         "phases":[
             {
                 "phase":"READ","commanded_pct":0.0,"measured_pct":0.0,
