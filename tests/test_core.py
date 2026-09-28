@@ -315,6 +315,86 @@ class CoreTests(unittest.TestCase):
             ],
             "c"*64,
         )
+        self.assertEqual(driver.position,0.0)
+        self.assertTrue(result["closeout"]["confirmed_closed"])
+        self.assertEqual(
+            result["closeout"]["feedback"]["measured_position_pct"],
+            0.0,
+        )
+
+    def test_physical_capture_failure_after_motion_still_closes_window(self):
+        spec=importlib.util.spec_from_file_location(
+            "capture_physical_tau0_cleanup_failure",
+            Path(__file__).resolve().parents[1]/"examples"/"capture_physical_tau0.py",
+        )
+        module=importlib.util.module_from_spec(spec); spec.loader.exec_module(module)
+
+        identity=_hardware_identity("same-hardware")
+
+        class PostActionSensorFailure(FakePhysicalWindowDriver):
+            def __init__(self):
+                super().__init__(
+                    co2_ppm=1400,
+                    measured_feedback=True,
+                    thingmodel_provenance=True,
+                )
+                self.sensor_reads=0
+            def capabilities(self):
+                return DriverCapabilities(
+                    "external-test-contract",
+                    False,
+                    True,
+                    ("co2","rain"),
+                )
+            def physical_readiness(self):
+                return {
+                    "capture_preconditions":True,
+                    "physical_write_ready":True,
+                    "latest_position_feedback":{
+                        "position_pct":0.0,
+                        "timestamp":99.0,
+                        "measured":True,
+                        "quality":"encoder-measured",
+                        "source":"test-window",
+                    },
+                    "hardware_identity":identity,
+                    "registry_bound_sensors":{"co2_ppm":True,"rain":True},
+                    "site_bound_sensors":{"co2_ppm":True,"rain":True},
+                    "sensor_evidence_lineage":_readiness_sensor_lineage(),
+                    "reasons":[],
+                }
+            def read_sensors(self):
+                self.sensor_reads+=1
+                if self.sensor_reads>=2:
+                    raise RuntimeError("injected post-action sensor failure")
+                return super().read_sensors()
+
+        driver=PostActionSensorFailure()
+        with tempfile.TemporaryDirectory() as d:
+            root=Path(d)
+            bundle=root/"commission.json"
+            bundle.write_text(json.dumps(_commission_bundle(
+                identity,
+                {
+                    "receipt_sha256":"a"*64,
+                    "hardware_identity_sha256":"same-hardware",
+                    "gateway_contract_sha256":"b"*64,
+                },
+            )))
+            with self.assertRaisesRegex(
+                RuntimeError,
+                "injected post-action sensor failure",
+            ):
+                module.capture_physical_tau0(
+                    driver=driver,
+                    opening_id="w1",
+                    topology_id="physical-test",
+                    steps=1,
+                    out=root/"tau.jsonl",
+                    receipt=root/"receipt.json",
+                    commission_bundle=bundle,
+                )
+        self.assertEqual(driver.position,0.0)
 
     def test_physical_capture_rejects_legacy_pass_bundle_without_behavior_before_runtime_contact(self):
         spec=importlib.util.spec_from_file_location(
