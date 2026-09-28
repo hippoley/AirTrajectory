@@ -15,6 +15,10 @@ from .commissioning import (
     validate_commissioning_behavior_context,
 )
 from .sensor_lineage import validate_sensor_evidence_context
+from .physical_closeout import (
+    persisted_last_feedback_timestamp,
+    validate_closeout_evidence,
+)
 from .lineage import (
     compare_hardware_site_lineage,
     compare_hardware_thingmodel_lineage,
@@ -289,6 +293,34 @@ def verify_physical_tau0_artifacts(*, trajectory_path, receipt_path, commission_
                 reasons.append("trajectory commissioning behavior hash mismatch")
             if context.get("commissioning_behavior_witness")!=receipt_behavior_witness:
                 reasons.append("trajectory commissioning behavior witness mismatch")
+
+            receipt_tolerance=receipt.get("position_tolerance_pct")
+            receipt_baseline=receipt.get("baseline_position_feedback")
+            if context.get("position_tolerance_pct")!=receipt_tolerance:
+                reasons.append("trajectory position tolerance does not match tau0 receipt")
+            if context.get("baseline_position_feedback")!=receipt_baseline:
+                reasons.append("trajectory baseline position feedback does not match tau0 receipt")
+            try:
+                tolerance=float(receipt_tolerance)
+                if not 0 < tolerance <= 1.0:
+                    raise ValueError("out of range")
+            except Exception:
+                reasons.append("tau0 receipt position_tolerance_pct must be >0 and <=1%")
+                tolerance=None
+            if not isinstance(receipt_baseline,dict):
+                reasons.append("tau0 receipt missing baseline position feedback")
+            elif tolerance is not None:
+                try:
+                    baseline_pct=float(receipt_baseline.get("position_pct"))
+                    baseline_ts=float(receipt_baseline.get("timestamp"))
+                    if receipt_baseline.get("measured") is not True:
+                        reasons.append("tau0 baseline position feedback is not measured")
+                    if baseline_ts<=0:
+                        reasons.append("tau0 baseline position feedback timestamp is invalid")
+                    if baseline_pct<0 or baseline_pct>tolerance:
+                        reasons.append("tau0 baseline does not prove an initially closed window")
+                except Exception:
+                    reasons.append("tau0 baseline position feedback is invalid")
             try:
                 validate_commissioning_behavior_context(
                     context.get("commissioning_behavior_witness"),
@@ -383,6 +415,15 @@ def verify_physical_tau0_artifacts(*, trajectory_path, receipt_path, commission_
                                     f"step {index} post-action sensor evidence is not newer than actuator feedback"
                                 )
                                 break
+
+            try:
+                last_feedback_ts=persisted_last_feedback_timestamp(steps)
+                validate_closeout_evidence(
+                    receipt.get("closeout"),
+                    after_timestamp=last_feedback_ts,
+                )
+            except RuntimeError as exc:
+                reasons.append(str(exc))
         except Exception as exc:
             reasons.append(f"cannot validate persisted trajectory: {exc}")
 
@@ -402,4 +443,5 @@ def verify_physical_tau0_artifacts(*, trajectory_path, receipt_path, commission_
         "commissioning_behavior_sha256":receipt_behavior_sha or None,
         "sensor_evidence_origin":receipt_sensor_fields["sensor_evidence_origin"],
         "sensor_evidence_sha256":receipt_sensor_fields["sensor_evidence_sha256"],
+        "closeout_confirmed":not any("closeout" in reason for reason in reasons),
     }
