@@ -71,6 +71,20 @@ class FakePhysicalWindowDriver(PhysicalWindowDriver):
             ),
         ]
 
+    def read_position_feedback(self,opening_id):
+        now=time.time()
+        if self.measured_feedback:
+            return ActuatorFeedback(
+                opening_id,now,
+                measured_position_pct=self.position,
+                quality="synthetic-measured",
+            )
+        return ActuatorFeedback(
+            opening_id,now,
+            estimated_position_pct=self.position,
+            quality="synthetic-estimated",
+        )
+
     def set_position(self,opening_id,target_pct):
         self.position=target_pct
         now=time.time()
