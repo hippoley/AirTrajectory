@@ -87,6 +87,7 @@ class Tau0ProbePolicy:
         self.target_pct=target
         self.start_tolerance_pct=start_tol
         self.minimum_reality_delta_pct=min_delta
+        self._phase="open"
 
     def capture_policy(self):
         return {
@@ -111,14 +112,16 @@ class Tau0ProbePolicy:
 
     def _target(self, observation):
         position=self._position(observation)
-        if position <= self.start_tolerance_pct:
+        if self._phase=="open":
+            if position > self.start_tolerance_pct:
+                raise RuntimeError(
+                    f"physical tau0 requires near-closed start <= {self.start_tolerance_pct:.2f}%; "
+                    f"observed {position:.2f}%"
+                )
             return self.target_pct,"TAU0_PROBE_OPEN"
-        if position >= self.minimum_reality_delta_pct:
+        if self._phase=="close":
             return 0.0,"TAU0_PROBE_CLOSE"
-        raise RuntimeError(
-            "physical tau0 observed ambiguous mid-excursion position "
-            f"{position:.2f}%"
-        )
+        raise RuntimeError("physical tau0 probe policy is already complete")
 
     def semantic_action(self, observation):
         target,command=self._target(observation)
@@ -126,6 +129,7 @@ class Tau0ProbePolicy:
 
     def __call__(self, observation):
         target,_=self._target(observation)
+        self._phase="close" if self._phase=="open" else "done"
         return [TransitionAction(self.opening_id,target)]
 
 class PhysicalWindowEnvironment:
@@ -142,6 +146,7 @@ class PhysicalWindowEnvironment:
         clock_fn=time.time,
     ):
         self.driver,self.opening_id,self.last_feedback=driver,opening_id,None
+        self.motion_attempted=False
         self.max_sensor_age_s=max_sensor_age_s
         self.max_feedback_age_s=max_feedback_age_s
         self.require_measured_feedback=require_measured_feedback
@@ -197,6 +202,7 @@ class PhysicalWindowEnvironment:
         feedback=[]
         for a in actions:
             if a.opening_id!=self.opening_id:raise KeyError(f"unknown physical opening: {a.opening_id}")
+            self.motion_attempted=True
             f=self.driver.set_position(a.opening_id,a.target_pct);self._validate_feedback(f);feedback.append(f);self.last_feedback=f
         min_feedback_ts=max((f.timestamp for f in feedback),default=0.0)
         nxt=self._observe_after(min_feedback_ts) if feedback else self._observe()
