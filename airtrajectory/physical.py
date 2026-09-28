@@ -3,7 +3,7 @@ from dataclasses import asdict, dataclass
 import time
 from typing import Iterable, List, Optional
 from .trajectory import ActuatorFeedback, RewardVector, SemanticAction, Trajectory, TrajectoryStep, TrajectoryStore, TransitionAction
-from .lineage import compare_hardware_thingmodel_lineage, sensor_binding_valid
+from .lineage import compare_hardware_site_lineage, compare_hardware_thingmodel_lineage, sensor_binding_valid
 
 @dataclass(frozen=True)
 class DriverCapabilities:
@@ -162,6 +162,17 @@ def validate_physical_tau0(trajectory: Trajectory) -> PhysicalEvidenceReport:
         )
         if trajectory.context.get("thingmodel_lineage")!=lineage:
             reasons.append("trajectory ThingModel lineage does not match commissioning/runtime identity")
+    except RuntimeError as exc:
+        reasons.append(str(exc))
+
+    try:
+        site_lineage=compare_hardware_site_lineage(
+            trajectory.context.get("commissioning_hardware_identity") or {},
+            runtime_identity,
+            label="runtime",
+        )
+        if trajectory.context.get("site_lineage")!=site_lineage:
+            reasons.append("trajectory physical-site lineage does not match commissioning/runtime identity")
     except RuntimeError as exc:
         reasons.append(str(exc))
 
