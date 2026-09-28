@@ -233,7 +233,7 @@ class PhysicalArtifactVerifierTests(unittest.TestCase):
         self.assertFalse(report["valid_artifacts"])
         self.assertTrue(any("ThingModel lineage" in reason for reason in report["reasons"]))
 
-    def test_missing_sensor_thingmodel_provenance_is_rejected(self):
+    def test_missing_sensor_thingmodel_and_site_provenance_is_rejected(self):
         with tempfile.TemporaryDirectory() as d:
             root=Path(d)
             bundle=root/"bringup.json"
@@ -251,7 +251,7 @@ class PhysicalArtifactVerifierTests(unittest.TestCase):
                 commission_bundle_path=bundle,
             )
         self.assertFalse(report["valid_artifacts"])
-        self.assertTrue(any("ThingModel provenance" in reason for reason in report["reasons"]))
+        self.assertTrue(any("ThingModel/site provenance" in reason for reason in report["reasons"]))
 
     def test_cross_site_sensor_provenance_is_rejected(self):
         with tempfile.TemporaryDirectory() as d:
