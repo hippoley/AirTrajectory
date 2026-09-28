@@ -253,6 +253,29 @@ class PhysicalArtifactVerifierTests(unittest.TestCase):
         self.assertFalse(report["valid_artifacts"])
         self.assertTrue(any("ThingModel provenance" in reason for reason in report["reasons"]))
 
+    def test_cross_site_sensor_provenance_is_rejected(self):
+        with tempfile.TemporaryDirectory() as d:
+            root=Path(d)
+            bundle=root/"bringup.json"
+            trajectory=root/"tau0.jsonl"
+            receipt=root/"audit.json"
+            self._make_bundle(bundle)
+            commission_sha=hashlib.sha256(bundle.read_bytes()).hexdigest()
+            payload=self._make_trajectory(trajectory,commission_sha)
+            payload["steps"][0]["sensor_readings"][0]["provenance"]["site_id"]="other.site"
+            trajectory.write_text(json.dumps(payload)+"\n",encoding="utf-8")
+            self._make_receipt(receipt,trajectory,commission_sha)
+            report=verify_physical_tau0_artifacts(
+                trajectory_path=trajectory,
+                receipt_path=receipt,
+                commission_bundle_path=bundle,
+            )
+        self.assertFalse(report["valid_artifacts"])
+        self.assertTrue(any(
+            "different physical site contract" in reason
+            for reason in report["reasons"]
+        ))
+
     def test_site_lineage_mismatch_is_rejected(self):
         with tempfile.TemporaryDirectory() as d:
             root=Path(d)
