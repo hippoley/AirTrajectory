@@ -90,6 +90,32 @@ jobs:
           assert all(step["actuator_feedback"]["measured_position_pct"] is None for step in p["trajectory"])
           print("validated mock physical fallback")
           PY
+      - name: Validate fixed topology provider contract
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          from airtrajectory.topology_source import load_fixed_topology
+
+          p=json.loads(Path("web/data/home_topology.fixed.json").read_text())
+          assert p["provider"] == "fixed-json"
+          assert p["edit_policy"]["layout_mutable"] is False
+          assert p["edit_policy"]["room_geometry_mutable"] is False
+          assert p["edit_policy"]["wall_geometry_mutable"] is False
+          assert p["edit_policy"]["opening_position_mutable"] is True
+          assert {r["id"] for r in p["rooms"]} == {"living","bedroom","study"}
+          assert {o["id"] for o in p["openings"]} == {"W1","W2","W3","D1","D2"}
+
+          manifest=load_fixed_topology()
+          topology=manifest.to_building_topology()
+          contract=manifest.contam_compile_contract()
+          assert set(topology.zones) == {"living","bedroom","study"}
+          assert set(topology.openings) == {"W1","W2","W3","D1","D2"}
+          assert contract["status"] == "RESERVED"
+          assert contract["reserved_outputs"]["prj_path"] is None
+          assert all("position_on_wall" in o for o in contract["openings"])
+          print("validated fixed topology provider",manifest.topology_id)
+          PY
       - name: Validate filament renderer
         run: |
           node --check web/lab.js
@@ -100,7 +126,6 @@ jobs:
           grep -q 'function jetResponse' web/lab.js
           grep -q 'function wallResponse' web/lab.js
           grep -q 'function crossesSolidWall' web/lab.js
-          grep -q 'throughD2' web/lab.js
           grep -q 'function emissionWeight' web/lab.js
           grep -q 'function reseedForField' web/lab.js
           grep -q 'function drawFlowSkeleton' web/lab.js
@@ -120,13 +145,14 @@ jobs:
           grep -q 'pointerdown' web/lab.js
           grep -q 'pointerup' web/lab.js
           grep -q 'moved along wall' web/lab.js
-          grep -q 'function hitSharedWall' web/lab.js
-          grep -q 'function resizeLivingBedroomWall' web/lab.js
           grep -q 'function wallSegment' web/lab.js
           grep -q 'function syncOpeningGeometry' web/lab.js
-          grep -q 'wallId:"living-bedroom"' web/lab.js
-          grep -q 'wallId:"living-study"' web/lab.js
-          grep -q 'shared wall resized' web/lab.js
+          grep -q 'function loadTopologyManifest' web/lab.js
+          grep -q 'home_topology.fixed.json' web/lab.js
+          grep -q 'function topologyTrajectoryContext' web/lab.js
+          grep -q 'opening_position_mutable' web/lab.js
+          ! grep -q 'function resizeLivingBedroomWall' web/lab.js
+          ! grep -q 'shared wall resized' web/lab.js
           grep -q 'PHYSICAL CONTROL CONSOLE / τ₀ GATE' web/index.html
           grep -q 'REAL τ₀ · NOT CAPTURED' web/index.html
           grep -q 'REAL / RESERVED' web/index.html
@@ -152,7 +178,6 @@ jobs:
           grep -q 'next_observation:nextObservation' web/lab.js
           grep -q 'IMMUTABLE POST-ACTION ORIGIN' web/lab.js
           grep -q 'origin.next_observation||origin.observation' web/lab.js
-          grep -q 'id:"D2"' web/lab.js
           grep -q 'p.trail.length>20' web/lab.js
           grep -q 'Midpoint/RK2 advection' web/lab.js
           ! grep -q 'Array.from({length:720}' web/lab.js
