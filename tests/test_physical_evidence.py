@@ -11,6 +11,7 @@ from airtrajectory.lineage import (
     require_hardware_site_lineage,
     require_hardware_thingmodel_lineage,
 )
+from airtrajectory.sensor_lineage import build_sensor_evidence
 
 
 def _identity(identity_sha="same-hardware"):
