@@ -19,6 +19,44 @@ from airtrajectory.telemetry import DecisionTelemetry
 from airtrajectory.dataset import transition_rows, counterfactual_rows, audited_physical_transition_rows
 from airtrajectory.bc import TabularBC
 from airtrajectory.offline_rl import OfflineQ
+from airtrajectory.lineage import require_hardware_thingmodel_lineage
+
+
+def _hardware_identity(identity_sha):
+    return {
+        "identity_sha256":identity_sha,
+        "thingmodel_product_model":"CWDS-CA01",
+        "thingmodel_product_key":"6nZ1oIh6VNu",
+        "thingmodel_version":"v1",
+        "thingmodel_source_sha256":"1"*64,
+        "thingmodel_source_bundle_sha256":"2"*64,
+        "thingmodel_registry_sha256":"3"*64,
+        "thingmodel_contract_sha256":"4"*64,
+    }
+
+
+def _sensor_binding(kind):
+    if kind=="co2":
+        return {
+            "product_model":"KKCA-WD01",
+            "product_key":"ojMicFXQWTs",
+            "device_id":"co2-device-01",
+            "property":"airSensor.co2",
+            "source_sha256":"5"*64,
+            "source_bundle_sha256":"2"*64,
+            "registry_sha256":"3"*64,
+            "contract_sha256":"6"*64,
+        }
+    return {
+        "product_model":"CWDS-CA01",
+        "product_key":"6nZ1oIh6VNu",
+        "device_id":"window-device-01",
+        "property":"rainSensor.rainDetect",
+        "source_sha256":"1"*64,
+        "source_bundle_sha256":"2"*64,
+        "registry_sha256":"3"*64,
+        "contract_sha256":"7"*64,
+    }
 
 
 class CoreTests(unittest.TestCase):
@@ -32,7 +70,8 @@ class CoreTests(unittest.TestCase):
             def physical_readiness(self):
                 return {
                     "capture_preconditions":True,
-                    "hardware_identity":{"identity_sha256":"same"},
+                    "hardware_identity":_hardware_identity("same"),
+                    "registry_bound_sensors":{"co2_ppm":True,"rain":True},
                     "reasons":[],
                 }
         driver=CommissionedFake(co2_ppm=1400,measured_feedback=True)
@@ -40,7 +79,7 @@ class CoreTests(unittest.TestCase):
             bundle=Path(d)/"commission.json"
             bundle.write_text(json.dumps({
                 "status":"PASS",
-                "hardware_identity":{"identity_sha256":"same"},
+                "hardware_identity":_hardware_identity("same"),
                 "preflight":{
                     "receipt_sha256":"a"*64,
                     "hardware_identity_sha256":"same",
@@ -75,7 +114,8 @@ class CoreTests(unittest.TestCase):
             def physical_readiness(self):
                 return {
                     "capture_preconditions":True,
-                    "hardware_identity":{"identity_sha256":"runtime-B"},
+                    "hardware_identity":_hardware_identity("runtime-B"),
+                    "registry_bound_sensors":{"co2_ppm":True,"rain":True},
                     "reasons":[],
                 }
             def set_position(self,opening_id,target_pct):
@@ -86,7 +126,7 @@ class CoreTests(unittest.TestCase):
             bundle=Path(d)/"commission.json"
             bundle.write_text(json.dumps({
                 "status":"PASS",
-                "hardware_identity":{"identity_sha256":"commission-A"},
+                "hardware_identity":_hardware_identity("commission-A"),
                 "preflight":{
                     "receipt_sha256":"c"*64,
                     "hardware_identity_sha256":"commission-A",
@@ -257,8 +297,14 @@ class CoreTests(unittest.TestCase):
                     "temperature":0.0,"humidity":0.0,"wind_speed":0.0,
                 },
                 "sensor_evidence":{
-                    "co2_ppm":{"timestamp":now,"quality":"measured","source":"KCWQ-WF01","measured":True},
-                    "rain":{"timestamp":now,"quality":"measured","source":"RAIN-01","measured":True},
+                    "co2_ppm":{
+                        "timestamp":now,"quality":"measured","source":"KKCA-WD01","measured":True,
+                        "thingmodel_binding":_sensor_binding("co2"),
+                    },
+                    "rain":{
+                        "timestamp":now,"quality":"measured","source":"CWDS-CA01","measured":True,
+                        "thingmodel_binding":_sensor_binding("rain"),
+                    },
                 },
             }
         }
@@ -270,9 +316,11 @@ class CoreTests(unittest.TestCase):
         readings=driver.read_sensors()
         self.assertEqual({r.sensor_type for r in readings},{"co2","rain"})
         by_type={r.sensor_type:r for r in readings}
-        self.assertEqual(by_type["co2"].sensor_id,"KCWQ-WF01")
-        self.assertEqual(by_type["rain"].sensor_id,"RAIN-01")
+        self.assertEqual(by_type["co2"].sensor_id,"KKCA-WD01")
+        self.assertEqual(by_type["rain"].sensor_id,"CWDS-CA01")
         self.assertEqual(by_type["co2"].quality,"measured")
+        self.assertEqual(by_type["co2"].provenance["property"],"airSensor.co2")
+        self.assertEqual(by_type["rain"].provenance["property"],"rainSensor.rainDetect")
 
     def test_windowpilot_hardware_sensor_requires_source_timestamp(self):
         state={
@@ -372,6 +420,9 @@ class CoreTests(unittest.TestCase):
             "preflight_receipt_sha256":"a"*64,
             "preflight_hardware_identity_sha256":"same-hardware",
             "gateway_contract_sha256":"b"*64,
+            "thingmodel_lineage":require_hardware_thingmodel_lineage(
+                _hardware_identity("same-hardware")
+            ),
         })
         trajectory.append(TrajectoryStep(0,{"co2":1400},[TransitionAction("W1",50)],[TransitionAction("W1",0)],{"co2":1390},RewardVector(safety=-1),intervention="RAIN_SAFE_CLOSE",info={"trace_id":"trace-1","provenance":"physical"}))
         row=list(transition_rows(trajectory))[0]
@@ -381,6 +432,7 @@ class CoreTests(unittest.TestCase):
         self.assertEqual(row["preflight_receipt_sha256"],"a"*64)
         self.assertEqual(row["preflight_hardware_identity_sha256"],"same-hardware")
         self.assertEqual(row["gateway_contract_sha256"],"b"*64)
+        self.assertEqual(row["thingmodel_lineage"]["thingmodel_product_model"],"CWDS-CA01")
         self.assertFalse(row["is_counterfactual"])
 
     def test_counterfactual_rows_are_not_behavior_samples(self):
@@ -487,15 +539,25 @@ class CoreTests(unittest.TestCase):
         class ContractReal(FakePhysicalWindowDriver):
             def capabilities(self):
                 return DriverCapabilities("external-test-contract",False,True,("co2","rain"))
-        env=PhysicalWindowEnvironment(ContractReal(co2_ppm=1400,measured_feedback=True),"w1",require_measured_feedback=True)
-        identity={"identity_sha256":"same-hardware","device_id":"physical_dev_home_001.window.combo01"}
+        identity=_hardware_identity("same-hardware")
+        env=PhysicalWindowEnvironment(
+            ContractReal(
+                co2_ppm=1400,
+                measured_feedback=True,
+                thingmodel_provenance=True,
+            ),
+            "w1",
+            require_measured_feedback=True,
+        )
         with tempfile.TemporaryDirectory() as d:
             trajectory=record_physical_trajectory(
                 env,RulePolicy("w1"),SafetyResolver(),"physical-contract",
                 TrajectoryStore(Path(d)/"tau0.jsonl"),
                 context_extra={
                     "commissioning_identity_sha256":"same-hardware",
+                    "commissioning_hardware_identity":identity,
                     "runtime_hardware_identity":identity,
+                    "thingmodel_lineage":require_hardware_thingmodel_lineage(identity),
                     "preflight_receipt_sha256":"a"*64,
                     "preflight_hardware_identity_sha256":"same-hardware",
                     "gateway_contract_sha256":"b"*64,
