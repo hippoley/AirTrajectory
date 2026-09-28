@@ -16,6 +16,7 @@ from .lineage import (
     is_sha256,
     require_hardware_site_lineage,
     require_hardware_thingmodel_lineage,
+    sensor_binding_matches_site,
     sensor_binding_valid,
 )
 
@@ -46,7 +47,7 @@ def _load_trajectory_record(path: Path, trajectory_id: str):
     return matches[0]
 
 
-def _check_sensor_rows(rows, *, step_index, phase, reasons):
+def _check_sensor_rows(rows, *, step_index, phase, reasons, site_lineage):
     by_type={
         item.get("sensor_type"):item
         for item in rows
@@ -57,9 +58,14 @@ def _check_sensor_rows(rows, *, step_index, phase, reasons):
         if item is None:
             reasons.append(f"step {step_index} missing {phase}{label} evidence")
             continue
-        if not sensor_binding_valid(item.get("provenance")):
+        provenance=item.get("provenance")
+        if not sensor_binding_valid(provenance):
             reasons.append(
-                f"step {step_index} {phase}{label} evidence missing valid ThingModel provenance"
+                f"step {step_index} {phase}{label} evidence missing valid ThingModel/site provenance"
+            )
+        elif not sensor_binding_matches_site(provenance,site_lineage):
+            reasons.append(
+                f"step {step_index} {phase}{label} evidence belongs to a different physical site contract"
             )
 
 
@@ -239,7 +245,13 @@ def verify_physical_tau0_artifacts(*, trajectory_path, receipt_path, commission_
                     item for item in (step.get("sensor_readings") or [])
                     if isinstance(item,dict)
                 ]
-                _check_sensor_rows(pre_rows,step_index=index,phase="",reasons=reasons)
+                _check_sensor_rows(
+                    pre_rows,
+                    step_index=index,
+                    phase="",
+                    reasons=reasons,
+                    site_lineage=expected_site_lineage or {},
+                )
 
                 feedback=[
                     item for item in (step.get("actuator_feedback") or [])
@@ -265,6 +277,7 @@ def verify_physical_tau0_artifacts(*, trajectory_path, receipt_path, commission_
                     step_index=index,
                     phase="post-action ",
                     reasons=reasons,
+                    site_lineage=expected_site_lineage or {},
                 )
                 if feedback_ts is not None:
                     for item in post_rows:
