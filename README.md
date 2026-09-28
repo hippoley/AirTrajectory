@@ -68,12 +68,26 @@ layout.contam_compile_contract(
 
 Both receive the same normalized opening positions. Moving an opening changes its wall position but not its room connectivity. The CONTAM method currently returns `status=RESERVED` with zone/wall/opening inputs and empty PRJ/control/path outputs; it is a real compiler seam, not a claim that arbitrary topology → CONTAM compilation is finished.
 
+A backend-neutral spatial compile plan now sits between that contract and future physics compilers:
+
+```python
+from airtrajectory.spatial_compile import compile_spatial_plan
+
+plan = compile_spatial_plan(
+    layout,
+    opening_positions={"W1": 0.72, "D1": 0.25},
+)
+```
+
+It resolves each normalized `position_t` to a deterministic anchor on its declared wall and assigns stable symbolic `zone:*`, `path:*`, and `control:*` identities. Moving a window changes its placement anchor while preserving connectivity identity. The current fixed floor plan uses browser/canvas coordinates, so the plan explicitly reports `metric_geometry_ready=false`: it does **not** pretend that UI coordinates are metres or that an engineering-valid CONTAM PRJ can already be generated. Metric opening dimensions/elevation and wall azimuth remain the next compiler inputs.
+
 ## Verified capability matrix
 
 | Capability | Status | Evidence boundary |
 | --- | --- | --- |
 | Fixed layout → UI / trajectory contract | ✅ verified | one `home_topology.fixed.json`; room/wall geometry locked, window/door wall position editable |
-| Layout → CONTAM compiler seam | 🟡 reserved | same opening positions flow into `contam_compile_contract()`; PRJ/control/path generation remains intentionally unimplemented |
+| Layout → spatial compile plan | ✅ verified | `position_t` resolves to deterministic wall anchors; path/control identities remain stable across moves |
+| Spatial plan → CONTAM PRJ | 🟡 reserved | current canvas geometry is explicitly non-metric; metric dimensions/elevation/azimuth and PRJ generation remain unimplemented |
 | Multi-room / multi-window scenario simulator | ✅ verified | deterministic toy/surrogate physics; not engineering truth |
 | Agent → safety gate → executed action → reward → trajectory | ✅ verified | proposed/executed/intervention are preserved |
 | Behavior Cloning baseline | ✅ verified | topology-local discrete policy trained from behavior rows |
