@@ -99,12 +99,13 @@ read-only preflight PASS
 → preflight hardware identity
 → gateway contract SHA-256
 → locked ThingModel product/source/registry/contract lineage
+→ physical-site manifest lineage (site / room / installed device instance)
 → bounded commissioning PASS
-→ same runtime hardware + same ThingModel lineage
-→ fresh measured CO₂ + rain with verified product-property bindings
+→ same runtime hardware + same ThingModel + same physical-site lineage
+→ fresh measured CO₂ + rain with verified product-property + site-instance bindings
 → real window command
 → post-command measured position
-→ newer post-action CO₂/rain with the same provenance requirements
+→ newer post-action CO₂/rain with the same ThingModel + site-instance provenance
 → τ₀ audit PASS
 ```
 
@@ -136,13 +137,15 @@ trajectory SHA-256
 + commissioning bundle SHA-256
 + commissioning/runtime/preflight identity continuity
 + ThingModel productKey/source/registry/contract lineage
++ physical-site / room / device-instance lineage
++ site manifest / instance / site-contract SHA-256 continuity
 + gateway contract lineage
 + measured actuator position
-+ pre-action CO₂/rain ThingModel provenance
-+ newer post-action CO₂/rain ThingModel provenance
++ pre-action CO₂/rain ThingModel + site-instance provenance
++ newer post-action CO₂/rain ThingModel + site-instance provenance
 ```
 
-AirTrajectory deliberately does **not** copy the raw vendor ThingModel bundle. WindowPilot owns registry validation; AirTrajectory carries only the non-secret product identity and cryptographic lineage required to prove that the same verified contract produced the physical trajectory.
+AirTrajectory deliberately does **not** copy the raw vendor ThingModel bundle or the private deployment manifest. WindowPilot owns product-registry and physical-site validation; AirTrajectory carries only the non-secret site/room/device-instance identity plus cryptographic lineage required to prove that the same verified installed device produced the physical trajectory.
 
 The physical closeout is complete only when capture returned `valid_tau0=true` **and** this independent artifact verification returns `valid_artifacts=true`.
 
