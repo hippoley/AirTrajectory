@@ -9,6 +9,10 @@ from airtrajectory.physical import (
     PhysicalWindowEnvironment, RulePolicy, SafetyResolver,
     record_physical_trajectory, validate_physical_tau0,
 )
+from airtrajectory.physical_closeout import (
+    build_closeout_evidence,
+    trajectory_last_feedback_timestamp,
+)
 from airtrajectory.tau0_preflight import validate_physical_tau0_preconditions
 from airtrajectory.trajectory import TrajectoryStore
 
@@ -29,7 +33,19 @@ _CONTEXT_KEYS=(
     "runtime_sensor_lineage",
     "sensor_staging_lineage",
     "sensor_evidence_sha256",
+    "position_tolerance_pct",
+    "baseline_position_feedback",
 )
+
+
+def _safe_closeout(driver, opening_id, *, tolerance_pct, after_timestamp):
+    feedback=driver.set_position(opening_id,0.0)
+    return build_closeout_evidence(
+        feedback,
+        target_pct=0.0,
+        tolerance_pct=tolerance_pct,
+        after_timestamp=after_timestamp,
+    )
 
 
 def capture_physical_tau0(
@@ -52,13 +68,48 @@ def capture_physical_tau0(
         sensor_apply_receipts=sensor_apply_receipts,
     )
     context_extra={key:preflight[key] for key in _CONTEXT_KEYS}
+    tolerance=float(preflight["position_tolerance_pct"])
 
     env=PhysicalWindowEnvironment(driver,opening_id,require_measured_feedback=True)
-    trajectory=record_physical_trajectory(
-        env,RulePolicy(opening_id),SafetyResolver(),
-        topology_id,TrajectoryStore(out),steps=steps,
-        context_extra=context_extra,
+    trajectory=None
+    capture_error=None
+    try:
+        trajectory=record_physical_trajectory(
+            env,RulePolicy(opening_id),SafetyResolver(),
+            topology_id,TrajectoryStore(out),steps=steps,
+            context_extra=context_extra,
+        )
+    except Exception as exc:
+        capture_error=exc
+
+    last_feedback_ts=(
+        trajectory_last_feedback_timestamp(trajectory)
+        if trajectory is not None else 0.0
     )
+    closeout=None
+    closeout_error=None
+    try:
+        closeout=_safe_closeout(
+            driver,
+            opening_id,
+            tolerance_pct=tolerance,
+            after_timestamp=last_feedback_ts,
+        )
+    except Exception as exc:
+        closeout_error=exc
+
+    if capture_error is not None:
+        if closeout_error is not None:
+            raise RuntimeError(
+                "physical tau0 capture failed and safe closeout also failed: "
+                f"capture={capture_error}; closeout={closeout_error}"
+            ) from capture_error
+        raise capture_error
+
+    if closeout_error is not None:
+        raise RuntimeError(
+            "physical tau0 safe closeout failed: "+str(closeout_error)
+        ) from closeout_error
 
     report=validate_physical_tau0(trajectory)
     payload={
@@ -69,6 +120,7 @@ def capture_physical_tau0(
         "steps":len(trajectory.steps),
         "output":str(out),
         **context_extra,
+        "closeout":closeout,
         "trajectory_sha256":hashlib.sha256(Path(out).read_bytes()).hexdigest(),
     }
 
