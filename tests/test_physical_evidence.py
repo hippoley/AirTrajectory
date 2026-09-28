@@ -68,9 +68,25 @@ def _binding(kind):
     }
 
 
+def _acceptance_policy():
+    return {
+        "max_first_excursion_pct":5.0,
+        "requested_excursion_pct":5.0,
+        "position_tolerance_pct":1.0,
+        "minimum_stop_hold_samples":2,
+        "stop_hold_samples":2,
+        "max_polls":20,
+        "poll_interval_s":0.25,
+        "source_timestamps_strictly_increasing":True,
+        "requires_positive_open_delta":True,
+        "requires_negative_close_delta":True,
+    }
+
+
 def _commissioning():
     return {
         "excursion_pct":5.0,
+        "acceptance_policy":_acceptance_policy(),
         "phases":[
             {
                 "phase":"READ",
@@ -364,6 +380,61 @@ class PhysicalArtifactVerifierTests(unittest.TestCase):
         self.assertFalse(report["valid_artifacts"])
         self.assertTrue(any(
             "physical-site lineage" in reason or "site" in reason
+            for reason in report["reasons"]
+        ))
+
+    def test_missing_commissioning_acceptance_policy_is_rejected(self):
+        with tempfile.TemporaryDirectory() as d:
+            root=Path(d)
+            bundle,trajectory,receipt,bundle_payload,_,_=self._valid_chain(root)
+            bundle_payload["commissioning"].pop("acceptance_policy")
+            bundle.write_text(json.dumps(bundle_payload),encoding="utf-8")
+            report=verify_physical_tau0_artifacts(
+                trajectory_path=trajectory,
+                receipt_path=receipt,
+                commission_bundle_path=bundle,
+            )
+        self.assertFalse(report["valid_artifacts"])
+        self.assertTrue(any(
+            "acceptance_policy is missing" in reason
+            for reason in report["reasons"]
+        ))
+
+    def test_weakened_commissioning_tolerance_is_rejected(self):
+        with tempfile.TemporaryDirectory() as d:
+            root=Path(d)
+            bundle,trajectory,receipt,bundle_payload,_,_=self._valid_chain(root)
+            bundle_payload["commissioning"]["acceptance_policy"][
+                "position_tolerance_pct"
+            ]=5.0
+            bundle.write_text(json.dumps(bundle_payload),encoding="utf-8")
+            report=verify_physical_tau0_artifacts(
+                trajectory_path=trajectory,
+                receipt_path=receipt,
+                commission_bundle_path=bundle,
+            )
+        self.assertFalse(report["valid_artifacts"])
+        self.assertTrue(any(
+            "position tolerance must be >0 and <=1%" in reason
+            for reason in report["reasons"]
+        ))
+
+    def test_reduced_stop_hold_policy_is_rejected(self):
+        with tempfile.TemporaryDirectory() as d:
+            root=Path(d)
+            bundle,trajectory,receipt,bundle_payload,_,_=self._valid_chain(root)
+            bundle_payload["commissioning"]["acceptance_policy"][
+                "stop_hold_samples"
+            ]=1
+            bundle.write_text(json.dumps(bundle_payload),encoding="utf-8")
+            report=verify_physical_tau0_artifacts(
+                trajectory_path=trajectory,
+                receipt_path=receipt,
+                commission_bundle_path=bundle,
+            )
+        self.assertFalse(report["valid_artifacts"])
+        self.assertTrue(any(
+            "STOP hold samples must be >=2" in reason
             for reason in report["reasons"]
         ))
 
