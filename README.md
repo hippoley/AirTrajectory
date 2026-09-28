@@ -176,7 +176,22 @@ python examples/check_physical_tau0_preflight.py \
 
 A preflight PASS proves the commissioning bundle, current runtime identity, write gate and live sensor lineage are mutually consistent. It does **not** count as physical τ₀ because no trajectory motion has happened.
 
-Only after that gate is green, run the capture CLI:
+Only after that gate is green, run the capture CLI. The τ₀ trajectory is
+now exactly one bounded reality-contact action, not a ventilation-policy
+rollout:
+
+```text
+preflight measured baseline <= commissioning tolerance
+→ one OPEN probe target <= 5%
+→ feedback timestamp newer than baseline
+→ positive measured position Reality Delta >= 2 percentage points
+→ measured position reaches the bounded target within tolerance
+→ independent measured safe-closeout back to 0%
+```
+
+The probe target is also bounded by the excursion already approved by the
+commissioning contract. AirTrajectory will not silently weaken the minimum
+Reality Delta when a commissioning profile is too small to prove it.
 
 ```bash
 python examples/capture_physical_tau0.py \
@@ -242,6 +257,12 @@ trajectory SHA-256
 + policy cannot weaken excursion, tolerance, STOP-sample or timestamp requirements
 + READ near-closed, OPEN positive delta, STOP multi-sample hold, CLOSE negative delta
 + strictly increasing commissioning source timestamps
++ τ₀ capture policy == physical-tau0-probe-v1
++ exactly one probe action with target <=5%
++ probe target bounded by the commissioned excursion
++ measured actuator feedback newer than the pre-action baseline
++ positive measured Reality Delta >= the persisted minimum threshold
++ measured probe position within the persisted target tolerance
 + runtime CO₂/rain source lineage + sensor evidence SHA-256
 + optional probe-apply staging lineage when the receipt claims audited staging
 + measured actuator position
@@ -254,7 +275,7 @@ trajectory SHA-256
 
 AirTrajectory deliberately does **not** copy the raw vendor ThingModel bundle or the private deployment manifest. WindowPilot owns product-registry and physical-site validation; AirTrajectory carries only the non-secret site/room/device-instance identity plus cryptographic lineage required to prove that the same verified installed device produced the physical trajectory.
 
-The capture command also restores the commissioned closed baseline after the trajectory. A successful audit receipt is not written unless that closeout is measured within the commissioning tolerance, and the independent verifier rejects missing, stale, estimated-only, or still-open closeout evidence.
+The capture command also restores the commissioned closed baseline after the one-step Reality Delta probe. A successful audit receipt is not written unless that closeout is measured within the commissioning tolerance, and the independent verifier rejects missing, stale, estimated-only, or still-open closeout evidence.
 
 The physical closeout is complete only when capture returned `valid_tau0=true` **and** this independent artifact verification returns `valid_artifacts=true`.
 
