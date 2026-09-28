@@ -1,11 +1,72 @@
 const canvas=document.querySelector("#lab"),ctx=canvas.getContext("2d"),windEl=document.querySelector("#wind"),speedEl=document.querySelector("#speed");
-const rooms=[{id:"living",x:180,y:120,w:350,h:250,name:"LIVING"},{id:"bedroom",x:530,y:120,w:300,h:250,name:"BEDROOM"},{id:"study",x:350,y:370,w:480,h:170,name:"STUDY"}],openings=[{id:"W1",wallId:"living-west",t:.36,x:180,y:210,side:"left",open:.65},{id:"W2",wallId:"bedroom-east",t:.34,x:830,y:205,side:"right",open:.35},{id:"W3",wallId:"study-south",t:.77,x:720,y:540,side:"bottom",open:.55},{id:"D1",wallId:"living-bedroom",t:.56,x:530,y:260,side:"internal",open:1},{id:"D2",wallId:"living-study",t:.5,x:440,y:370,side:"internal-horizontal",open:1}];
+let topologyContract=null,rooms=[],walls=[],openings=[];
+let topologyCapabilities={
+  floorplan_geometry_editable:false,
+  opening_position_editable:true,
+  opening_state_editable:true,
+  arbitrary_topology_import:"reserved",
+  contam_compiler:"reserved"
+};
+function validateTopologyPayload(p){
+  if(!p||p.schema_version!=="0.1"||p.source_kind!=="fixed-floorplan")throw new Error("unsupported topology contract");
+  if(p.capabilities?.floorplan_geometry_editable!==false)throw new Error("current floorplan must remain fixed");
+  if(p.capabilities?.opening_position_editable!==true)throw new Error("opening position editing must remain enabled");
+  if(!Array.isArray(p.rooms)||!p.rooms.length||!Array.isArray(p.walls)||!p.walls.length||!Array.isArray(p.openings)||!p.openings.length)throw new Error("incomplete topology contract");
+  const roomIds=new Set(p.rooms.map(r=>r.id)),wallIds=new Set(p.walls.map(w=>w.id)),outside=p.outside_id||"OUTSIDE";
+  if(roomIds.size!==p.rooms.length||wallIds.size!==p.walls.length)throw new Error("duplicate room/wall id");
+  for(const o of p.openings){
+    if(!wallIds.has(o.wall_id))throw new Error("opening "+o.id+" references unknown wall");
+    if(!(o.position_t>=0&&o.position_t<=1))throw new Error("opening "+o.id+" position_t out of range");
+    if(o.position_editable!==true)throw new Error("opening "+o.id+" must be position editable in current product mode");
+  }
+  for(const w of p.walls){
+    if(!roomIds.has(w.source)&&w.source!==outside)throw new Error("wall "+w.id+" has unknown source");
+    if(!roomIds.has(w.target)&&w.target!==outside)throw new Error("wall "+w.id+" has unknown target");
+  }
+}
+async function loadTopologyContract(){
+  const r=await fetch("./data/home_topology.fixed.json",{cache:"no-store"});
+  if(!r.ok)throw new Error("topology artifact "+r.status);
+  const p=await r.json();validateTopologyPayload(p);topologyContract=p;topologyCapabilities={...topologyCapabilities,...p.capabilities};
+  rooms=p.rooms.map(r=>({...r}));
+  walls=p.walls.map(w=>({...w}));
+  openings=p.openings.map(o=>({
+    id:o.id,kind:o.kind,wallId:o.wall_id,source:o.source,target:o.target,
+    t:Number(o.position_t),open:Number(o.initial_open_pct)/100,
+    maxAreaM2:Number(o.max_area_m2),side:o.render_side,
+    positionEditable:o.position_editable===true,stateEditable:o.state_editable===true,
+    x:0,y:0
+  }));
+  if(p.canvas){canvas.width=Number(p.canvas.width)||canvas.width;canvas.height=Number(p.canvas.height)||canvas.height}
+  syncAllOpeningGeometry();
+  const source=document.querySelector("#topologySource"),mode=document.querySelector("#topologyEditMode");
+  if(source)source.textContent=(p.topology_id||"FIXED FLOORPLAN").toUpperCase();
+  if(mode)mode.textContent="ROOMS LOCKED · WINDOWS + DOORS MOVABLE";
+}
+function currentTopologySnapshot(){
+  return {
+    schema_version:topologyContract?.schema_version||"0.1",
+    topology_id:topologyContract?.topology_id||null,
+    source_kind:topologyContract?.source_kind||"fixed-floorplan",
+    topology_revision:topologyRevision,
+    capabilities:{...topologyCapabilities},
+    rooms:rooms.map(r=>({id:r.id,name:r.name,x:r.x,y:r.y,w:r.w,h:r.h,volume_m3:r.volume_m3})),
+    walls:walls.map(w=>({...w})),
+    openings:openings.map(o=>({
+      id:o.id,kind:o.kind,wall_id:o.wallId,source:o.source,target:o.target,
+      position_t:Number(o.t.toFixed(6)),opening_pct:Number((o.open*100).toFixed(3)),
+      max_area_m2:o.maxAreaM2,position_editable:o.positionEditable,state_editable:o.stateEditable
+    })),
+    compiler_contract:topologyContract?.compiler_contract||null
+  };
+}
 const fallback=[{name:"W1 · 25%",opens:[.25,.35,.55,1],co2:1045,series:[1260,1205,1162,1119,1081,1045],return:-8.2},{name:"W1 · 50%",opens:[.5,.35,.55,1],co2:925,series:[1260,1168,1090,1025,971,925],return:-7.1},{name:"W1 · 75%",opens:[.75,.35,.55,1],co2:842,series:[1260,1130,1030,952,891,842],return:-6.5},{name:"Cross-flow · W1 + W3",opens:[.55,.25,.85,1],co2:795,series:[1260,1108,1001,915,847,795],return:-6.1}];
-let scenarios=fallback,baseline=1260,selected=0,cursor=0,timer=null,currentFrame=null,selectedOpening=null,objective="balanced",viewMode="flow",topologyRevision=0,trajectoryRevision=0,trajectoryStale=false,dragOpening=null,dragMoved=false,dragWall=null;
+let scenarios=fallback,baseline=1260,selected=0,cursor=0,timer=null,currentFrame=null,selectedOpening=null,objective="balanced",viewMode="flow",topologyRevision=0,trajectoryRevision=0,trajectoryStale=false,dragOpening=null,dragMoved=false;
 async function loadScenarios(){const h=document.querySelector("#health");try{const r=await fetch("./data/scenarios.json",{cache:"no-store"});if(!r.ok)throw 0;const p=await r.json();if(!Array.isArray(p.scenarios)||p.scenarios.length<4)throw 0;scenarios=p.scenarios;baseline=p.baseline_co2;document.querySelector("#backendName").textContent=p.backend.toUpperCase();h.className="health ok";h.querySelector("b").textContent="BACKEND ARTIFACT READY"}catch(e){h.className="health fallback";h.querySelector("b").textContent="INTERACTIVE FALLBACK";document.querySelector("#backendName").textContent="FAST FALLBACK"}renderBranches();applyFrame(0,0);updateVector(scenarios[0])}
 // Filament renderer: persistent pathlines, not decorative dots.
 const PARTICLE_BUDGET=620;
-const particles=Array.from({length:PARTICLE_BUDGET},(_,i)=>spawn(i));
+let particles=[];
+function initializeParticles(){particles=Array.from({length:PARTICLE_BUDGET},(_,i)=>spawn(i))}
 function emissionWeight(o){
   const backend=currentFrame?.openings?.[o.id];
   const open=(backend!=null?backend/100:o.open);
