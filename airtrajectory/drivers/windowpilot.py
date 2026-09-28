@@ -10,6 +10,7 @@ import time
 from typing import Callable
 from urllib.request import Request, urlopen
 
+from ..lineage import sensor_binding_valid
 from ..physical import DriverCapabilities, PhysicalWindowDriver
 from ..trajectory import ActuatorFeedback, SensorReading
 
@@ -128,9 +129,9 @@ class WindowPilotHTTPDriver(PhysicalWindowDriver):
                 sensor_id=source
                 quality=str(ev.get("quality") or "measured-windowpilot-source-time")
                 binding=ev.get("thingmodel_binding")
-                if required and not isinstance(binding,dict):
+                if required and not sensor_binding_valid(binding):
                     raise RuntimeError(
-                        f"WindowPilot hardware sensor {key} missing verified ThingModel binding"
+                        f"WindowPilot hardware sensor {key} missing valid ThingModel/site binding"
                     )
                 provenance=dict(binding or {})
             rows.append(SensorReading(
