@@ -1029,6 +1029,74 @@ class CoreTests(unittest.TestCase):
             0.0,
         )
 
+    def test_tau0_audit_rejects_stuck_actuator_zero_reality_delta(self):
+        class StuckReal(FakePhysicalWindowDriver):
+            def capabilities(self):
+                return DriverCapabilities(
+                    "external-test-contract",False,True,("co2","rain")
+                )
+            def set_position(self,opening_id,target_pct):
+                import time
+                self.position=0.0
+                return ActuatorFeedback(
+                    opening_id,time.time(),
+                    measured_position_pct=0.0,
+                    quality="stuck-measured",
+                )
+
+        identity=_hardware_identity("same-hardware")
+        behavior=_commissioning_behavior()
+        policy=Tau0ProbePolicy(
+            "w1",
+            target_pct=5.0,
+            minimum_reality_delta_pct=2.0,
+            position_tolerance_pct=1.0,
+        )
+        env=PhysicalWindowEnvironment(
+            StuckReal(
+                co2_ppm=1400,
+                measured_feedback=True,
+                thingmodel_provenance=True,
+            ),
+            "w1",
+            require_measured_feedback=True,
+        )
+        with tempfile.TemporaryDirectory() as d:
+            trajectory=record_physical_trajectory(
+                env,policy,SafetyResolver(),"physical-contract",
+                TrajectoryStore(Path(d)/"tau0.jsonl"),
+                steps=1,
+                context_extra={
+                    "tau0_capture_policy":policy.capture_policy(),
+                    "position_tolerance_pct":1.0,
+                    "baseline_position_feedback":{
+                        "position_pct":0.0,
+                        "timestamp":99.0,
+                        "measured":True,
+                        "quality":"encoder-measured",
+                        "source":"test-window",
+                    },
+                    "commissioning_identity_sha256":"same-hardware",
+                    "commissioning_hardware_identity":identity,
+                    "runtime_hardware_identity":identity,
+                    "thingmodel_lineage":require_hardware_thingmodel_lineage(identity),
+                    "site_lineage":require_hardware_site_lineage(identity),
+                    "preflight_receipt_sha256":"a"*64,
+                    "preflight_hardware_identity_sha256":"same-hardware",
+                    "gateway_contract_sha256":"b"*64,
+                    "commissioning_behavior_witness":behavior["normalized"],
+                    "commissioning_behavior_sha256":behavior["sha256"],
+                },
+            )
+        report=validate_physical_tau0(trajectory)
+        self.assertFalse(report.valid_tau0)
+        self.assertTrue(any(
+            "positive measured Reality Delta" in reason
+            for reason in report.reasons
+        ))
+        with self.assertRaisesRegex(ValueError,"failed evidence audit"):
+            list(audited_physical_transition_rows(trajectory))
+
     def test_tau0_audit_rejects_missing_commissioning_identity(self):
         class ContractReal(FakePhysicalWindowDriver):
             def capabilities(self):
