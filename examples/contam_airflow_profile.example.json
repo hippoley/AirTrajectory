@@ -1,0 +1,28 @@
+{
+  "schema_version": "0.1",
+  "profile_id": "example-engineering-profile",
+  "evidence_level": "project-calibrated",
+  "engineering_validated": true,
+  "source": {
+    "title": "Replace with project-specific calibration or engineering reference",
+    "publisher": "project-owner",
+    "note": "Example schema only. Values below must be reviewed for the actual building."
+  },
+  "rules": {
+    "window": {
+      "model": "powerlaw-orifice-area",
+      "flow_exponent": 0.5,
+      "discharge_coefficient": 0.6
+    },
+    "door": {
+      "model": "powerlaw-orifice-area",
+      "flow_exponent": 0.5,
+      "discharge_coefficient": 0.6
+    },
+    "vent": {
+      "model": "powerlaw-orifice-area",
+      "flow_exponent": 0.65,
+      "discharge_coefficient": 0.6
+    }
+  }
+}
