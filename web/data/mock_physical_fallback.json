@@ -1,0 +1,141 @@
+{
+  "schema_version": "0.1",
+  "kind": "mock-physical-fallback",
+  "provenance": {
+    "source": "deterministic illustrative simulation",
+    "physics_backend": "mock-ventilation-v1",
+    "physical_evidence": false,
+    "engineering_truth": false,
+    "note": "Fallback only. It preserves the real hardware gates while allowing the UI and trajectory flow to remain runnable before vendor API/device access exists."
+  },
+  "scenario": {
+    "room_id": "living",
+    "floor_area_m2": 30,
+    "volume_m3": 75,
+    "occupants": 2,
+    "indoor_co2_start_ppm": 1400,
+    "outdoor_co2_ppm": 430,
+    "rain": false,
+    "wind_speed_mps": 1.5,
+    "window_initial_pct": 0,
+    "window_target_pct": 20
+  },
+  "trajectory": [
+    {
+      "index": 0,
+      "environment_kind": "mock-simulation",
+      "observation": {
+        "co2_ppm": 1400,
+        "rain": false,
+        "opening_pct": 0
+      },
+      "semantic_action": "VENT",
+      "proposed_action": {
+        "opening_id": "W1",
+        "target_pct": 20
+      },
+      "executed_action": {
+        "opening_id": "W1",
+        "target_pct": 20
+      },
+      "actuator_feedback": {
+        "measured_position_pct": null,
+        "estimated_position_pct": 5,
+        "quality": "mock-simulated"
+      },
+      "next_observation": {
+        "co2_ppm": 1300,
+        "rain": false,
+        "opening_pct": 5
+      },
+      "evidence_class": "tau_sim"
+    },
+    {
+      "index": 1,
+      "environment_kind": "mock-simulation",
+      "observation": {
+        "co2_ppm": 1300,
+        "rain": false,
+        "opening_pct": 5
+      },
+      "semantic_action": "VENT",
+      "proposed_action": {
+        "opening_id": "W1",
+        "target_pct": 20
+      },
+      "executed_action": {
+        "opening_id": "W1",
+        "target_pct": 20
+      },
+      "actuator_feedback": {
+        "measured_position_pct": null,
+        "estimated_position_pct": 12,
+        "quality": "mock-simulated"
+      },
+      "next_observation": {
+        "co2_ppm": 1100,
+        "rain": false,
+        "opening_pct": 12
+      },
+      "evidence_class": "tau_sim"
+    },
+    {
+      "index": 2,
+      "environment_kind": "mock-simulation",
+      "observation": {
+        "co2_ppm": 1100,
+        "rain": false,
+        "opening_pct": 12
+      },
+      "semantic_action": "VENT",
+      "proposed_action": {
+        "opening_id": "W1",
+        "target_pct": 20
+      },
+      "executed_action": {
+        "opening_id": "W1",
+        "target_pct": 20
+      },
+      "actuator_feedback": {
+        "measured_position_pct": null,
+        "estimated_position_pct": 20,
+        "quality": "mock-simulated"
+      },
+      "next_observation": {
+        "co2_ppm": 900,
+        "rain": false,
+        "opening_pct": 20
+      },
+      "evidence_class": "tau_sim"
+    },
+    {
+      "index": 3,
+      "environment_kind": "mock-simulation",
+      "observation": {
+        "co2_ppm": 900,
+        "rain": false,
+        "opening_pct": 20
+      },
+      "semantic_action": "HOLD",
+      "proposed_action": {
+        "opening_id": "W1",
+        "target_pct": 20
+      },
+      "executed_action": {
+        "opening_id": "W1",
+        "target_pct": 20
+      },
+      "actuator_feedback": {
+        "measured_position_pct": null,
+        "estimated_position_pct": 20,
+        "quality": "mock-simulated"
+      },
+      "next_observation": {
+        "co2_ppm": 900,
+        "rain": false,
+        "opening_pct": 20
+      },
+      "evidence_class": "tau_sim"
+    }
+  ]
+}
