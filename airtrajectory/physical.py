@@ -47,6 +47,7 @@ class SafetyResolver:
         return SafetyDecision(proposed,list(proposed))
 
 class RulePolicy:
+    policy_id="rule-policy-v1"
     def __init__(self, opening_id: str, high_co2=1200, low_co2=800):
         self.opening_id,self.high_co2,self.low_co2=opening_id,high_co2,low_co2
     def semantic_action(self, observation):
@@ -60,6 +61,64 @@ class RulePolicy:
             return []
         target=observation.get("opening_pct") if a.command=="HOLD" else a.value
         return [TransitionAction(self.opening_id,float(target))]
+
+class Tau0ProbePolicy:
+    """Bounded reality-contact probe used only for physical tau0 capture."""
+
+    policy_id="physical-tau0-probe-v1"
+
+    def __init__(
+        self,
+        opening_id: str,
+        target_pct: float=5.0,
+        start_tolerance_pct: float=1.0,
+        minimum_reality_delta_pct: float=2.0,
+    ):
+        target=float(target_pct)
+        start_tol=float(start_tolerance_pct)
+        min_delta=float(minimum_reality_delta_pct)
+        if not 0 < target <= 5.0:
+            raise ValueError("tau0 target_pct must be >0 and <=5%")
+        if not 0 <= start_tol <= 1.0:
+            raise ValueError("tau0 start_tolerance_pct must be in [0,1]")
+        if not 0 < min_delta <= target:
+            raise ValueError("tau0 minimum_reality_delta_pct must be >0 and <= target")
+        self.opening_id=opening_id
+        self.target_pct=target
+        self.start_tolerance_pct=start_tol
+        self.minimum_reality_delta_pct=min_delta
+
+    def capture_policy(self):
+        return {
+            "policy_id":self.policy_id,
+            "target_pct":self.target_pct,
+            "max_target_pct":5.0,
+            "start_tolerance_pct":self.start_tolerance_pct,
+            "minimum_reality_delta_pct":self.minimum_reality_delta_pct,
+            "requires_measured_pre_action_position":True,
+        }
+
+    def _require_start(self, observation):
+        position=observation.get("opening_pct")
+        if position is None:
+            raise RuntimeError("physical tau0 requires measured pre-action position")
+        position=float(position)
+        if not 0 <= position <= 100:
+            raise RuntimeError("physical tau0 pre-action position is outside [0,100]")
+        if position > self.start_tolerance_pct:
+            raise RuntimeError(
+                f"physical tau0 requires near-closed start <= {self.start_tolerance_pct:.2f}%; "
+                f"observed {position:.2f}%"
+            )
+        return position
+
+    def semantic_action(self, observation):
+        self._require_start(observation)
+        return SemanticAction("window",self.opening_id,"TAU0_PROBE",self.target_pct)
+
+    def __call__(self, observation):
+        self._require_start(observation)
+        return [TransitionAction(self.opening_id,self.target_pct)]
 
 class PhysicalWindowEnvironment:
     def __init__(
@@ -145,7 +204,8 @@ def record_physical_trajectory(env,policy,resolver,topology_id,store,steps=1,con
     context={"reset_info":reset_info}
     if context_extra:
         context.update(dict(context_extra))
-    trajectory=Trajectory(topology_id=topology_id,policy_id="rule-policy-v1",environment_kind=environment_kind,context=context)
+    policy_id=str(getattr(policy,"policy_id","physical-policy-unknown"))
+    trajectory=Trajectory(topology_id=topology_id,policy_id=policy_id,environment_kind=environment_kind,context=context)
     for index in range(steps):
         semantic=policy.semantic_action(observation);decision=resolver.resolve(observation,policy(observation))
         nxt,reward,terminated,truncated,info=env.step(decision.executed)
