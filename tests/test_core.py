@@ -201,6 +201,7 @@ class CoreTests(unittest.TestCase):
             def physical_readiness(self):
                 return {
                     "capture_preconditions":True,
+                    "physical_write_ready":True,
                     "hardware_identity":_hardware_identity("same"),
                     "registry_bound_sensors":{"co2_ppm":True,"rain":True},
                     "site_bound_sensors":{"co2_ppm":True,"rain":True},
@@ -257,6 +258,7 @@ class CoreTests(unittest.TestCase):
             def physical_readiness(self):
                 return {
                     "capture_preconditions":True,
+                    "physical_write_ready":True,
                     "hardware_identity":identity,
                     "registry_bound_sensors":{"co2_ppm":True,"rain":True},
                     "site_bound_sensors":{"co2_ppm":True,"rain":True},
@@ -316,6 +318,7 @@ class CoreTests(unittest.TestCase):
                 self.readiness_called=True
                 return {
                     "capture_preconditions":True,
+                    "physical_write_ready":True,
                     "hardware_identity":_hardware_identity("same"),
                     "registry_bound_sensors":{"co2_ppm":True,"rain":True},
                     "site_bound_sensors":{"co2_ppm":True,"rain":True},
@@ -367,6 +370,7 @@ class CoreTests(unittest.TestCase):
             def physical_readiness(self):
                 return {
                     "capture_preconditions":True,
+                    "physical_write_ready":True,
                     "hardware_identity":_hardware_identity("runtime-B"),
                     "registry_bound_sensors":{"co2_ppm":True,"rain":True},
                     "site_bound_sensors":{"co2_ppm":True,"rain":True},
@@ -415,6 +419,7 @@ class CoreTests(unittest.TestCase):
                 self.readiness_called=True
                 return {
                     "capture_preconditions":True,
+                    "physical_write_ready":True,
                     "hardware_identity":{"identity_sha256":"same"},
                     "reasons":[],
                 }
