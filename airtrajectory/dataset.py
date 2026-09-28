@@ -29,6 +29,11 @@ def transition_rows(trajectory: Trajectory):
             "runtime_sensor_lineage":trajectory.context.get("runtime_sensor_lineage"),
             "sensor_staging_lineage":trajectory.context.get("sensor_staging_lineage"),
             "sensor_evidence_sha256":trajectory.context.get("sensor_evidence_sha256"),
+            "tau0_capture_policy":trajectory.context.get("tau0_capture_policy"),
+            "initial_position_feedback":(
+                trajectory.context.get("reset_info",{}).get("initial_position_feedback")
+                if isinstance(trajectory.context.get("reset_info"),dict) else None
+            ),
             "thingmodel_lineage":trajectory.context.get("thingmodel_lineage"),
             "site_lineage":trajectory.context.get("site_lineage"),
             "step_index":step.index,
