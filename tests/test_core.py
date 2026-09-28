@@ -20,6 +20,7 @@ from airtrajectory.dataset import transition_rows, counterfactual_rows, audited_
 from airtrajectory.bc import TabularBC
 from airtrajectory.offline_rl import OfflineQ
 from airtrajectory.commissioning import require_commissioning_behavior
+from airtrajectory.sensor_lineage import build_sensor_evidence
 from airtrajectory.lineage import require_hardware_site_lineage, require_hardware_thingmodel_lineage
 
 
@@ -600,18 +601,31 @@ class CoreTests(unittest.TestCase):
 
     def test_dataset_uses_executed_action_and_preserves_proposal(self):
         behavior=_commissioning_behavior()
+        site_lineage=require_hardware_site_lineage(
+            _hardware_identity("same-hardware")
+        )
+        sensor_evidence=build_sensor_evidence(
+            readiness={
+                "sensor_evidence_lineage":_readiness_sensor_lineage()
+            },
+            site_lineage=site_lineage,
+            commissioning_identity_sha256="same-hardware",
+            commissioning_bundle_sha256="e"*64,
+        )
         trajectory=Trajectory("demo","rule",context={
             "preflight_receipt_sha256":"a"*64,
             "preflight_hardware_identity_sha256":"same-hardware",
             "gateway_contract_sha256":"b"*64,
             "commissioning_behavior_witness":behavior["normalized"],
             "commissioning_behavior_sha256":behavior["sha256"],
+            "sensor_evidence_origin":sensor_evidence["sensor_evidence_origin"],
+            "runtime_sensor_lineage":sensor_evidence["runtime_sensor_lineage"],
+            "sensor_staging_lineage":sensor_evidence["sensor_staging_lineage"],
+            "sensor_evidence_sha256":sensor_evidence["sensor_evidence_sha256"],
             "thingmodel_lineage":require_hardware_thingmodel_lineage(
                 _hardware_identity("same-hardware")
             ),
-            "site_lineage":require_hardware_site_lineage(
-                _hardware_identity("same-hardware")
-            ),
+            "site_lineage":site_lineage,
         })
         trajectory.append(TrajectoryStep(0,{"co2":1400},[TransitionAction("W1",50)],[TransitionAction("W1",0)],{"co2":1390},RewardVector(safety=-1),intervention="RAIN_SAFE_CLOSE",info={"trace_id":"trace-1","provenance":"physical"}))
         row=list(transition_rows(trajectory))[0]
@@ -622,6 +636,19 @@ class CoreTests(unittest.TestCase):
         self.assertEqual(row["preflight_hardware_identity_sha256"],"same-hardware")
         self.assertEqual(row["gateway_contract_sha256"],"b"*64)
         self.assertEqual(row["commissioning_behavior_sha256"],behavior["sha256"])
+        self.assertEqual(
+            row["sensor_evidence_origin"],
+            "runtime-measured-lineage",
+        )
+        self.assertEqual(
+            row["runtime_sensor_lineage"]["co2"]["source"],
+            "runtime-co2-sensor",
+        )
+        self.assertIsNone(row["sensor_staging_lineage"])
+        self.assertEqual(
+            row["sensor_evidence_sha256"],
+            sensor_evidence["sensor_evidence_sha256"],
+        )
         self.assertEqual(
             row["commissioning_behavior_witness"]["behavior_witness"]["reality_delta_observed"],
             True,
