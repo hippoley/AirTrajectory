@@ -59,6 +59,24 @@ class WindowPilotHTTPDriver(PhysicalWindowDriver):
             sensor_types=("co2","rain","temperature","humidity","wind_speed"),
         )
 
+    def read_position_feedback(self, opening_id: str):
+        payload=self._capability_payload()
+        execution=payload.get("execution") if isinstance(payload.get("execution"),dict) else {}
+        if execution.get("simulated") is not False or execution.get("measured_position") is not True:
+            return None
+        feedback=payload.get("position_feedback") if isinstance(payload.get("position_feedback"),dict) else {}
+        if feedback.get("measured") is not True or feedback.get("position_pct") is None:
+            raise RuntimeError("WindowPilot measured pre-action position feedback unavailable")
+        timestamp=float(feedback.get("timestamp") or 0)
+        if timestamp<=0:
+            raise RuntimeError("WindowPilot measured pre-action position feedback missing timestamp")
+        return ActuatorFeedback(
+            actuator_id=opening_id,
+            timestamp=timestamp,
+            measured_position_pct=float(feedback["position_pct"]),
+            quality=str(feedback.get("quality") or "measured-windowpilot"),
+        )
+
     def _stdlib_request(self, method: str, path: str, payload=None):
         body=None if payload is None else json.dumps(payload).encode("utf-8")
         req=Request(
