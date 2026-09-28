@@ -182,6 +182,57 @@ class CoreTests(unittest.TestCase):
             self.assertFalse((Path(d)/"tau.jsonl").exists())
             self.assertFalse((Path(d)/"receipt.json").exists())
 
+    def test_physical_capture_rejects_legacy_pass_bundle_without_behavior_before_runtime_contact(self):
+        spec=importlib.util.spec_from_file_location(
+            "capture_physical_tau0_legacy_commission",
+            Path(__file__).resolve().parents[1]/"examples"/"capture_physical_tau0.py",
+        )
+        module=importlib.util.module_from_spec(spec); spec.loader.exec_module(module)
+
+        class NoTouch(FakePhysicalWindowDriver):
+            def __init__(self):
+                super().__init__(co2_ppm=1400,measured_feedback=True)
+                self.readiness_called=False
+                self.commanded=False
+            def physical_readiness(self):
+                self.readiness_called=True
+                return {
+                    "capture_preconditions":True,
+                    "hardware_identity":_hardware_identity("same"),
+                    "registry_bound_sensors":{"co2_ppm":True,"rain":True},
+                    "site_bound_sensors":{"co2_ppm":True,"rain":True},
+                    "reasons":[],
+                }
+            def set_position(self,opening_id,target_pct):
+                self.commanded=True
+                return super().set_position(opening_id,target_pct)
+
+        driver=NoTouch()
+        with tempfile.TemporaryDirectory() as d:
+            bundle=Path(d)/"commission.json"
+            bundle.write_text(json.dumps({
+                "schema_version":"0.2",
+                "status":"PASS",
+                "hardware_identity":_hardware_identity("same"),
+                "preflight":{
+                    "receipt_sha256":"a"*64,
+                    "hardware_identity_sha256":"same",
+                    "gateway_contract_sha256":"b"*64,
+                },
+            }))
+            with self.assertRaisesRegex(RuntimeError,"schema must be >=0.3"):
+                module.capture_physical_tau0(
+                    driver=driver,
+                    opening_id="w1",
+                    topology_id="physical-test",
+                    steps=1,
+                    out=Path(d)/"tau.jsonl",
+                    receipt=Path(d)/"receipt.json",
+                    commission_bundle=bundle,
+                )
+        self.assertFalse(driver.readiness_called)
+        self.assertFalse(driver.commanded)
+
     def test_physical_capture_rejects_commissioned_runtime_identity_mismatch_before_command(self):
         spec=importlib.util.spec_from_file_location(
             "capture_physical_tau0_identity",
