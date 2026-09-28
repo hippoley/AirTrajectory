@@ -12,7 +12,7 @@ from airtrajectory import (
 )
 
 
-from airtrajectory.physical import DriverCapabilities, PhysicalWindowEnvironment, RulePolicy, SafetyResolver, record_physical_trajectory, validate_physical_tau0
+from airtrajectory.physical import DriverCapabilities, PhysicalWindowEnvironment, RulePolicy, SafetyResolver, Tau0ProbePolicy, record_physical_trajectory, validate_physical_tau0
 from airtrajectory.drivers import FakePhysicalWindowDriver, WindowPilotHTTPDriver
 from airtrajectory.api import fork_request
 from airtrajectory.telemetry import DecisionTelemetry
@@ -837,6 +837,7 @@ class CoreTests(unittest.TestCase):
                 return DriverCapabilities("external-test-contract",False,True,("co2","rain"))
         identity=_hardware_identity("same-hardware")
         behavior=_commissioning_behavior()
+        policy=Tau0ProbePolicy("w1")
         env=PhysicalWindowEnvironment(
             ContractReal(
                 co2_ppm=1400,
@@ -848,9 +849,11 @@ class CoreTests(unittest.TestCase):
         )
         with tempfile.TemporaryDirectory() as d:
             trajectory=record_physical_trajectory(
-                env,RulePolicy("w1"),SafetyResolver(),"physical-contract",
+                env,policy,SafetyResolver(),"physical-contract",
                 TrajectoryStore(Path(d)/"tau0.jsonl"),
+                steps=2,
                 context_extra={
+                    "tau0_capture_policy":policy.capture_policy(),
                     "commissioning_identity_sha256":"same-hardware",
                     "commissioning_hardware_identity":identity,
                     "runtime_hardware_identity":identity,
@@ -865,6 +868,18 @@ class CoreTests(unittest.TestCase):
             )
         report=validate_physical_tau0(trajectory)
         self.assertTrue(report.valid_tau0,report.reasons)
+        self.assertEqual(
+            [s.executed_actions[0].target_pct for s in trajectory.steps],
+            [5.0,0.0],
+        )
+        self.assertEqual(
+            trajectory.context["reset_info"]["initial_position_feedback"]["measured_position_pct"],
+            0.0,
+        )
+        self.assertEqual(
+            trajectory.steps[-1].actuator_feedback[-1].measured_position_pct,
+            0.0,
+        )
 
     def test_tau0_audit_rejects_missing_commissioning_identity(self):
         class ContractReal(FakePhysicalWindowDriver):
