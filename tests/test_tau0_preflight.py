@@ -121,6 +121,13 @@ def _readiness(overrides=None):
         "physical_write_ready":True,
         "write_blockers":[],
         "hardware_identity":identity,
+        "latest_position_feedback":{
+            "position_pct":0.0,
+            "timestamp":199.0,
+            "measured":True,
+            "quality":"encoder-measured",
+            "source":"CWDS-CA01",
+        },
         "registry_bound_sensors":{"co2_ppm":True,"rain":True},
         "site_bound_sensors":{"co2_ppm":True,"rain":True},
         "sensor_evidence_lineage":{
@@ -185,6 +192,18 @@ class PhysicalTau0PreflightTests(unittest.TestCase):
         self.assertEqual(receipt["commissioning_identity_sha256"],"same-hardware")
         self.assertEqual(receipt["runtime_hardware_identity"]["identity_sha256"],"same-hardware")
         self.assertEqual(receipt["sensor_evidence_origin"],"runtime-measured-lineage")
+        self.assertEqual(receipt["baseline_position_feedback"]["position_pct"],0.0)
+        self.assertEqual(receipt["position_tolerance_pct"],1.0)
+
+    def test_open_baseline_is_rejected_before_motion_boundary(self):
+        readiness=_readiness()
+        readiness["latest_position_feedback"]["position_pct"]=4.0
+        with tempfile.TemporaryDirectory() as d:
+            with self.assertRaisesRegex(RuntimeError,"initially closed window"):
+                validate_physical_tau0_preconditions(
+                    driver=FakeDriver(readiness=readiness),
+                    commission_bundle=self._write_bundle(d),
+                )
 
     def test_write_gate_must_be_ready_even_when_capture_preconditions_pass(self):
         readiness=_readiness({
