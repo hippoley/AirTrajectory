@@ -44,6 +44,7 @@ class SafetyResolver:
         return SafetyDecision(proposed,list(proposed))
 
 class RulePolicy:
+    policy_id="rule-policy-v1"
     def __init__(self, opening_id: str, high_co2=1200, low_co2=800):
         self.opening_id,self.high_co2,self.low_co2=opening_id,high_co2,low_co2
     def semantic_action(self, observation):
@@ -57,6 +58,52 @@ class RulePolicy:
             return []
         target=observation.get("opening_pct") if a.command=="HOLD" else a.value
         return [TransitionAction(self.opening_id,float(target))]
+
+class Tau0ProbePolicy:
+    """One bounded reality-contact action; safe closeout is handled separately."""
+
+    policy_id="physical-tau0-probe-v1"
+
+    def __init__(
+        self,
+        opening_id: str,
+        target_pct: float=5.0,
+        minimum_reality_delta_pct: float=2.0,
+        position_tolerance_pct: float=1.0,
+    ):
+        target=float(target_pct)
+        min_delta=float(minimum_reality_delta_pct)
+        tolerance=float(position_tolerance_pct)
+        if not 0 < target <= 5.0:
+            raise ValueError("tau0 target_pct must be >0 and <=5%")
+        if not 0 < min_delta <= target:
+            raise ValueError("tau0 minimum_reality_delta_pct must be >0 and <= target")
+        if not 0 <= tolerance <= 1.0:
+            raise ValueError("tau0 position_tolerance_pct must be in [0,1]")
+        self.opening_id=opening_id
+        self.target_pct=target
+        self.minimum_reality_delta_pct=min_delta
+        self.position_tolerance_pct=tolerance
+
+    def capture_policy(self):
+        return {
+            "policy_id":self.policy_id,
+            "target_pct":self.target_pct,
+            "max_target_pct":5.0,
+            "minimum_reality_delta_pct":self.minimum_reality_delta_pct,
+            "position_tolerance_pct":self.position_tolerance_pct,
+            "steps":1,
+            "requires_measured_baseline":True,
+            "requires_safe_closeout":True,
+        }
+
+    def semantic_action(self, observation):
+        return SemanticAction(
+            "window",self.opening_id,"TAU0_PROBE_OPEN",self.target_pct
+        )
+
+    def __call__(self, observation):
+        return [TransitionAction(self.opening_id,self.target_pct)]
 
 class PhysicalWindowEnvironment:
     def __init__(
@@ -132,7 +179,8 @@ def record_physical_trajectory(env,policy,resolver,topology_id,store,steps=1,con
     context={"reset_info":reset_info}
     if context_extra:
         context.update(dict(context_extra))
-    trajectory=Trajectory(topology_id=topology_id,policy_id="rule-policy-v1",environment_kind=environment_kind,context=context)
+    policy_id=str(getattr(policy,"policy_id","physical-policy-unknown"))
+    trajectory=Trajectory(topology_id=topology_id,policy_id=policy_id,environment_kind=environment_kind,context=context)
     for index in range(steps):
         semantic=policy.semantic_action(observation);decision=resolver.resolve(observation,policy(observation))
         nxt,reward,terminated,truncated,info=env.step(decision.executed)
@@ -148,6 +196,59 @@ class PhysicalEvidenceReport:
 
 def validate_physical_tau0(trajectory: Trajectory) -> PhysicalEvidenceReport:
     reasons=[]
+    capture_policy=trajectory.context.get("tau0_capture_policy")
+    if not isinstance(capture_policy,dict):
+        reasons.append("trajectory missing tau0 capture policy")
+        capture_policy={}
+    if capture_policy.get("policy_id")!="physical-tau0-probe-v1":
+        reasons.append("trajectory tau0 capture policy is not physical-tau0-probe-v1")
+
+    target_pct=None
+    minimum_reality_delta_pct=None
+    position_tolerance_pct=None
+    try:
+        target_pct=float(capture_policy.get("target_pct"))
+        max_target_pct=float(capture_policy.get("max_target_pct"))
+        minimum_reality_delta_pct=float(capture_policy.get("minimum_reality_delta_pct"))
+        position_tolerance_pct=float(capture_policy.get("position_tolerance_pct"))
+        if not 0 < target_pct <= 5.0:
+            reasons.append("tau0 capture target must be >0 and <=5%")
+        if max_target_pct!=5.0:
+            reasons.append("tau0 capture max_target_pct must remain 5%")
+        if not 0 < minimum_reality_delta_pct <= target_pct:
+            reasons.append("tau0 minimum Reality Delta must be >0 and <= target")
+        if not 0 <= position_tolerance_pct <= 1.0:
+            reasons.append("tau0 position tolerance must be in [0,1]%")
+        if int(capture_policy.get("steps") or 0)!=1:
+            reasons.append("tau0 capture policy must require exactly one probe step")
+        if capture_policy.get("requires_safe_closeout") is not True:
+            reasons.append("tau0 capture policy must require safe closeout")
+    except (TypeError,ValueError):
+        reasons.append("trajectory tau0 capture policy has invalid numeric fields")
+
+    baseline=trajectory.context.get("baseline_position_feedback")
+    baseline_position=None
+    baseline_timestamp=None
+    if not isinstance(baseline,dict) or baseline.get("measured") is not True:
+        reasons.append("trajectory missing measured pre-action baseline position")
+    else:
+        try:
+            baseline_position=float(baseline.get("position_pct"))
+            baseline_timestamp=float(baseline.get("timestamp"))
+            context_tolerance=float(trajectory.context.get("position_tolerance_pct"))
+            if baseline_timestamp<=0:
+                reasons.append("trajectory baseline position has no source timestamp")
+            if not 0 <= baseline_position <= 100:
+                reasons.append("trajectory baseline position is outside [0,100]")
+            if baseline_position > context_tolerance:
+                reasons.append("trajectory baseline position is not initially closed")
+            if (
+                position_tolerance_pct is not None
+                and abs(context_tolerance-position_tolerance_pct)>1e-9
+            ):
+                reasons.append("tau0 capture tolerance does not match preflight tolerance")
+        except (TypeError,ValueError):
+            reasons.append("trajectory baseline position evidence is invalid")
     caps=trajectory.context.get("reset_info",{}).get("driver_capabilities",{})
     if trajectory.environment_kind!="physical": reasons.append("trajectory is not marked physical")
     if caps.get("simulated",True): reasons.append("driver is simulated or provenance is missing")
@@ -222,6 +323,10 @@ def validate_physical_tau0(trajectory: Trajectory) -> PhysicalEvidenceReport:
         reasons.append("preflight/commissioning hardware identity mismatch")
     if not gateway_contract:
         reasons.append("trajectory missing gateway contract lineage")
+    if len(trajectory.steps)!=1:
+        reasons.append("physical tau0 trajectory must contain exactly one probe step")
+
+    reality_delta_observed=False
     expected_site_lineage=trajectory.context.get("site_lineage") or {}
     for step in trajectory.steps:
         sensor_types={r.sensor_type for r in step.sensor_readings}
@@ -239,9 +344,39 @@ def validate_physical_tau0(trajectory: Trajectory) -> PhysicalEvidenceReport:
                     f"step {step.index} {reading.sensor_type} evidence belongs to a different physical site contract"
                 )
 
-        if not step.actuator_feedback: reasons.append(f"step {step.index} missing actuator feedback")
+        if target_pct is not None:
+            for action in step.proposed_actions+step.executed_actions:
+                if float(action.target_pct)<0 or float(action.target_pct)>5.0:
+                    reasons.append(f"step {step.index} exceeds bounded tau0 target")
+            if step.executed_actions and any(
+                abs(float(action.target_pct)-target_pct)>1e-9
+                for action in step.executed_actions
+            ):
+                reasons.append(f"step {step.index} executed target does not match tau0 capture policy")
+
+        if not step.actuator_feedback:
+            reasons.append(f"step {step.index} missing actuator feedback")
         elif any(f.measured_position_pct is None for f in step.actuator_feedback):
             reasons.append(f"step {step.index} lacks measured actuator position")
+        elif baseline_position is not None and baseline_timestamp is not None:
+            for feedback in step.actuator_feedback:
+                measured=float(feedback.measured_position_pct)
+                if feedback.timestamp<=baseline_timestamp:
+                    reasons.append(f"step {step.index} actuator feedback is not newer than baseline")
+                delta=measured-baseline_position
+                if (
+                    minimum_reality_delta_pct is not None
+                    and delta >= minimum_reality_delta_pct
+                ):
+                    reality_delta_observed=True
+                if (
+                    target_pct is not None
+                    and position_tolerance_pct is not None
+                    and abs(measured-target_pct)>position_tolerance_pct
+                ):
+                    reasons.append(
+                        f"step {step.index} measured position does not reach bounded tau0 target"
+                    )
 
         next_types={r.sensor_type for r in step.next_sensor_readings}
         if "co2" not in next_types: reasons.append(f"step {step.index} missing post-action CO2 evidence")
@@ -262,4 +397,6 @@ def validate_physical_tau0(trajectory: Trajectory) -> PhysicalEvidenceReport:
             feedback_ts=max(f.timestamp for f in step.actuator_feedback)
             if any(r.sensor_type in ("co2","rain") and r.timestamp <= feedback_ts for r in step.next_sensor_readings):
                 reasons.append(f"step {step.index} post-action sensor evidence is not newer than actuator feedback")
+    if not reality_delta_observed:
+        reasons.append("physical tau0 did not produce required positive measured Reality Delta")
     return PhysicalEvidenceReport(not reasons,tuple(reasons))
