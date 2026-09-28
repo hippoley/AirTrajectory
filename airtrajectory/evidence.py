@@ -122,6 +122,10 @@ def verify_physical_tau0_artifacts(*, trajectory_path, receipt_path, commission_
                 reasons.append("tau0 receipt start tolerance must be in [0,1]%")
             if not 0 < capture_min_delta <= capture_target:
                 reasons.append("tau0 receipt minimum Reality Delta must be >0 and <= target")
+            if int(receipt_capture_policy.get("steps") or 0)!=2:
+                reasons.append("tau0 receipt capture policy must require exactly two steps")
+            if receipt_capture_policy.get("requires_final_closed") is not True:
+                reasons.append("tau0 receipt capture policy must require final closed state")
         except (TypeError,ValueError):
             reasons.append("tau0 receipt capture policy has invalid numeric fields")
 
@@ -381,9 +385,12 @@ def verify_physical_tau0_artifacts(*, trajectory_path, receipt_path, commission_
                 reasons.append("persisted trajectory step count does not match tau0 receipt")
             if not steps:
                 reasons.append("persisted trajectory has no steps")
+            if len(steps)!=2:
+                reasons.append("persisted physical tau0 must contain exactly two steps")
 
             max_measured_delta=0.0
             reality_delta_observed=False
+            final_measured_position=None
             for index,step in enumerate(steps):
                 actions=list(step.get("proposed_actions") or [])+list(step.get("executed_actions") or [])
                 for action in actions:
@@ -396,6 +403,23 @@ def verify_physical_tau0_artifacts(*, trajectory_path, receipt_path, commission_
                         continue
                     if target < 0 or target > 5.0:
                         reasons.append(f"step {index} exceeds bounded tau0 target")
+
+                executed=[
+                    item for item in (step.get("executed_actions") or [])
+                    if isinstance(item,dict)
+                ]
+                expected_target=capture_target if index==0 else 0.0
+                if executed and expected_target is not None:
+                    for action in executed:
+                        try:
+                            actual=float(action.get("target_pct"))
+                        except (TypeError,ValueError):
+                            continue
+                        if abs(actual-float(expected_target))>1e-9:
+                            reasons.append(
+                                f"step {index} tau0 target sequence mismatch; "
+                                f"expected {float(expected_target):.1f}%"
+                            )
 
                 pre_rows=[
                     item for item in (step.get("sensor_readings") or [])
@@ -435,6 +459,8 @@ def verify_physical_tau0_artifacts(*, trajectory_path, receipt_path, commission_
                                 and delta >= capture_min_delta
                             ):
                                 reality_delta_observed=True
+                            if index==len(steps)-1:
+                                final_measured_position=float(measured)
 
                 post_rows=[
                     item for item in (step.get("next_sensor_readings") or [])
@@ -463,6 +489,16 @@ def verify_physical_tau0_artifacts(*, trajectory_path, receipt_path, commission_
                 )
                 reasons.append(
                     "persisted physical tau0 has no required measured Reality Delta"+detail
+                )
+            if final_measured_position is None:
+                reasons.append("persisted physical tau0 missing final measured closeout position")
+            elif (
+                capture_start_tolerance is not None
+                and final_measured_position > capture_start_tolerance
+            ):
+                reasons.append(
+                    "persisted physical tau0 did not restore closed state; "
+                    f"final {final_measured_position:.3f}%"
                 )
         except Exception as exc:
             reasons.append(f"cannot validate persisted trajectory: {exc}")
