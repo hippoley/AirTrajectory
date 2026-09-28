@@ -85,6 +85,8 @@ The layout schema now also accepts optional physical geometry without fabricatin
 
 Once metric inputs are complete, `airtrajectory.contam_ir.compile_contam_ir()` turns the spatial plan into a CONTAM-oriented symbolic IR. It creates stable `zone:*`, `wall:*`, `path:*`, `control:*`, and `ambient:OUTSIDE` identities, distinguishes exterior ambient paths from internal zone-to-zone paths, and carries metric opening placement into the physics boundary. Numeric CONTAM zone/path/control IDs, airflow-element selection, wind/weather profiles, contaminant definitions, and PRJ serialization remain explicitly reserved for the writer layer.
 
+The next writer boundary is now partially implemented by `airtrajectory.contam_allocator.allocate_contam_ids()`. It assigns deterministic 1-based numeric IDs by lexicographically sorting symbolic keys, so source JSON ordering does not affect the generated mapping. The allocator emits a `mapping_sha256` for replay/audit, and moving a door or window preserves its numeric path/control identity as long as the symbolic topology identity is unchanged. Airflow-element binding, weather/contaminant configuration, and actual PRJ serialization remain reserved.
+
 ## Verified capability matrix
 
 | Capability | Status | Evidence boundary |
@@ -92,7 +94,8 @@ Once metric inputs are complete, `airtrajectory.contam_ir.compile_contam_ir()` t
 | Fixed layout → UI / trajectory contract | ✅ verified | one `home_topology.fixed.json`; room/wall geometry locked, window/door wall position editable |
 | Layout → spatial compile plan | ✅ verified | `position_t` resolves to deterministic wall anchors; path/control identities remain stable across moves |
 | Spatial plan → CONTAM IR | ✅ verified | metric-ready layouts compile into stable symbolic zones/paths/controls/ambient boundaries |
-| CONTAM IR → PRJ | 🟡 reserved | numeric ID assignment, airflow elements, weather/contaminants, and serialization remain unimplemented |
+| CONTAM IR → deterministic writer manifest | ✅ verified | symbolic zones/paths/controls receive stable 1-based numeric IDs with mapping SHA-256 |
+| Writer manifest → PRJ | 🟡 reserved | airflow elements, weather/contaminants, and serialization remain unimplemented |
 | Multi-room / multi-window scenario simulator | ✅ verified | deterministic toy/surrogate physics; not engineering truth |
 | Agent → safety gate → executed action → reward → trajectory | ✅ verified | proposed/executed/intervention are preserved |
 | Behavior Cloning baseline | ✅ verified | topology-local discrete policy trained from behavior rows |
