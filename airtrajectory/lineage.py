@@ -161,3 +161,18 @@ def sensor_binding_valid(provenance) -> bool:
         if key in SENSOR_HASH_FIELDS and not is_sha256(value):
             return False
     return True
+
+
+def sensor_binding_matches_site(provenance, site_lineage) -> bool:
+    """Verify a sensor binding belongs to the commissioned deployment.
+
+    Sensor instances may differ from the window instance, so this compares the
+    shared site contract rather than requiring the same device_instance_id.
+    """
+    if not sensor_binding_valid(provenance) or not isinstance(site_lineage,dict):
+        return False
+    return (
+        provenance.get("site_id")==site_lineage.get("site_id")
+        and provenance.get("site_manifest_sha256")==site_lineage.get("site_manifest_sha256")
+        and provenance.get("site_contract_sha256")==site_lineage.get("site_contract_sha256")
+    )
