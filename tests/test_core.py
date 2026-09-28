@@ -304,13 +304,13 @@ class CoreTests(unittest.TestCase):
                 receipt=receipt,
                 commission_bundle=bundle,
             )
+            persisted=json.loads((root/"tau.jsonl").read_text().strip())
 
         self.assertTrue(result["valid_tau0"],result["reasons"])
         self.assertEqual(
             result["tau0_capture_policy"]["policy_id"],
             "physical-tau0-probe-v1",
         )
-        persisted=json.loads((root/"tau.jsonl").read_text().strip())
         self.assertEqual(
             persisted["steps"][0]["executed_actions"][0]["target_pct"],
             5.0,
