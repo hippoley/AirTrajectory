@@ -156,19 +156,25 @@ function velocity(x,y,p){
   const curlY=-Math.cos(x*.010-t+p.seed*.025)*.045+Math.cos((x-y)*.004+t)*.02;
   return[shaped[0]+curlX*(.22+mag*.06),shaped[1]+curlY*(.22+mag*.06)];
 }
+function segmentIntersection(a,b,c,d){
+  const r={x:b.x-a.x,y:b.y-a.y},s={x:d.x-c.x,y:d.y-c.y},cross=(u,v)=>u.x*v.y-u.y*v.x,den=cross(r,s);
+  if(Math.abs(den)<1e-9)return null;
+  const q={x:c.x-a.x,y:c.y-a.y},t=cross(q,s)/den,u=cross(q,r)/den;
+  if(t<0||t>1||u<0||u>1)return null;
+  return{x:a.x+r.x*t,y:a.y+r.y*t,t,u};
+}
 function crossesSolidWall(x0,y0,x1,y1){
-  // Shared vertical wall: living <-> bedroom. Only D1 is permeable.
-  if((x0<530&&x1>=530)||(x0>530&&x1<=530)){
-    const t=(530-x0)/(x1-x0),y=y0+(y1-y0)*t;
-    if(y>=120&&y<=370 && !(Math.abs(y-260)<=34 && openings.find(o=>o.id==="D1")?.open>.03))return true;
-  }
-  // Shared horizontal wall at y=370. D2 connects living <-> study only.
-  if((y0<370&&y1>=370)||(y0>370&&y1<=370)){
-    const t=(370-y0)/(y1-y0),x=x0+(x1-x0)*t;
-    if(x>=350&&x<=830){
-      const throughD2=x<=530&&Math.abs(x-440)<=34&&openings.find(o=>o.id==="D2")?.open>.03;
-      if(!throughD2)return true;
-    }
+  for(const wall of walls){
+    if(wall.kind!=="internal")continue;
+    const hit=segmentIntersection(
+      {x:x0,y:y0},{x:x1,y:y1},
+      {x:wall.x1,y:wall.y1},{x:wall.x2,y:wall.y2}
+    );
+    if(!hit)continue;
+    const passable=openings.some(o=>
+      o.wallId===wall.id&&o.open>.03&&Math.hypot(o.x-hit.x,o.y-hit.y)<=34
+    );
+    if(!passable)return true;
   }
   return false;
 }
@@ -221,29 +227,21 @@ function renderInspector(){
 }
 function room(id){return rooms.find(r=>r.id===id)}
 function wallSegment(id){
-  const l=room("living"),b=room("bedroom"),s=room("study");
-  if(id==="living-west")return{x1:l.x,y1:l.y,x2:l.x,y2:l.y+l.h};
-  if(id==="bedroom-east")return{x1:b.x+b.w,y1:b.y,x2:b.x+b.w,y2:b.y+b.h};
-  if(id==="study-south")return{x1:s.x,y1:s.y+s.h,x2:s.x+s.w,y2:s.y+s.h};
-  if(id==="living-bedroom")return{x1:l.x+l.w,y1:Math.max(l.y,b.y),x2:l.x+l.w,y2:Math.min(l.y+l.h,b.y+b.h)};
-  if(id==="living-study"){const x1=Math.max(l.x,s.x),x2=Math.min(l.x+l.w,s.x+s.w);return{x1,y1:l.y+l.h,x2,y2:l.y+l.h}}
-  return null;
+  const w=walls.find(w=>w.id===id);
+  return w?{x1:w.x1,y1:w.y1,x2:w.x2,y2:w.y2,kind:w.kind,source:w.source,target:w.target}:null;
 }
 function syncOpeningGeometry(o){
   const w=wallSegment(o.wallId);if(!w)return;
   o.x=w.x1+(w.x2-w.x1)*o.t;o.y=w.y1+(w.y2-w.y1)*o.t;
 }
 function syncAllOpeningGeometry(){openings.forEach(syncOpeningGeometry)}
-function hitSharedWall(x,y){const w=wallSegment("living-bedroom");return !!w&&Math.abs(x-w.x1)<12&&y>=w.y1+38&&y<=w.y2-38}
-function resizeLivingBedroomWall(x){
-  const living=room("living"),bed=room("bedroom"),left=living.x,right=bed.x+bed.w,minW=220;
-  const split=Math.max(left+minW,Math.min(right-minW,x));
-  living.w=split-left;bed.x=split;bed.w=right-split;
-  syncAllOpeningGeometry();
+function floorplanEditReserved(){
+  return topologyCapabilities.floorplan_geometry_editable===true;
 }
 function canvasPoint(e){const rect=canvas.getBoundingClientRect();return{x:(e.clientX-rect.left)*canvas.width/rect.width,y:(e.clientY-rect.top)*canvas.height/rect.height}}
 function hitOpening(x,y){let hit=null,dist=Infinity;for(const o of openings){const d=Math.hypot(o.x-x,o.y-y);if(d<dist&&d<55){hit=o;dist=d}}return hit}
 function constrainOpeningToWall(o,x,y){
+  if(!topologyCapabilities.opening_position_editable||o.positionEditable!==true)return;
   const w=wallSegment(o.wallId);if(!w)return;
   const dx=w.x2-w.x1,dy=w.y2-w.y1,len2=dx*dx+dy*dy;
   const raw=len2?((x-w.x1)*dx+(y-w.y1)*dy)/len2:.5;
@@ -251,7 +249,7 @@ function constrainOpeningToWall(o,x,y){
   o.t=Math.max(margin,Math.min(1-margin,raw));syncOpeningGeometry(o);
 }
 function selectOpening(id){selectedOpening=id;document.querySelector("#selectedOpening").textContent=id+" · BACKEND FLOW";renderInspector()}
-function cycleOpening(id){const o=openings.find(x=>x.id===id);if(!o)return;o.open=(((Math.round(o.open*4)+1)%5)/4);renderInspector();invalidateTrajectory(id+" → "+Math.round(o.open*100)+"%") }
+function cycleOpening(id){const o=openings.find(x=>x.id===id);if(!o||!topologyCapabilities.opening_state_editable||o.stateEditable!==true)return;o.open=(((Math.round(o.open*4)+1)%5)/4);renderInspector();invalidateTrajectory(id+" → "+Math.round(o.open*100)+"%") }
 function drawDeadZones(){if(viewMode!=="dead")return;for(const r of rooms){for(let y=r.y+24;y<r.y+r.h-16;y+=30)for(let x=r.x+24;x<r.x+r.w-16;x+=30){const q={seed:0},v=backendVelocity(x,y)||flowAt(x,y,q),s=Math.hypot(...v);if(s<.48){ctx.strokeStyle="rgba(132,91,91,.18)";ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(x-6,y+6);ctx.lineTo(x+6,y-6);ctx.stroke()}}}}
 function drawPlan(){ctx.fillStyle="#080c0e";ctx.fillRect(0,0,1100,650);ctx.strokeStyle="#172126";ctx.lineWidth=1;for(let x=0;x<1100;x+=25){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,650);ctx.stroke()}for(let y=0;y<650;y+=25){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(1100,y);ctx.stroke()}for(const r of rooms){ctx.fillStyle="#0f1619";ctx.fillRect(r.x,r.y,r.w,r.h);ctx.strokeStyle="#6f8086";ctx.lineWidth=3;ctx.strokeRect(r.x,r.y,r.w,r.h);ctx.fillStyle="#728187";ctx.font="600 11px ui-monospace";ctx.fillText(r.name,r.x+14,r.y+22)}drawDeadZones();for(const o of openings){ctx.strokeStyle=o.open>.05?"#dce7e9":"#664f4f";ctx.lineWidth=8;ctx.beginPath();if(o.side==="bottom"||o.side==="internal-horizontal"){ctx.moveTo(o.x-32,o.y);ctx.lineTo(o.x+32,o.y)}else{ctx.moveTo(o.x,o.y-32);ctx.lineTo(o.x,o.y+32)}ctx.stroke();ctx.fillStyle="#9aa8ad";ctx.font="9px ui-monospace";ctx.fillText(o.id+" "+Math.round(o.open*100)+"%",o.x+9,o.y-38)}}
 function drawCo2Overlay(){
