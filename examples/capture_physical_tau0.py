@@ -53,8 +53,8 @@ def capture_physical_tau0(
     )
     context_extra={key:preflight[key] for key in _CONTEXT_KEYS}
 
-    if steps!=1:
-        raise RuntimeError("physical tau0 capture must contain exactly one bounded probe step")
+    if steps!=2:
+        raise RuntimeError("physical tau0 capture must contain exactly two reversible probe steps")
 
     policy=Tau0ProbePolicy(opening_id)
     context_extra["tau0_capture_policy"]=policy.capture_policy()
@@ -95,7 +95,7 @@ def main(argv=None):
     parser.add_argument("--windowpilot",default="http://127.0.0.1:8000")
     parser.add_argument("--opening-id",default="w1")
     parser.add_argument("--topology-id",default="physical-single-window")
-    parser.add_argument("--steps",type=int,default=1)
+    parser.add_argument("--steps",type=int,default=2)
     parser.add_argument("--out",default="artifacts/physical-tau0.jsonl")
     parser.add_argument("--receipt",default="artifacts/physical-tau0-audit.json")
     parser.add_argument(
