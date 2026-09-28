@@ -78,6 +78,37 @@ def _sensor_binding(kind):
     }
 
 
+def _readiness_sensor_lineage(*, probe_labeled=False, timestamp=100.0):
+    co2_sha="c"*64
+    rain_sha="d"*64
+    def entry(kind,runtime_key,contract_sha):
+        binding=_sensor_binding(kind)
+        if probe_labeled:
+            source=f"sensor-read-probe:{contract_sha}"
+            scheme="sensor-read-probe"
+            source_sha=contract_sha
+        else:
+            source=f"runtime-{kind}-sensor"
+            scheme="measured-runtime-source"
+            source_sha=None
+        return {
+            "timestamp":float(timestamp),
+            "quality":"measured",
+            "source":source,
+            "source_scheme":scheme,
+            "source_contract_sha256":source_sha,
+            "measured":True,
+            "fresh":True,
+            "registry_bound":True,
+            "site_bound":True,
+            "thingmodel_binding":binding,
+        }
+    return {
+        "co2_ppm":entry("co2","co2_ppm",co2_sha),
+        "rain":entry("rain","rain",rain_sha),
+    }
+
+
 def _acceptance_policy():
     return {
         "max_first_excursion_pct":5.0,
@@ -172,6 +203,7 @@ class CoreTests(unittest.TestCase):
                     "hardware_identity":_hardware_identity("same"),
                     "registry_bound_sensors":{"co2_ppm":True,"rain":True},
                     "site_bound_sensors":{"co2_ppm":True,"rain":True},
+                    "sensor_evidence_lineage":_readiness_sensor_lineage(),
                     "reasons":[],
                 }
         driver=CommissionedFake(co2_ppm=1400,measured_feedback=True)
@@ -217,6 +249,7 @@ class CoreTests(unittest.TestCase):
                     "hardware_identity":_hardware_identity("same"),
                     "registry_bound_sensors":{"co2_ppm":True,"rain":True},
                     "site_bound_sensors":{"co2_ppm":True,"rain":True},
+                    "sensor_evidence_lineage":_readiness_sensor_lineage(),
                     "reasons":[],
                 }
             def set_position(self,opening_id,target_pct):
@@ -267,6 +300,7 @@ class CoreTests(unittest.TestCase):
                     "hardware_identity":_hardware_identity("runtime-B"),
                     "registry_bound_sensors":{"co2_ppm":True,"rain":True},
                     "site_bound_sensors":{"co2_ppm":True,"rain":True},
+                    "sensor_evidence_lineage":_readiness_sensor_lineage(),
                     "reasons":[],
                 }
             def set_position(self,opening_id,target_pct):
