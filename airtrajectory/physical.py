@@ -26,6 +26,9 @@ class PhysicalWindowDriver(ABC):
     def set_position(self, opening_id: str, target_pct: float) -> ActuatorFeedback: ...
     @abstractmethod
     def capabilities(self) -> DriverCapabilities: ...
+    def read_position_feedback(self, opening_id: str) -> Optional[ActuatorFeedback]:
+        """Optional zero-motion measured position snapshot."""
+        return None
 
 @dataclass(frozen=True)
 class SafetyDecision:
@@ -112,7 +115,17 @@ class PhysicalWindowEnvironment:
         raise RuntimeError("post-action sensor timeout: "+last_reason)
     def reset(self):
         caps=self.driver.capabilities()
-        return self._observe(),{"backend":"physical-window","driver":type(self.driver).__name__,"driver_capabilities":asdict(caps),"evidence_kind":"synthetic" if caps.simulated else "physical"}
+        initial_feedback=self.driver.read_position_feedback(self.opening_id)
+        if initial_feedback is not None:
+            self._validate_feedback(initial_feedback)
+            self.last_feedback=initial_feedback
+        return self._observe(),{
+            "backend":"physical-window",
+            "driver":type(self.driver).__name__,
+            "driver_capabilities":asdict(caps),
+            "initial_position_feedback":None if initial_feedback is None else asdict(initial_feedback),
+            "evidence_kind":"synthetic" if caps.simulated else "physical",
+        }
     def step(self, actions):
         feedback=[]
         for a in actions:
