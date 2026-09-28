@@ -46,6 +46,11 @@ class OpeningPlacement:
     wall_length_source_units: float
     max_area_m2: float
     controllable: bool
+    wall_length_m: float|None
+    wall_azimuth_deg: float|None
+    width_m: float|None
+    height_m: float|None
+    sill_height_m: float|None
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -66,6 +71,17 @@ class OpeningPlacement:
             },
             "max_area_m2": self.max_area_m2,
             "controllable": self.controllable,
+            "metric": {
+                "wall_length_m": self.wall_length_m,
+                "wall_azimuth_deg": self.wall_azimuth_deg,
+                "distance_along_wall_m": (
+                    None if self.wall_length_m is None
+                    else self.wall_length_m * self.position_t
+                ),
+                "width_m": self.width_m,
+                "height_m": self.height_m,
+                "sill_height_m": self.sill_height_m,
+            },
             "path_key": f"path:{self.id}",
             "control_key": f"control:{self.id}" if self.controllable else None,
         }
@@ -116,6 +132,11 @@ def _placement(
         wall_length_source_units=math.hypot(dx, dy),
         max_area_m2=opening.max_area_m2,
         controllable=opening.state_editable,
+        wall_length_m=wall.length_m,
+        wall_azimuth_deg=wall.azimuth_deg,
+        width_m=opening.width_m,
+        height_m=opening.height_m,
+        sill_height_m=opening.sill_height_m,
     )
 
 
@@ -166,6 +187,34 @@ def compile_spatial_plan(
         else "source-defined"
     )
 
+    missing_wall_fields = {
+        wall.id: [
+            field
+            for field in _REQUIRED_METRIC_WALL_FIELDS
+            if getattr(wall, field) is None
+        ]
+        for wall in layout.walls
+    }
+    missing_wall_fields = {
+        wall_id: fields
+        for wall_id, fields in missing_wall_fields.items()
+        if fields
+    }
+    missing_opening_fields = {
+        opening.id: [
+            field
+            for field in _REQUIRED_METRIC_OPENING_FIELDS
+            if getattr(opening, field) is None
+        ]
+        for opening in layout.openings
+    }
+    missing_opening_fields = {
+        opening_id: fields
+        for opening_id, fields in missing_opening_fields.items()
+        if fields
+    }
+    metric_geometry_ready = not missing_wall_fields and not missing_opening_fields
+
     return {
         "schema_version": "0.1",
         "compiler": "spatial-plan",
@@ -173,7 +222,7 @@ def compile_spatial_plan(
         "topology_id": layout.topology_id,
         "layout_contract_sha256": layout.sha256(),
         "coordinate_space": coordinate_space,
-        "metric_geometry_ready": False,
+        "metric_geometry_ready": metric_geometry_ready,
         "connectivity_sha256": connectivity_sha256,
         "zones": [
             {
@@ -186,18 +235,15 @@ def compile_spatial_plan(
         "openings": [placement.as_dict() for placement in placements],
         "backend_requirements": {
             "contam": {
-                "missing_metric_opening_fields": list(
-                    _REQUIRED_METRIC_OPENING_FIELDS
-                ),
-                "missing_metric_wall_fields": list(
-                    _REQUIRED_METRIC_WALL_FIELDS
-                ),
+                "metric_inputs_ready": metric_geometry_ready,
+                "missing_metric_opening_fields": missing_opening_fields,
+                "missing_metric_wall_fields": missing_wall_fields,
+                "prj_generation_implemented": False,
                 "prj_generation_ready": False,
                 "reason": (
-                    "current fixed-floorplan wall coordinates are layout/canvas "
-                    "coordinates; normalized placement is valid, but metric "
-                    "opening dimensions/elevation and facade azimuth are not "
-                    "yet present"
+                    "metric geometry is complete; CONTAM PRJ generation is the next gate"
+                    if metric_geometry_ready
+                    else "normalized placement is valid, but metric wall/opening geometry is incomplete"
                 ),
             }
         },
