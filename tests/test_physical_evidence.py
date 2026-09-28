@@ -5,12 +5,13 @@ import unittest
 from pathlib import Path
 
 from airtrajectory.evidence import verify_physical_tau0_artifacts
-from airtrajectory.lineage import require_hardware_thingmodel_lineage
+from airtrajectory.lineage import require_hardware_site_lineage, require_hardware_thingmodel_lineage
 
 
 def _identity(identity_sha="same-hardware"):
     return {
         "identity_sha256":identity_sha,
+        "device_id":"window-device-01",
         "thingmodel_product_model":"CWDS-CA01",
         "thingmodel_product_key":"6nZ1oIh6VNu",
         "thingmodel_version":"v1",
@@ -18,6 +19,15 @@ def _identity(identity_sha="same-hardware"):
         "thingmodel_source_bundle_sha256":"2"*64,
         "thingmodel_registry_sha256":"3"*64,
         "thingmodel_contract_sha256":"4"*64,
+        "site_id":"test.single-room",
+        "room_id":"living",
+        "device_instance_id":"living.window.primary",
+        "site_device_id":"window-device-01",
+        "site_product_model":"CWDS-CA01",
+        "site_product_key":"6nZ1oIh6VNu",
+        "site_manifest_sha256":"8"*64,
+        "site_instance_contract_sha256":"9"*64,
+        "site_contract_sha256":"a"*64,
     }
 
 
@@ -32,6 +42,10 @@ def _binding(kind):
             "source_bundle_sha256":"2"*64,
             "registry_sha256":"3"*64,
             "contract_sha256":"6"*64,
+            "site_id":"test.single-room",
+            "site_instance_id":"living.air.primary",
+            "site_manifest_sha256":"8"*64,
+            "site_contract_sha256":"a"*64,
         }
     return {
         "product_model":"CWDS-CA01",
@@ -42,6 +56,10 @@ def _binding(kind):
         "source_bundle_sha256":"2"*64,
         "registry_sha256":"3"*64,
         "contract_sha256":"7"*64,
+        "site_id":"test.single-room",
+        "site_instance_id":"living.window.primary",
+        "site_manifest_sha256":"8"*64,
+        "site_contract_sha256":"a"*64,
     }
 
 
@@ -70,6 +88,8 @@ class PhysicalArtifactVerifierTests(unittest.TestCase):
                 "commissioning_hardware_identity":identity,
                 "runtime_hardware_identity":identity,
                 "thingmodel_lineage":require_hardware_thingmodel_lineage(identity),
+            "site_lineage":require_hardware_site_lineage(identity),
+                "site_lineage":require_hardware_site_lineage(identity),
                 "commissioning_bundle_sha256":commission_sha,
                 "preflight_receipt_sha256":"a"*64,
                 "preflight_hardware_identity_sha256":"same-hardware",
@@ -144,6 +164,10 @@ class PhysicalArtifactVerifierTests(unittest.TestCase):
         self.assertEqual(
             report["thingmodel_lineage"]["thingmodel_product_model"],
             "CWDS-CA01",
+        )
+        self.assertEqual(
+            report["site_lineage"]["device_instance_id"],
+            "living.window.primary",
         )
 
     def test_tampered_trajectory_is_rejected(self):
@@ -228,6 +252,29 @@ class PhysicalArtifactVerifierTests(unittest.TestCase):
             )
         self.assertFalse(report["valid_artifacts"])
         self.assertTrue(any("ThingModel provenance" in reason for reason in report["reasons"]))
+
+    def test_site_lineage_mismatch_is_rejected(self):
+        with tempfile.TemporaryDirectory() as d:
+            root=Path(d)
+            bundle=root/"bringup.json"
+            trajectory=root/"tau0.jsonl"
+            receipt=root/"audit.json"
+            self._make_bundle(bundle)
+            commission_sha=hashlib.sha256(bundle.read_bytes()).hexdigest()
+            self._make_trajectory(trajectory,commission_sha)
+            payload=self._make_receipt(receipt,trajectory,commission_sha)
+            payload["runtime_hardware_identity"]["device_instance_id"]="bedroom.window.primary"
+            receipt.write_text(json.dumps(payload),encoding="utf-8")
+            report=verify_physical_tau0_artifacts(
+                trajectory_path=trajectory,
+                receipt_path=receipt,
+                commission_bundle_path=bundle,
+            )
+        self.assertFalse(report["valid_artifacts"])
+        self.assertTrue(any(
+            "physical-site lineage" in reason or "site" in reason
+            for reason in report["reasons"]
+        ))
 
     def test_missing_artifact_fails_closed(self):
         with tempfile.TemporaryDirectory() as d:
