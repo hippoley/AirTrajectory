@@ -880,6 +880,16 @@ class CoreTests(unittest.TestCase):
             trajectory.steps[-1].actuator_feedback[-1].measured_position_pct,
             0.0,
         )
+        rows=list(audited_physical_transition_rows(trajectory))
+        self.assertEqual(len(rows),2)
+        self.assertEqual(
+            rows[0]["tau0_capture_policy"]["policy_id"],
+            "physical-tau0-probe-v1",
+        )
+        self.assertEqual(
+            rows[0]["initial_position_feedback"]["measured_position_pct"],
+            0.0,
+        )
 
     def test_tau0_audit_rejects_stuck_actuator_zero_reality_delta(self):
         class StuckReal(FakePhysicalWindowDriver):
