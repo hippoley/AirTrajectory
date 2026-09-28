@@ -6,7 +6,7 @@ from pathlib import Path
 
 from airtrajectory.drivers import WindowPilotHTTPDriver
 from airtrajectory.physical import (
-    PhysicalWindowEnvironment, RulePolicy, SafetyResolver,
+    PhysicalWindowEnvironment, SafetyResolver, Tau0ProbePolicy,
     record_physical_trajectory, validate_physical_tau0,
 )
 from airtrajectory.tau0_preflight import validate_physical_tau0_preconditions
@@ -53,9 +53,14 @@ def capture_physical_tau0(
     )
     context_extra={key:preflight[key] for key in _CONTEXT_KEYS}
 
+    if steps!=1:
+        raise RuntimeError("physical tau0 capture must contain exactly one bounded probe step")
+
+    policy=Tau0ProbePolicy(opening_id)
+    context_extra["tau0_capture_policy"]=policy.capture_policy()
     env=PhysicalWindowEnvironment(driver,opening_id,require_measured_feedback=True)
     trajectory=record_physical_trajectory(
-        env,RulePolicy(opening_id),SafetyResolver(),
+        env,policy,SafetyResolver(),
         topology_id,TrajectoryStore(out),steps=steps,
         context_extra=context_extra,
     )
