@@ -211,13 +211,36 @@ class PhysicalArtifactVerifierTests(unittest.TestCase):
     def _behavior(self,bundle):
         return require_commissioning_behavior(bundle)
 
+    def _tau0_policy(self):
+        return {
+            "policy_id":"physical-tau0-probe-v1",
+            "target_pct":5.0,
+            "max_target_pct":5.0,
+            "start_tolerance_pct":1.0,
+            "minimum_reality_delta_pct":2.0,
+            "steps":2,
+            "requires_measured_pre_action_position":True,
+            "requires_final_closed":True,
+        }
+
     def _make_trajectory(self,path,commission_sha,behavior):
         identity=_identity()
         sensor_evidence=_sensor_evidence(commission_sha)
+        policy=self._tau0_policy()
         payload={
             "id":"trajectory-1",
             "environment_kind":"physical",
             "context":{
+                "reset_info":{
+                    "initial_position_feedback":{
+                        "actuator_id":"w1",
+                        "timestamp":99.0,
+                        "measured_position_pct":0.0,
+                        "estimated_position_pct":None,
+                        "quality":"measured",
+                    },
+                },
+                "tau0_capture_policy":policy,
                 "commissioning_identity_sha256":"same-hardware",
                 "commissioning_hardware_identity":identity,
                 "runtime_hardware_identity":identity,
@@ -234,31 +257,38 @@ class PhysicalArtifactVerifierTests(unittest.TestCase):
                 "sensor_staging_lineage":sensor_evidence["sensor_staging_lineage"],
                 "sensor_evidence_sha256":sensor_evidence["sensor_evidence_sha256"],
             },
-            "steps":[{
-                "sensor_readings":[
-                    {
-                        "sensor_type":"co2","timestamp":100.0,
-                        "provenance":_binding("co2"),
-                    },
-                    {
-                        "sensor_type":"rain","timestamp":100.0,
-                        "provenance":_binding("rain"),
-                    },
-                ],
-                "actuator_feedback":[
-                    {"timestamp":101.0,"measured_position_pct":5.0}
-                ],
-                "next_sensor_readings":[
-                    {
-                        "sensor_type":"co2","timestamp":102.0,
-                        "provenance":_binding("co2"),
-                    },
-                    {
-                        "sensor_type":"rain","timestamp":102.0,
-                        "provenance":_binding("rain"),
-                    },
-                ],
-            }],
+            "steps":[
+                {
+                    "proposed_actions":[{"opening_id":"w1","target_pct":5.0}],
+                    "executed_actions":[{"opening_id":"w1","target_pct":5.0}],
+                    "sensor_readings":[
+                        {"sensor_type":"co2","timestamp":100.0,"provenance":_binding("co2")},
+                        {"sensor_type":"rain","timestamp":100.0,"provenance":_binding("rain")},
+                    ],
+                    "actuator_feedback":[
+                        {"timestamp":101.0,"measured_position_pct":5.0}
+                    ],
+                    "next_sensor_readings":[
+                        {"sensor_type":"co2","timestamp":102.0,"provenance":_binding("co2")},
+                        {"sensor_type":"rain","timestamp":102.0,"provenance":_binding("rain")},
+                    ],
+                },
+                {
+                    "proposed_actions":[{"opening_id":"w1","target_pct":0.0}],
+                    "executed_actions":[{"opening_id":"w1","target_pct":0.0}],
+                    "sensor_readings":[
+                        {"sensor_type":"co2","timestamp":103.0,"provenance":_binding("co2")},
+                        {"sensor_type":"rain","timestamp":103.0,"provenance":_binding("rain")},
+                    ],
+                    "actuator_feedback":[
+                        {"timestamp":104.0,"measured_position_pct":0.0}
+                    ],
+                    "next_sensor_readings":[
+                        {"sensor_type":"co2","timestamp":105.0,"provenance":_binding("co2")},
+                        {"sensor_type":"rain","timestamp":105.0,"provenance":_binding("rain")},
+                    ],
+                },
+            ],
         }
         path.write_text(json.dumps(payload)+"\n",encoding="utf-8")
         return payload
@@ -270,7 +300,8 @@ class PhysicalArtifactVerifierTests(unittest.TestCase):
             "trajectory_id":"trajectory-1",
             "valid_tau0":True,
             "environment_kind":"physical",
-            "steps":1,
+            "steps":2,
+            "tau0_capture_policy":self._tau0_policy(),
             "commissioning_identity_sha256":"same-hardware",
             "commissioning_hardware_identity":identity,
             "runtime_hardware_identity":identity,
