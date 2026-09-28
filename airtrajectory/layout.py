@@ -19,6 +19,10 @@ import json
 from pathlib import Path
 from typing import Any
 
+
+def _optional_float(value: Any) -> float|None:
+    return None if value is None else float(value)
+
 from .topology import BuildingTopology, OpeningEdge, ZoneNode
 
 
@@ -47,6 +51,8 @@ class LayoutWall:
     y1: float
     x2: float
     y2: float
+    length_m: float|None
+    azimuth_deg: float|None
 
 
 @dataclass(frozen=True)
@@ -62,6 +68,9 @@ class LayoutOpening:
     render_side: str
     position_editable: bool
     state_editable: bool
+    width_m: float|None
+    height_m: float|None
+    sill_height_m: float|None
 
 
 @dataclass(frozen=True)
@@ -108,6 +117,8 @@ class LayoutContract:
                 y1=float(item["y1"]),
                 x2=float(item["x2"]),
                 y2=float(item["y2"]),
+                length_m=_optional_float(item.get("length_m")),
+                azimuth_deg=_optional_float(item.get("azimuth_deg")),
             )
             for item in payload.get("walls") or []
         )
@@ -124,6 +135,9 @@ class LayoutContract:
                 render_side=str(item.get("render_side") or ""),
                 position_editable=item.get("position_editable") is True,
                 state_editable=item.get("state_editable") is True,
+                width_m=_optional_float(item.get("width_m")),
+                height_m=_optional_float(item.get("height_m")),
+                sill_height_m=_optional_float(item.get("sill_height_m")),
             )
             for item in payload.get("openings") or []
         )
@@ -195,6 +209,10 @@ class LayoutContract:
                 raise ValueError(f"exterior wall {wall.id} must touch OUTSIDE")
             if wall.kind=="internal" and self.outside_id in (wall.source,wall.target):
                 raise ValueError(f"internal wall {wall.id} cannot touch OUTSIDE")
+            if wall.length_m is not None and wall.length_m<=0:
+                raise ValueError(f"wall {wall.id} length_m must be positive")
+            if wall.azimuth_deg is not None and not 0<=wall.azimuth_deg<360:
+                raise ValueError(f"wall {wall.id} azimuth_deg must be in [0,360)")
 
         wall_map={wall.id:wall for wall in self.walls}
         opening_ids=[opening.id for opening in self.openings]
@@ -228,6 +246,17 @@ class LayoutContract:
                 raise ValueError(
                     f"current product contract expects opening {opening.id} to be movable"
                 )
+            if opening.width_m is not None and opening.width_m<=0:
+                raise ValueError(f"opening {opening.id} width_m must be positive")
+            if opening.height_m is not None and opening.height_m<=0:
+                raise ValueError(f"opening {opening.id} height_m must be positive")
+            if opening.sill_height_m is not None and opening.sill_height_m<0:
+                raise ValueError(f"opening {opening.id} sill_height_m must be non-negative")
+            if wall.length_m is not None and opening.width_m is not None and opening.width_m>wall.length_m:
+                raise ValueError(f"opening {opening.id} width_m exceeds wall length_m")
+            if opening.width_m is not None and opening.height_m is not None:
+                if opening.max_area_m2>opening.width_m*opening.height_m+1e-9:
+                    raise ValueError(f"opening {opening.id} max_area_m2 exceeds physical opening area")
 
         building=self.to_building_topology()
         building.validate()

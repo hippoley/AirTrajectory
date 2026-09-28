@@ -68,12 +68,37 @@ layout.contam_compile_contract(
 
 Both receive the same normalized opening positions. Moving an opening changes its wall position but not its room connectivity. The CONTAM method currently returns `status=RESERVED` with zone/wall/opening inputs and empty PRJ/control/path outputs; it is a real compiler seam, not a claim that arbitrary topology → CONTAM compilation is finished.
 
+A backend-neutral spatial compile plan now sits between that contract and future physics compilers:
+
+```python
+from airtrajectory.spatial_compile import compile_spatial_plan
+
+plan = compile_spatial_plan(
+    layout,
+    opening_positions={"W1": 0.72, "D1": 0.25},
+)
+```
+
+It resolves each normalized `position_t` to a deterministic anchor on its declared wall and assigns stable symbolic `zone:*`, `path:*`, and `control:*` identities. Moving a window changes its placement anchor while preserving connectivity identity. The current fixed floor plan uses browser/canvas coordinates, so the plan does **not** pretend that UI coordinates are metres.
+
+The layout schema now also accepts optional physical geometry without fabricating it: walls may provide `length_m` + `azimuth_deg`, and openings may provide `width_m` + `height_m` + `sill_height_m`. The spatial compiler reports missing fields per wall/opening, flips `metric_geometry_ready=true` only when the whole layout is physically specified, and derives `distance_along_wall_m = position_t × length_m`. Invalid azimuths, non-positive dimensions, openings wider than their wall, or `max_area_m2` larger than the physical opening area fail closed. Even with complete metric inputs, `prj_generation_implemented=false` remains explicit until a real CONTAM writer exists.
+
+Once metric inputs are complete, `airtrajectory.contam_ir.compile_contam_ir()` turns the spatial plan into a CONTAM-oriented symbolic IR. It creates stable `zone:*`, `wall:*`, `path:*`, `control:*`, and `ambient:OUTSIDE` identities, distinguishes exterior ambient paths from internal zone-to-zone paths, and carries metric opening placement into the physics boundary. Numeric CONTAM zone/path/control IDs, airflow-element selection, wind/weather profiles, contaminant definitions, and PRJ serialization remain explicitly reserved for the writer layer.
+
+The next writer boundary is now partially implemented by `airtrajectory.contam_allocator.allocate_contam_ids()`. It assigns deterministic 1-based numeric IDs by lexicographically sorting symbolic keys, so source JSON ordering does not affect the generated mapping. The allocator emits a `mapping_sha256` for replay/audit, and moving a door or window preserves its numeric path/control identity as long as the symbolic topology identity is unchanged. Airflow-element binding, weather/contaminant configuration, and actual PRJ serialization remain reserved.
+
+Airflow-element binding is now explicit rather than implicit. `airtrajectory.contam_profile.bind_airflow_elements()` requires a named profile with per-opening-kind rules. The bundled demo profile is intentionally marked `engineering_validated=false`; production callers can set `require_engineering_validated=True` to reject it. The current supported semantic model is `powerlaw-orifice-area`, carrying flow area, flow exponent, discharge coefficient, and an optional hydraulic diameter into deterministic `element:*` identities. These parameters align with the parameterization described in the NIST CONTAM user guide, but project-specific engineering calibration remains outside the demo preset.
+
 ## Verified capability matrix
 
 | Capability | Status | Evidence boundary |
 | --- | --- | --- |
 | Fixed layout → UI / trajectory contract | ✅ verified | one `home_topology.fixed.json`; room/wall geometry locked, window/door wall position editable |
-| Layout → CONTAM compiler seam | 🟡 reserved | same opening positions flow into `contam_compile_contract()`; PRJ/control/path generation remains intentionally unimplemented |
+| Layout → spatial compile plan | ✅ verified | `position_t` resolves to deterministic wall anchors; path/control identities remain stable across moves |
+| Spatial plan → CONTAM IR | ✅ verified | metric-ready layouts compile into stable symbolic zones/paths/controls/ambient boundaries |
+| CONTAM IR → deterministic writer manifest | ✅ verified | symbolic zones/paths/controls receive stable 1-based numeric IDs with mapping SHA-256 |
+| Writer manifest → airflow-element binding | ✅ verified | explicit profile binds deterministic `element:*` identities; production gate rejects illustrative profiles |
+| Bound manifest → PRJ | 🟡 reserved | weather/contaminants and serialization remain unimplemented |
 | Multi-room / multi-window scenario simulator | ✅ verified | deterministic toy/surrogate physics; not engineering truth |
 | Agent → safety gate → executed action → reward → trajectory | ✅ verified | proposed/executed/intervention are preserved |
 | Behavior Cloning baseline | ✅ verified | topology-local discrete policy trained from behavior rows |
@@ -263,3 +288,24 @@ A UI or device session can send an immutable post-action origin into `airtraject
 ### Decision telemetry
 
 Every backend counterfactual request writes a local JSONL decision trace even when no observability backend is installed. Install `.[telemetry]` and call `configure_otlp()` to export the same spans over OTLP; this keeps Phoenix, an OpenTelemetry Collector, or another OTLP-compatible backend replaceable. Telemetry is observational and must not block the control path.
+
+### CONTAM airflow profile gate
+
+Demo-only binding:
+
+```bash
+python examples/bind_contam_airflow.py metric-layout.json \\
+  --illustrative-demo-profile \\
+  --out artifacts/contam-bound.json
+```
+
+Production-style gate:
+
+```bash
+python examples/bind_contam_airflow.py metric-layout.json \\
+  --profile examples/contam_airflow_profile.example.json \\
+  --require-engineering-validated \\
+  --out artifacts/contam-bound.json
+```
+
+The example JSON demonstrates the schema only; its values still require review/calibration for the actual building before being treated as engineering evidence.
