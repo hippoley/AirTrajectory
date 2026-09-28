@@ -20,6 +20,7 @@ from airtrajectory.dataset import transition_rows, counterfactual_rows, audited_
 from airtrajectory.bc import TabularBC
 from airtrajectory.offline_rl import OfflineQ
 from airtrajectory.commissioning import require_commissioning_behavior
+from airtrajectory.sensor_lineage import build_sensor_evidence
 from airtrajectory.lineage import require_hardware_site_lineage, require_hardware_thingmodel_lineage
 
 
@@ -75,6 +76,37 @@ def _sensor_binding(kind):
         "site_instance_id":"living.window.primary",
         "site_manifest_sha256":"8"*64,
         "site_contract_sha256":"a"*64,
+    }
+
+
+def _readiness_sensor_lineage(*, probe_labeled=False, timestamp=100.0):
+    co2_sha="c"*64
+    rain_sha="d"*64
+    def entry(kind,runtime_key,contract_sha):
+        binding=_sensor_binding(kind)
+        if probe_labeled:
+            source=f"sensor-read-probe:{contract_sha}"
+            scheme="sensor-read-probe"
+            source_sha=contract_sha
+        else:
+            source=f"runtime-{kind}-sensor"
+            scheme="measured-runtime-source"
+            source_sha=None
+        return {
+            "timestamp":float(timestamp),
+            "quality":"measured",
+            "source":source,
+            "source_scheme":scheme,
+            "source_contract_sha256":source_sha,
+            "measured":True,
+            "fresh":True,
+            "registry_bound":True,
+            "site_bound":True,
+            "thingmodel_binding":binding,
+        }
+    return {
+        "co2_ppm":entry("co2","co2_ppm",co2_sha),
+        "rain":entry("rain","rain",rain_sha),
     }
 
 
@@ -172,6 +204,7 @@ class CoreTests(unittest.TestCase):
                     "hardware_identity":_hardware_identity("same"),
                     "registry_bound_sensors":{"co2_ppm":True,"rain":True},
                     "site_bound_sensors":{"co2_ppm":True,"rain":True},
+                    "sensor_evidence_lineage":_readiness_sensor_lineage(),
                     "reasons":[],
                 }
         driver=CommissionedFake(co2_ppm=1400,measured_feedback=True)
@@ -198,6 +231,75 @@ class CoreTests(unittest.TestCase):
             self.assertFalse((Path(d)/"tau.jsonl").exists())
             self.assertFalse((Path(d)/"receipt.json").exists())
 
+    def test_physical_capture_probe_labels_are_not_audited_without_apply_receipts(self):
+        spec=importlib.util.spec_from_file_location(
+            "capture_physical_tau0_probe_label",
+            Path(__file__).resolve().parents[1]/"examples"/"capture_physical_tau0.py",
+        )
+        module=importlib.util.module_from_spec(spec); spec.loader.exec_module(module)
+
+        identity=_hardware_identity("same-hardware")
+
+        class ContractReal(FakePhysicalWindowDriver):
+            def __init__(self):
+                super().__init__(
+                    co2_ppm=1400,
+                    measured_feedback=True,
+                    thingmodel_provenance=True,
+                )
+            def capabilities(self):
+                return DriverCapabilities(
+                    "external-test-contract",
+                    False,
+                    True,
+                    ("co2","rain"),
+                )
+            def physical_readiness(self):
+                return {
+                    "capture_preconditions":True,
+                    "hardware_identity":identity,
+                    "registry_bound_sensors":{"co2_ppm":True,"rain":True},
+                    "site_bound_sensors":{"co2_ppm":True,"rain":True},
+                    "sensor_evidence_lineage":_readiness_sensor_lineage(
+                        probe_labeled=True,
+                    ),
+                    "reasons":[],
+                }
+
+        driver=ContractReal()
+        with tempfile.TemporaryDirectory() as d:
+            root=Path(d)
+            bundle=root/"commission.json"
+            bundle.write_text(json.dumps(_commission_bundle(
+                identity,
+                {
+                    "receipt_sha256":"a"*64,
+                    "hardware_identity_sha256":"same-hardware",
+                    "gateway_contract_sha256":"b"*64,
+                },
+            )))
+            receipt=root/"receipt.json"
+            result=module.capture_physical_tau0(
+                driver=driver,
+                opening_id="w1",
+                topology_id="physical-test",
+                steps=1,
+                out=root/"tau.jsonl",
+                receipt=receipt,
+                commission_bundle=bundle,
+            )
+
+        self.assertTrue(result["valid_tau0"],result["reasons"])
+        self.assertEqual(result["sensor_evidence_origin"],"probe-labeled")
+        self.assertIsNone(result["sensor_staging_lineage"])
+        self.assertTrue(result["sensor_evidence_sha256"])
+        self.assertEqual(
+            result["runtime_sensor_lineage"]["co2"][
+                "source_contract_sha256"
+            ],
+            "c"*64,
+        )
+
     def test_physical_capture_rejects_legacy_pass_bundle_without_behavior_before_runtime_contact(self):
         spec=importlib.util.spec_from_file_location(
             "capture_physical_tau0_legacy_commission",
@@ -217,6 +319,7 @@ class CoreTests(unittest.TestCase):
                     "hardware_identity":_hardware_identity("same"),
                     "registry_bound_sensors":{"co2_ppm":True,"rain":True},
                     "site_bound_sensors":{"co2_ppm":True,"rain":True},
+                    "sensor_evidence_lineage":_readiness_sensor_lineage(),
                     "reasons":[],
                 }
             def set_position(self,opening_id,target_pct):
@@ -267,6 +370,7 @@ class CoreTests(unittest.TestCase):
                     "hardware_identity":_hardware_identity("runtime-B"),
                     "registry_bound_sensors":{"co2_ppm":True,"rain":True},
                     "site_bound_sensors":{"co2_ppm":True,"rain":True},
+                    "sensor_evidence_lineage":_readiness_sensor_lineage(),
                     "reasons":[],
                 }
             def set_position(self,opening_id,target_pct):
@@ -566,18 +670,31 @@ class CoreTests(unittest.TestCase):
 
     def test_dataset_uses_executed_action_and_preserves_proposal(self):
         behavior=_commissioning_behavior()
+        site_lineage=require_hardware_site_lineage(
+            _hardware_identity("same-hardware")
+        )
+        sensor_evidence=build_sensor_evidence(
+            readiness={
+                "sensor_evidence_lineage":_readiness_sensor_lineage()
+            },
+            site_lineage=site_lineage,
+            commissioning_identity_sha256="same-hardware",
+            commissioning_bundle_sha256="e"*64,
+        )
         trajectory=Trajectory("demo","rule",context={
             "preflight_receipt_sha256":"a"*64,
             "preflight_hardware_identity_sha256":"same-hardware",
             "gateway_contract_sha256":"b"*64,
             "commissioning_behavior_witness":behavior["normalized"],
             "commissioning_behavior_sha256":behavior["sha256"],
+            "sensor_evidence_origin":sensor_evidence["sensor_evidence_origin"],
+            "runtime_sensor_lineage":sensor_evidence["runtime_sensor_lineage"],
+            "sensor_staging_lineage":sensor_evidence["sensor_staging_lineage"],
+            "sensor_evidence_sha256":sensor_evidence["sensor_evidence_sha256"],
             "thingmodel_lineage":require_hardware_thingmodel_lineage(
                 _hardware_identity("same-hardware")
             ),
-            "site_lineage":require_hardware_site_lineage(
-                _hardware_identity("same-hardware")
-            ),
+            "site_lineage":site_lineage,
         })
         trajectory.append(TrajectoryStep(0,{"co2":1400},[TransitionAction("W1",50)],[TransitionAction("W1",0)],{"co2":1390},RewardVector(safety=-1),intervention="RAIN_SAFE_CLOSE",info={"trace_id":"trace-1","provenance":"physical"}))
         row=list(transition_rows(trajectory))[0]
@@ -588,6 +705,19 @@ class CoreTests(unittest.TestCase):
         self.assertEqual(row["preflight_hardware_identity_sha256"],"same-hardware")
         self.assertEqual(row["gateway_contract_sha256"],"b"*64)
         self.assertEqual(row["commissioning_behavior_sha256"],behavior["sha256"])
+        self.assertEqual(
+            row["sensor_evidence_origin"],
+            "runtime-measured-lineage",
+        )
+        self.assertEqual(
+            row["runtime_sensor_lineage"]["co2"]["source"],
+            "runtime-co2-sensor",
+        )
+        self.assertIsNone(row["sensor_staging_lineage"])
+        self.assertEqual(
+            row["sensor_evidence_sha256"],
+            sensor_evidence["sensor_evidence_sha256"],
+        )
         self.assertEqual(
             row["commissioning_behavior_witness"]["behavior_witness"]["reality_delta_observed"],
             True,

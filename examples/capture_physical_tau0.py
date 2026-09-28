@@ -12,6 +12,7 @@ from airtrajectory.lineage import (
     require_hardware_site_lineage,
     require_hardware_thingmodel_lineage,
 )
+from airtrajectory.sensor_lineage import build_sensor_evidence
 from airtrajectory.physical import (
     PhysicalWindowEnvironment, RulePolicy, SafetyResolver,
     record_physical_trajectory, validate_physical_tau0,
@@ -25,7 +26,15 @@ def _is_sha256(value) -> bool:
 
 
 def capture_physical_tau0(
-    *, driver, opening_id, topology_id, steps, out, receipt, commission_bundle=None,
+    *,
+    driver,
+    opening_id,
+    topology_id,
+    steps,
+    out,
+    receipt,
+    commission_bundle=None,
+    sensor_apply_receipts=None,
 ):
     if commission_bundle is None:
         raise RuntimeError("commissioning evidence bundle is required before physical tau0 capture")
@@ -38,6 +47,10 @@ def capture_physical_tau0(
     commissioning_behavior=require_commissioning_behavior(bundle)
     commissioning_behavior_witness=commissioning_behavior["normalized"]
     commissioning_behavior_sha256=commissioning_behavior["sha256"]
+
+    commission_bundle_sha256=hashlib.sha256(
+        bundle_path.read_bytes()
+    ).hexdigest()
 
     commissioning_identity=bundle.get("hardware_identity") or {}
     expected=commissioning_identity.get("identity_sha256")
@@ -102,13 +115,20 @@ def capture_physical_tau0(
             "WindowPilot physical capture requires site-bound CO2 and rain evidence"
         )
 
+    sensor_evidence=build_sensor_evidence(
+        readiness=readiness,
+        site_lineage=site_lineage,
+        commissioning_identity_sha256=expected,
+        commissioning_bundle_sha256=commission_bundle_sha256,
+        sensor_apply_receipts=sensor_apply_receipts,
+    )
+
     caps=driver.capabilities()
     if caps.simulated:
         raise RuntimeError("WindowPilot execution is still simulated; physical capture aborted")
     if not caps.measured_position:
         raise RuntimeError("WindowPilot has no measured position feedback; physical capture aborted")
 
-    commission_bundle_sha256=hashlib.sha256(bundle_path.read_bytes()).hexdigest()
     env=PhysicalWindowEnvironment(driver,opening_id,require_measured_feedback=True)
     trajectory=record_physical_trajectory(
         env,RulePolicy(opening_id),SafetyResolver(),
@@ -125,6 +145,10 @@ def capture_physical_tau0(
             "gateway_contract_sha256":gateway_contract_sha256,
             "commissioning_behavior_witness":commissioning_behavior_witness,
             "commissioning_behavior_sha256":commissioning_behavior_sha256,
+            "sensor_evidence_origin":sensor_evidence["sensor_evidence_origin"],
+            "runtime_sensor_lineage":sensor_evidence["runtime_sensor_lineage"],
+            "sensor_staging_lineage":sensor_evidence["sensor_staging_lineage"],
+            "sensor_evidence_sha256":sensor_evidence["sensor_evidence_sha256"],
         },
     )
 
@@ -147,6 +171,10 @@ def capture_physical_tau0(
         "gateway_contract_sha256":gateway_contract_sha256,
         "commissioning_behavior_witness":commissioning_behavior_witness,
         "commissioning_behavior_sha256":commissioning_behavior_sha256,
+        "sensor_evidence_origin":sensor_evidence["sensor_evidence_origin"],
+        "runtime_sensor_lineage":sensor_evidence["runtime_sensor_lineage"],
+        "sensor_staging_lineage":sensor_evidence["sensor_staging_lineage"],
+        "sensor_evidence_sha256":sensor_evidence["sensor_evidence_sha256"],
         "trajectory_sha256":hashlib.sha256(Path(out).read_bytes()).hexdigest(),
     }
 
@@ -176,6 +204,15 @@ def main(argv=None):
         required=True,
         help="WindowPilot physical bring-up evidence bundle",
     )
+    parser.add_argument(
+        "--sensor-apply-receipt",
+        action="append",
+        default=[],
+        help=(
+            "Optional WindowPilot sensor_apply PASS receipt. Supply exactly "
+            "two (CO2 + rain) to upgrade source evidence to probe-apply-audited."
+        ),
+    )
     args=parser.parse_args(argv)
 
     driver=WindowPilotHTTPDriver(args.windowpilot)
@@ -187,6 +224,7 @@ def main(argv=None):
         out=args.out,
         receipt=args.receipt,
         commission_bundle=args.commission_bundle,
+        sensor_apply_receipts=args.sensor_apply_receipt,
     )
     print(json.dumps(receipt,ensure_ascii=False))
     return 0

@@ -108,6 +108,12 @@ read-only preflight PASS
 → commissioning behavior SHA-256 (policy + measured behavior)
 → same runtime hardware + same ThingModel + same physical-site lineage
 → fresh measured CO₂ + rain with verified product-property + site-instance bindings
+→ runtime sensor source lineage (timestamp / quality / source / binding)
+→ optional stronger proof: CO₂ + rain sensor_apply receipts
+   live source contract == staged receipt contract
+   same commissioning/runtime/site identity
+   zero actuator/window commands during staging
+→ sensor evidence SHA-256
 → real window command
 → post-command measured position
 → newer post-action CO₂/rain with the same ThingModel + site-instance provenance
@@ -122,9 +128,40 @@ python examples/capture_physical_tau0.py \
   --commission-bundle /path/to/physical-bringup.json \
   --out artifacts/physical-tau0.jsonl \
   --receipt artifacts/physical-tau0-audit.json
+
+# Optional stronger source audit, only when both roles were staged through
+# WindowPilot execution.sensor_apply:
+python examples/capture_physical_tau0.py \
+  --windowpilot http://127.0.0.1:8001 \
+  --commission-bundle /path/to/physical-bringup.json \
+  --sensor-apply-receipt /path/to/sensor-runtime-apply.co2.json \
+  --sensor-apply-receipt /path/to/sensor-runtime-apply.rain.json \
+  --out artifacts/physical-tau0.jsonl \
+  --receipt artifacts/physical-tau0-audit.json
 ```
 
 Older commissioning bundles are rejected before AirTrajectory asks WindowPilot for runtime readiness or a physical command unless they prove read-only preflight lineage, WindowPilot schema >=0.3 behavior evidence, and the bounded commissioning acceptance policy. AirTrajectory independently reconstructs that policy and rejects missing or weakened criteria. A mere `status=PASS`, four phase labels, or a self-asserted witness are not sufficient.
+
+Sensor source evidence has deliberately separate levels:
+
+```text
+runtime-measured-lineage
+  fresh + measured + ThingModel/site-bound
+  source/timestamp/quality visible
+  transport can be GET, MQTT, push, or another verified adapter
+
+probe-labeled
+  both live sources say sensor-read-probe:<contract-sha>
+  descriptive only — NOT audited staging
+
+probe-apply-audited
+  exactly two WindowPilot sensor_apply PASS receipts (CO₂ + rain)
+  same commissioning/runtime/site lineage
+  live contract SHA == staged contract SHA
+  staging proved observe-only and zero actuator/window commands
+```
+
+Supplying only one apply receipt fails closed rather than creating a partial audited state.
 
 After capture, re-verify the persisted artifacts independently:
 
@@ -149,6 +186,8 @@ trajectory SHA-256
 + policy cannot weaken excursion, tolerance, STOP-sample or timestamp requirements
 + READ near-closed, OPEN positive delta, STOP multi-sample hold, CLOSE negative delta
 + strictly increasing commissioning source timestamps
++ runtime CO₂/rain source lineage + sensor evidence SHA-256
++ optional probe-apply staging lineage when the receipt claims audited staging
 + measured actuator position
 + pre-action CO₂/rain ThingModel + site-instance provenance
 + newer post-action CO₂/rain ThingModel + site-instance provenance

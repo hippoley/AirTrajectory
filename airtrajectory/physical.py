@@ -4,6 +4,7 @@ import time
 from typing import Iterable, List, Optional
 from .trajectory import ActuatorFeedback, RewardVector, SemanticAction, Trajectory, TrajectoryStep, TrajectoryStore, TransitionAction
 from .commissioning import validate_commissioning_behavior_context
+from .sensor_lineage import validate_sensor_evidence_context
 from .lineage import (
     compare_hardware_site_lineage,
     compare_hardware_thingmodel_lineage,
@@ -189,6 +190,26 @@ def validate_physical_tau0(trajectory: Trajectory) -> PhysicalEvidenceReport:
         )
     except RuntimeError as exc:
         reasons.append(str(exc))
+
+    sensor_context_keys=(
+        "sensor_evidence_origin",
+        "runtime_sensor_lineage",
+        "sensor_staging_lineage",
+        "sensor_evidence_sha256",
+    )
+    if any(trajectory.context.get(key) is not None for key in sensor_context_keys):
+        try:
+            validate_sensor_evidence_context(
+                sensor_evidence_origin=trajectory.context.get("sensor_evidence_origin"),
+                runtime_sensor_lineage=trajectory.context.get("runtime_sensor_lineage"),
+                sensor_staging_lineage=trajectory.context.get("sensor_staging_lineage"),
+                sensor_evidence_sha256=trajectory.context.get("sensor_evidence_sha256"),
+                site_lineage=trajectory.context.get("site_lineage") or {},
+                commissioning_identity_sha256=commission_id,
+                commissioning_bundle_sha256=trajectory.context.get("commissioning_bundle_sha256"),
+            )
+        except RuntimeError as exc:
+            reasons.append(str(exc))
 
     preflight_receipt=trajectory.context.get("preflight_receipt_sha256")
     preflight_id=trajectory.context.get("preflight_hardware_identity_sha256")
