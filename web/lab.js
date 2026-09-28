@@ -257,10 +257,42 @@ document.querySelectorAll(".view").forEach(btn=>btn.onclick=()=>{viewMode=btn.da
 
 document.querySelector("#rerun").onclick=requestPhysicsRerun;
 
-const physicalCo2=document.querySelector("#physicalCo2"),physicalRain=document.querySelector("#physicalRain");
-let physicalPosition=0,browserTau=[],selectedTauOrigin=null;
+const physicalCo2=document.querySelector("#physicalCo2"),physicalRain=document.querySelector("#physicalRain"),loadMockTau=document.querySelector("#loadMockTau");
+let physicalPosition=0,browserTau=[],selectedTauOrigin=null,mockFallback=null;
 function physicalObservation(){return {co2_ppm:+physicalCo2.value,rain:physicalRain.checked,opening_pct:physicalPosition}}
 function renderPhysicalObservation(){const o=physicalObservation();document.querySelector("#physicalCo2Label").textContent=o.co2_ppm+" ppm";document.querySelector("#evObserve").textContent="CO₂ "+o.co2_ppm+" · "+(o.rain?"RAIN":"DRY")}
+async function loadMockFallbackArtifact(){
+ try{
+  const r=await fetch("./data/mock_physical_fallback.json",{cache:"no-store"});if(!r.ok)throw new Error("mock artifact "+r.status);
+  const p=await r.json();
+  if(p?.provenance?.physical_evidence!==false||!Array.isArray(p.trajectory)||!p.trajectory.length)throw new Error("invalid mock provenance");
+  mockFallback=p;
+  const s=p.scenario;
+  document.querySelector("#physicalProvenance").textContent="Fallback seed: CO₂ "+s.indoor_co2_start_ppm+" ppm · outdoor "+s.outdoor_co2_ppm+" ppm · "+(s.rain?"rain":"dry")+" · window "+s.window_initial_pct+"% · wind "+s.wind_speed_mps+" m/s · mock only";
+  loadMockTau.disabled=false;
+ }catch(err){
+  loadMockTau.disabled=true;
+  loadMockTau.textContent="MOCK τ_sim UNAVAILABLE";
+  document.querySelector("#physicalProvenance").textContent="Mock fallback unavailable: "+err.message+" · real hardware gates remain reserved.";
+ }
+}
+function applyMockFallback(){
+ if(!mockFallback)return;
+ browserTau=mockFallback.trajectory.map(step=>JSON.parse(JSON.stringify(step)));selectedTauOrigin=null;
+ const s=mockFallback.scenario,last=browserTau[browserTau.length-1].next_observation;
+ physicalCo2.value=String(last.co2_ppm);physicalRain.checked=!!last.rain;physicalPosition=Number(last.opening_pct);
+ speedEl.value=String(s.wind_speed_mps);document.querySelector("#speedLabel").textContent=Number(s.wind_speed_mps).toFixed(1)+" m/s";
+ const w1=openings.find(o=>o.id==="W1");w1.open=physicalPosition/100;selectedOpening="W1";renderOpeningInspector();
+ document.querySelector("#selectedOpening").textContent="W1 · MOCK FALLBACK "+physicalPosition+"%";
+ document.querySelector("#evPropose").textContent="VENT · "+s.window_target_pct+"%";
+ document.querySelector("#evSafety").textContent="SIM ONLY · REAL GATE PRESERVED";
+ document.querySelector("#evExecute").textContent="W1 → "+physicalPosition+"% · MOCK";
+ document.querySelector("#evFeedback").textContent="EST "+physicalPosition+"% · MOCK";
+ document.querySelector("#tauCount").textContent=browserTau.length+" mock τ_sim steps loaded";
+ document.querySelector("#tauReceipt").textContent=JSON.stringify({provenance:mockFallback.provenance,scenario:s,trajectory_steps:browserTau.length,physical_evidence:false},null,2);
+ document.querySelector("#physicalFallbackBadge").textContent="FALLBACK · MOCK τ_sim ACTIVE";
+ renderPhysicalObservation();renderPhysicalTimeline();
+}
 const tauForkActions=[["CLOSE",0],["VENT25",25],["VENT50",50],["VENT75",75],["OPEN100",100]];
 function simulateTauFuture(origin,label,target){
  const forkState=origin.next_observation||origin.observation;
@@ -290,29 +322,31 @@ function physicalStep(target,semantic){
  const o=physicalObservation(),proposed=target,executed=o.rain&&target>0?0:target,intervention=o.rain&&target>0?"RAIN_SAFE_CLOSE":null;
  physicalPosition=executed;
  const nextObservation={co2_ppm:o.co2_ppm,rain:o.rain,opening_pct:executed};
- const step={index:browserTau.length,environment_kind:"browser-contract",observation:o,semantic_action:semantic,proposed_action:{opening_id:"W1",target_pct:proposed},intervention,executed_action:{opening_id:"W1",target_pct:executed},actuator_feedback:{measured_position_pct:null,estimated_position_pct:executed,quality:"browser-simulated"},next_observation:nextObservation};
+ const step={index:browserTau.length,environment_kind:"mock-browser-contract",evidence_class:"tau_sim",physical_evidence:false,observation:o,semantic_action:semantic,proposed_action:{opening_id:"W1",target_pct:proposed},intervention,executed_action:{opening_id:"W1",target_pct:executed},actuator_feedback:{measured_position_pct:null,estimated_position_pct:executed,quality:"browser-simulated"},next_observation:nextObservation};
  browserTau.push(step);
  const w1=openings.find(o=>o.id==="W1");w1.open=executed/100;
  selectedOpening="W1";renderOpeningInspector();
- document.querySelector("#selectedOpening").textContent="W1 · PHYSICAL SESSION "+executed+"%";
+ document.querySelector("#selectedOpening").textContent="W1 · MOCK FALLBACK SESSION "+executed+"%";
  renderPhysicalTimeline();
  document.querySelector("#evPropose").textContent=semantic+" · "+proposed+"%";
  document.querySelector("#evSafety").textContent=intervention||"PASS";
  document.querySelector("#evExecute").textContent="W1 → "+executed+"%";
  document.querySelector("#evFeedback").textContent="EST "+executed+"% · SIM";
- document.querySelector("#tauCount").textContent=browserTau.length+" step"+(browserTau.length===1?"":"s")+" captured";
+ document.querySelector("#tauCount").textContent=browserTau.length+" τ_sim step"+(browserTau.length===1?"":"s")+" captured";
  document.querySelector("#tauReceipt").textContent=JSON.stringify(step,null,2);
  renderPhysicalObservation();
 renderPhysicalTimeline();
 }
 physicalCo2.addEventListener("input",renderPhysicalObservation);
 physicalRain.addEventListener("change",renderPhysicalObservation);
+loadMockTau.addEventListener("click",applyMockFallback);
 document.querySelector("#ruleStep").addEventListener("click",()=>{const o=physicalObservation();if(o.co2_ppm>1200)physicalStep(50,"VENT");else if(o.co2_ppm<800)physicalStep(0,"CLOSE");else physicalStep(o.opening_pct,"HOLD")});
 document.querySelector("#manualVent").addEventListener("click",()=>physicalStep(50,"VENT"));
 document.querySelector("#manualClose").addEventListener("click",()=>physicalStep(0,"CLOSE"));
 document.querySelector("#closeTauFork").addEventListener("click",()=>document.querySelector("#tauForkLab").classList.add("hidden"));
-document.querySelector("#resetTau").addEventListener("click",()=>{browserTau=[];selectedTauOrigin=null;document.querySelector("#tauForkLab").classList.add("hidden");physicalPosition=0;const w1=openings.find(o=>o.id==="W1");w1.open=0;renderOpeningInspector();renderPhysicalTimeline();["#evPropose","#evExecute","#evFeedback"].forEach(s=>document.querySelector(s).textContent="—");document.querySelector("#evSafety").textContent="WAITING";document.querySelector("#tauCount").textContent="0 steps captured";document.querySelector("#tauReceipt").textContent="Run a step to produce browser-only evidence.";renderPhysicalObservation()});
+document.querySelector("#resetTau").addEventListener("click",()=>{browserTau=[];selectedTauOrigin=null;document.querySelector("#tauForkLab").classList.add("hidden");physicalPosition=0;physicalCo2.value="1400";physicalRain.checked=false;const w1=openings.find(o=>o.id==="W1");w1.open=0;renderOpeningInspector();renderPhysicalTimeline();["#evPropose","#evExecute","#evFeedback"].forEach(s=>document.querySelector(s).textContent="—");document.querySelector("#evSafety").textContent="WAITING · REAL GATE PRESERVED";document.querySelector("#tauCount").textContent="0 τ_sim steps captured";document.querySelector("#tauReceipt").textContent="Run a step or load the mock fallback. No browser result is physical evidence.";document.querySelector("#physicalFallbackBadge").textContent="FALLBACK · MOCK τ_sim";renderPhysicalObservation()});
 renderPhysicalObservation();
+loadMockFallbackArtifact();
 
 /* Backend-generated learning Episode Lab */
 (() => {
