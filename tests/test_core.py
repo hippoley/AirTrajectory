@@ -881,6 +881,128 @@ class CoreTests(unittest.TestCase):
             0.0,
         )
 
+    def test_tau0_audit_rejects_stuck_actuator_zero_reality_delta(self):
+        class StuckReal(FakePhysicalWindowDriver):
+            def capabilities(self):
+                return DriverCapabilities(
+                    "external-test-contract",False,True,("co2","rain")
+                )
+            def set_position(self,opening_id,target_pct):
+                self.position=0.0
+                import time
+                return ActuatorFeedback(
+                    opening_id,time.time(),
+                    measured_position_pct=0.0,
+                    quality="stuck-measured",
+                )
+
+        identity=_hardware_identity("same-hardware")
+        behavior=_commissioning_behavior()
+        policy=Tau0ProbePolicy("w1")
+        env=PhysicalWindowEnvironment(
+            StuckReal(
+                co2_ppm=1400,
+                measured_feedback=True,
+                thingmodel_provenance=True,
+            ),
+            "w1",
+            require_measured_feedback=True,
+        )
+        with tempfile.TemporaryDirectory() as d:
+            trajectory=record_physical_trajectory(
+                env,policy,SafetyResolver(),"physical-contract",
+                TrajectoryStore(Path(d)/"tau0.jsonl"),
+                steps=2,
+                context_extra={
+                    "tau0_capture_policy":policy.capture_policy(),
+                    "commissioning_identity_sha256":"same-hardware",
+                    "commissioning_hardware_identity":identity,
+                    "runtime_hardware_identity":identity,
+                    "thingmodel_lineage":require_hardware_thingmodel_lineage(identity),
+                    "site_lineage":require_hardware_site_lineage(identity),
+                    "preflight_receipt_sha256":"a"*64,
+                    "preflight_hardware_identity_sha256":"same-hardware",
+                    "gateway_contract_sha256":"b"*64,
+                    "commissioning_behavior_witness":behavior["normalized"],
+                    "commissioning_behavior_sha256":behavior["sha256"],
+                },
+            )
+        report=validate_physical_tau0(trajectory)
+        self.assertFalse(report.valid_tau0)
+        self.assertTrue(any(
+            "required measured Reality Delta" in reason
+            for reason in report.reasons
+        ))
+        self.assertEqual(
+            [s.executed_actions[0].target_pct for s in trajectory.steps],
+            [5.0,0.0],
+        )
+
+    def test_tau0_capture_emergency_closes_after_post_action_sensor_failure(self):
+        spec=importlib.util.spec_from_file_location(
+            "capture_physical_tau0_emergency_close",
+            Path(__file__).resolve().parents[1]/"examples"/"capture_physical_tau0.py",
+        )
+        module=importlib.util.module_from_spec(spec); spec.loader.exec_module(module)
+        identity=_hardware_identity("same-hardware")
+
+        class SensorFailureReal(FakePhysicalWindowDriver):
+            def __init__(self):
+                super().__init__(
+                    co2_ppm=1400,
+                    measured_feedback=True,
+                    thingmodel_provenance=True,
+                )
+                self.sensor_reads=0
+                self.commands=[]
+            def capabilities(self):
+                return DriverCapabilities(
+                    "external-test-contract",False,True,("co2","rain")
+                )
+            def physical_readiness(self):
+                return {
+                    "capture_preconditions":True,
+                    "physical_write_ready":True,
+                    "hardware_identity":identity,
+                    "registry_bound_sensors":{"co2_ppm":True,"rain":True},
+                    "site_bound_sensors":{"co2_ppm":True,"rain":True},
+                    "sensor_evidence_lineage":_readiness_sensor_lineage(),
+                    "reasons":[],
+                }
+            def read_sensors(self):
+                self.sensor_reads+=1
+                if self.sensor_reads>1:
+                    raise RuntimeError("post-action sensor boom")
+                return super().read_sensors()
+            def set_position(self,opening_id,target_pct):
+                self.commands.append(float(target_pct))
+                return super().set_position(opening_id,target_pct)
+
+        driver=SensorFailureReal()
+        with tempfile.TemporaryDirectory() as d:
+            root=Path(d)
+            bundle=root/"commission.json"
+            bundle.write_text(json.dumps(_commission_bundle(
+                identity,
+                {
+                    "receipt_sha256":"a"*64,
+                    "hardware_identity_sha256":"same-hardware",
+                    "gateway_contract_sha256":"b"*64,
+                },
+            )))
+            with self.assertRaisesRegex(RuntimeError,"post-action sensor boom"):
+                module.capture_physical_tau0(
+                    driver=driver,
+                    opening_id="w1",
+                    topology_id="physical-test",
+                    steps=2,
+                    out=root/"tau.jsonl",
+                    receipt=root/"receipt.json",
+                    commission_bundle=bundle,
+                )
+        self.assertEqual(driver.commands,[5.0,0.0])
+        self.assertEqual(driver.position,0.0)
+
     def test_tau0_audit_rejects_missing_commissioning_identity(self):
         class ContractReal(FakePhysicalWindowDriver):
             def capabilities(self):
