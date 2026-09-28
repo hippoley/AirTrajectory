@@ -100,6 +100,31 @@ def verify_physical_tau0_artifacts(*, trajectory_path, receipt_path, commission_
     if receipt.get("environment_kind")!="physical":
         reasons.append("tau0 receipt environment_kind is not physical")
 
+    receipt_capture_policy=receipt.get("tau0_capture_policy")
+    capture_target=None
+    capture_start_tolerance=None
+    capture_min_delta=None
+    if not isinstance(receipt_capture_policy,dict):
+        reasons.append("tau0 receipt missing capture policy")
+    else:
+        if receipt_capture_policy.get("policy_id")!="physical-tau0-probe-v1":
+            reasons.append("tau0 receipt capture policy is not physical-tau0-probe-v1")
+        try:
+            capture_target=float(receipt_capture_policy.get("target_pct"))
+            max_target=float(receipt_capture_policy.get("max_target_pct"))
+            capture_start_tolerance=float(receipt_capture_policy.get("start_tolerance_pct"))
+            capture_min_delta=float(receipt_capture_policy.get("minimum_reality_delta_pct"))
+            if not 0 < capture_target <= 5.0:
+                reasons.append("tau0 receipt capture target must be >0 and <=5%")
+            if max_target != 5.0:
+                reasons.append("tau0 receipt max target must remain 5%")
+            if not 0 <= capture_start_tolerance <= 1.0:
+                reasons.append("tau0 receipt start tolerance must be in [0,1]%")
+            if not 0 < capture_min_delta <= capture_target:
+                reasons.append("tau0 receipt minimum Reality Delta must be >0 and <= target")
+        except (TypeError,ValueError):
+            reasons.append("tau0 receipt capture policy has invalid numeric fields")
+
     trajectory_sha=_sha256(trajectory_path)
     receipt_sha=_sha256(receipt_path)
     commission_sha=_sha256(commission_bundle_path)
@@ -266,6 +291,27 @@ def verify_physical_tau0_artifacts(*, trajectory_path, receipt_path, commission_
                 reasons.append("persisted trajectory environment_kind is not physical")
 
             context=trajectory.get("context") or {}
+            if context.get("tau0_capture_policy")!=receipt_capture_policy:
+                reasons.append("trajectory tau0 capture policy does not match receipt")
+
+            reset_info=context.get("reset_info") or {}
+            initial_feedback=reset_info.get("initial_position_feedback")
+            initial_position=None
+            if not isinstance(initial_feedback,dict):
+                reasons.append("trajectory missing measured pre-action position feedback")
+            elif initial_feedback.get("measured_position_pct") is None:
+                reasons.append("trajectory pre-action position is not measured")
+            else:
+                try:
+                    initial_position=float(initial_feedback.get("measured_position_pct"))
+                    if (
+                        capture_start_tolerance is not None
+                        and initial_position > capture_start_tolerance
+                    ):
+                        reasons.append("trajectory pre-action position is not near closed")
+                except (TypeError,ValueError):
+                    reasons.append("trajectory pre-action measured position is invalid")
+
             if context.get("commissioning_identity_sha256")!=commissioning_id:
                 reasons.append("trajectory commissioning identity lineage mismatch")
             if context.get("commissioning_hardware_identity")!=commissioning_identity:
@@ -336,7 +382,21 @@ def verify_physical_tau0_artifacts(*, trajectory_path, receipt_path, commission_
             if not steps:
                 reasons.append("persisted trajectory has no steps")
 
+            max_measured_delta=0.0
+            reality_delta_observed=False
             for index,step in enumerate(steps):
+                actions=list(step.get("proposed_actions") or [])+list(step.get("executed_actions") or [])
+                for action in actions:
+                    if not isinstance(action,dict):
+                        continue
+                    try:
+                        target=float(action.get("target_pct"))
+                    except (TypeError,ValueError):
+                        reasons.append(f"step {index} has invalid tau0 action target")
+                        continue
+                    if target < 0 or target > 5.0:
+                        reasons.append(f"step {index} exceeds bounded tau0 target")
+
                 pre_rows=[
                     item for item in (step.get("sensor_readings") or [])
                     if isinstance(item,dict)
@@ -363,6 +423,18 @@ def verify_physical_tau0_artifacts(*, trajectory_path, receipt_path, commission_
                     if any(ts<=0 for ts in timestamps):
                         reasons.append(f"step {index} actuator feedback missing timestamp")
                     feedback_ts=max(timestamps) if timestamps else None
+                    if initial_position is not None:
+                        for item in feedback:
+                            measured=item.get("measured_position_pct")
+                            if measured is None:
+                                continue
+                            delta=abs(float(measured)-initial_position)
+                            max_measured_delta=max(max_measured_delta,delta)
+                            if (
+                                capture_min_delta is not None
+                                and delta >= capture_min_delta
+                            ):
+                                reality_delta_observed=True
 
                 post_rows=[
                     item for item in (step.get("next_sensor_readings") or [])
@@ -383,6 +455,15 @@ def verify_physical_tau0_artifacts(*, trajectory_path, receipt_path, commission_
                                     f"step {index} post-action sensor evidence is not newer than actuator feedback"
                                 )
                                 break
+
+            if not reality_delta_observed:
+                detail=(
+                    f" (max {max_measured_delta:.3f}%)"
+                    if initial_position is not None else ""
+                )
+                reasons.append(
+                    "persisted physical tau0 has no required measured Reality Delta"+detail
+                )
         except Exception as exc:
             reasons.append(f"cannot validate persisted trajectory: {exc}")
 
@@ -400,6 +481,7 @@ def verify_physical_tau0_artifacts(*, trajectory_path, receipt_path, commission_
         "preflight_receipt_sha256":preflight_receipt_sha or None,
         "gateway_contract_sha256":gateway_contract_sha or None,
         "commissioning_behavior_sha256":receipt_behavior_sha or None,
+        "tau0_capture_policy":receipt_capture_policy,
         "sensor_evidence_origin":receipt_sensor_fields["sensor_evidence_origin"],
         "sensor_evidence_sha256":receipt_sensor_fields["sensor_evidence_sha256"],
     }
