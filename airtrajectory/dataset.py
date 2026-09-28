@@ -24,6 +24,7 @@ def transition_rows(trajectory: Trajectory):
             "preflight_hardware_identity_sha256":trajectory.context.get("preflight_hardware_identity_sha256"),
             "gateway_contract_sha256":trajectory.context.get("gateway_contract_sha256"),
             "thingmodel_lineage":trajectory.context.get("thingmodel_lineage"),
+            "site_lineage":trajectory.context.get("site_lineage"),
             "step_index":step.index,
             "observation":step.observation,
             "proposed_actions":[asdict(a) for a in step.proposed_actions],
