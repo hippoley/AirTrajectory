@@ -530,6 +530,7 @@ class CoreTests(unittest.TestCase):
 
     def test_windowpilot_rejects_pre_command_measured_feedback(self):
         clock={"now":100.0}
+        calls=[]
         state={
             "thing_model":{
                 "window":{"open_pct":0},
@@ -542,7 +543,9 @@ class CoreTests(unittest.TestCase):
             "position_feedback":{"position_pct":40.0,"timestamp":99.0,"measured":True,"quality":"stale"},
         }
         def request(method,path,payload):
+            calls.append((method,path,payload))
             if path=="/api/capabilities": return caps
+            if path=="/api/window/stop": return {"ok":True,"action":"stop"}
             return state
         def now():
             value=clock["now"]
@@ -552,8 +555,12 @@ class CoreTests(unittest.TestCase):
             request_json=request,clock_fn=now,sleep_fn=lambda _:None,
             feedback_timeout_s=1.0,feedback_poll_interval_s=0,
         )
-        with self.assertRaises(RuntimeError):
+        with self.assertRaisesRegex(RuntimeError,"safety STOP acknowledged"):
             driver.set_position("w1",40)
+        self.assertEqual(
+            calls.count(("POST","/api/window/stop",{})),
+            1,
+        )
 
     def test_windowpilot_hardware_sensor_requires_measured_provenance_for_tau0_sensors(self):
         now=100.0
