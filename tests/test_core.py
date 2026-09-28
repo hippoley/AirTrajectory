@@ -231,6 +231,75 @@ class CoreTests(unittest.TestCase):
             self.assertFalse((Path(d)/"tau.jsonl").exists())
             self.assertFalse((Path(d)/"receipt.json").exists())
 
+    def test_physical_capture_probe_labels_are_not_audited_without_apply_receipts(self):
+        spec=importlib.util.spec_from_file_location(
+            "capture_physical_tau0_probe_label",
+            Path(__file__).resolve().parents[1]/"examples"/"capture_physical_tau0.py",
+        )
+        module=importlib.util.module_from_spec(spec); spec.loader.exec_module(module)
+
+        identity=_hardware_identity("same-hardware")
+
+        class ContractReal(FakePhysicalWindowDriver):
+            def __init__(self):
+                super().__init__(
+                    co2_ppm=1400,
+                    measured_feedback=True,
+                    thingmodel_provenance=True,
+                )
+            def capabilities(self):
+                return DriverCapabilities(
+                    "external-test-contract",
+                    False,
+                    True,
+                    ("co2","rain"),
+                )
+            def physical_readiness(self):
+                return {
+                    "capture_preconditions":True,
+                    "hardware_identity":identity,
+                    "registry_bound_sensors":{"co2_ppm":True,"rain":True},
+                    "site_bound_sensors":{"co2_ppm":True,"rain":True},
+                    "sensor_evidence_lineage":_readiness_sensor_lineage(
+                        probe_labeled=True,
+                    ),
+                    "reasons":[],
+                }
+
+        driver=ContractReal()
+        with tempfile.TemporaryDirectory() as d:
+            root=Path(d)
+            bundle=root/"commission.json"
+            bundle.write_text(json.dumps(_commission_bundle(
+                identity,
+                {
+                    "receipt_sha256":"a"*64,
+                    "hardware_identity_sha256":"same-hardware",
+                    "gateway_contract_sha256":"b"*64,
+                },
+            )))
+            receipt=root/"receipt.json"
+            result=module.capture_physical_tau0(
+                driver=driver,
+                opening_id="w1",
+                topology_id="physical-test",
+                steps=1,
+                out=root/"tau.jsonl",
+                receipt=receipt,
+                commission_bundle=bundle,
+            )
+
+        self.assertTrue(result["valid_tau0"],result["reasons"])
+        self.assertEqual(result["sensor_evidence_origin"],"probe-labeled")
+        self.assertIsNone(result["sensor_staging_lineage"])
+        self.assertTrue(result["sensor_evidence_sha256"])
+        self.assertEqual(
+            result["runtime_sensor_lineage"]["co2"][
+                "source_contract_sha256"
+            ],
+            "c"*64,
+        )
+
     def test_physical_capture_rejects_legacy_pass_bundle_without_behavior_before_runtime_contact(self):
         spec=importlib.util.spec_from_file_location(
             "capture_physical_tau0_legacy_commission",
