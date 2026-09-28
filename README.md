@@ -98,12 +98,13 @@ read-only preflight PASS
 → preflight receipt SHA-256
 → preflight hardware identity
 → gateway contract SHA-256
+→ locked ThingModel product/source/registry/contract lineage
 → bounded commissioning PASS
-→ same runtime hardware identity
-→ fresh measured CO₂ + rain
+→ same runtime hardware + same ThingModel lineage
+→ fresh measured CO₂ + rain with verified product-property bindings
 → real window command
 → post-command measured position
-→ newer post-action environment sample
+→ newer post-action CO₂/rain with the same provenance requirements
 → τ₀ audit PASS
 ```
 
@@ -134,11 +135,14 @@ This verifier does not contact hardware. It re-checks:
 trajectory SHA-256
 + commissioning bundle SHA-256
 + commissioning/runtime/preflight identity continuity
++ ThingModel productKey/source/registry/contract lineage
 + gateway contract lineage
 + measured actuator position
-+ pre-action CO₂/rain
-+ newer post-action CO₂/rain
++ pre-action CO₂/rain ThingModel provenance
++ newer post-action CO₂/rain ThingModel provenance
 ```
+
+AirTrajectory deliberately does **not** copy the raw vendor ThingModel bundle. WindowPilot owns registry validation; AirTrajectory carries only the non-secret product identity and cryptographic lineage required to prove that the same verified contract produced the physical trajectory.
 
 The physical closeout is complete only when capture returned `valid_tau0=true` **and** this independent artifact verification returns `valid_artifacts=true`.
 
