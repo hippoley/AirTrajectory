@@ -248,6 +248,10 @@ def validate_physical_tau0(trajectory: Trajectory) -> PhysicalEvidenceReport:
             reasons.append("tau0 capture start tolerance must be in [0,1]%")
         if not 0 < minimum_reality_delta_pct <= target_pct:
             reasons.append("tau0 minimum Reality Delta must be >0 and <= target")
+        if int(capture_policy.get("steps") or 0)!=2:
+            reasons.append("tau0 capture policy must require exactly two steps")
+        if capture_policy.get("requires_final_closed") is not True:
+            reasons.append("tau0 capture policy must require final closed state")
     except (TypeError,ValueError):
         target_pct=max_target_pct=start_tolerance_pct=minimum_reality_delta_pct=None
         reasons.append("trajectory tau0 capture policy has invalid numeric fields")
@@ -341,6 +345,9 @@ def validate_physical_tau0(trajectory: Trajectory) -> PhysicalEvidenceReport:
 
     reality_delta_observed=False
     max_measured_delta=0.0
+    final_measured_position=None
+    if len(trajectory.steps)!=2:
+        reasons.append("physical tau0 trajectory must contain exactly two steps")
     expected_site_lineage=trajectory.context.get("site_lineage") or {}
     for step in trajectory.steps:
         sensor_types={r.sensor_type for r in step.sensor_readings}
@@ -358,11 +365,15 @@ def validate_physical_tau0(trajectory: Trajectory) -> PhysicalEvidenceReport:
                     f"step {step.index} {reading.sensor_type} evidence belongs to a different physical site contract"
                 )
 
-        if any(
-            a.target_pct > 5.0 or a.target_pct < 0
-            for a in step.proposed_actions+step.executed_actions
-        ):
+        all_actions=step.proposed_actions+step.executed_actions
+        if any(a.target_pct > 5.0 or a.target_pct < 0 for a in all_actions):
             reasons.append(f"step {step.index} exceeds bounded tau0 target")
+        if step.executed_actions:
+            expected_target=target_pct if step.index==0 else 0.0
+            if any(abs(float(a.target_pct)-float(expected_target))>1e-9 for a in step.executed_actions):
+                reasons.append(
+                    f"step {step.index} tau0 target sequence mismatch; expected {expected_target:.1f}%"
+                )
 
         if not step.actuator_feedback:
             reasons.append(f"step {step.index} missing actuator feedback")
@@ -377,6 +388,8 @@ def validate_physical_tau0(trajectory: Trajectory) -> PhysicalEvidenceReport:
                     and delta >= minimum_reality_delta_pct
                 ):
                     reality_delta_observed=True
+                if step.index==len(trajectory.steps)-1:
+                    final_measured_position=float(feedback.measured_position_pct)
 
         next_types={r.sensor_type for r in step.next_sensor_readings}
         if "co2" not in next_types: reasons.append(f"step {step.index} missing post-action CO2 evidence")
@@ -400,4 +413,10 @@ def validate_physical_tau0(trajectory: Trajectory) -> PhysicalEvidenceReport:
     if not reality_delta_observed:
         detail=f" (max {max_measured_delta:.3f}%)" if initial_position is not None else ""
         reasons.append("physical tau0 did not produce required measured Reality Delta"+detail)
+    if final_measured_position is None:
+        reasons.append("physical tau0 missing final measured closeout position")
+    elif start_tolerance_pct is not None and final_measured_position > start_tolerance_pct:
+        reasons.append(
+            f"physical tau0 did not restore closed state; final {final_measured_position:.3f}%"
+        )
     return PhysicalEvidenceReport(not reasons,tuple(reasons))
