@@ -355,6 +355,38 @@ def load_and_validate_sensor_apply_receipts(
     return {role:staged[role] for role,_ in _REQUIRED}
 
 
+def reverify_sensor_apply_receipts(
+    paths,
+    *,
+    expected_staging_lineage,
+    runtime_lineage,
+    commissioning_identity_sha256,
+    commissioning_bundle_sha256,
+    site_lineage,
+):
+    """Re-open original sensor_apply receipts and match persisted staging lineage."""
+    if not isinstance(expected_staging_lineage,dict):
+        raise RuntimeError(
+            "tau0 evidence does not carry sensor_staging_lineage to reverify"
+        )
+    normalized=load_and_validate_sensor_apply_receipts(
+        paths,
+        runtime_lineage=runtime_lineage,
+        commissioning_identity_sha256=commissioning_identity_sha256,
+        commissioning_bundle_sha256=commissioning_bundle_sha256,
+        site_lineage=site_lineage,
+    )
+    if normalized is None:
+        raise RuntimeError(
+            "sensor_apply receipt re-verification requires the original CO2 and rain receipt files"
+        )
+    if normalized!=expected_staging_lineage:
+        raise RuntimeError(
+            "original sensor_apply receipt files do not match persisted sensor_staging_lineage"
+        )
+    return normalized
+
+
 def _validate_staging_summary(
     staging,
     *,

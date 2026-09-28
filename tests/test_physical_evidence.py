@@ -202,6 +202,56 @@ def _sensor_evidence(commission_sha):
     )
 
 
+def _probe_readiness():
+    rows={}
+    for role,key,contract_sha,ts in (
+        ("co2","co2_ppm","c"*64,100.0),
+        ("rain","rain","d"*64,101.0),
+    ):
+        rows[key]={
+            "timestamp":ts,
+            "quality":"measured",
+            "source":f"sensor-read-probe:{contract_sha}",
+            "source_scheme":"sensor-read-probe",
+            "source_contract_sha256":contract_sha,
+            "fresh":True,
+            "measured":True,
+            "registry_bound":True,
+            "site_bound":True,
+            "thingmodel_binding":_binding(role),
+        }
+    return {"sensor_evidence_lineage":rows}
+
+
+def _apply_receipt(role,commission_sha):
+    return {
+        "schema_version":"0.1",
+        "status":"PASS",
+        "network_requests_by_tool":3,
+        "runtime_posts_by_tool":1,
+        "actuator_writes_by_tool":0,
+        "window_command_endpoints_called":0,
+        "role":role,
+        "role_key":"co2_ppm" if role=="co2" else "rain",
+        "probe_receipt_sha256":"e"*64,
+        "sensor_contract_sha256":"c"*64 if role=="co2" else "d"*64,
+        "commissioning_bundle_sha256":commission_sha,
+        "runtime_hardware_identity_sha256":"same-hardware",
+        "site_id":"test.single-room",
+        "site_manifest_sha256":"8"*64,
+        "site_contract_sha256":"a"*64,
+        "sample_timestamp":100.0 if role=="co2" else 101.0,
+        "runtime_sensor_checks":{
+            "fresh":True,
+            "measured":True,
+            "registry_bound":True,
+            "site_bound":True,
+        },
+        "automation_evaluated":False,
+        "actuator_command_issued":False,
+    }
+
+
 class PhysicalArtifactVerifierTests(unittest.TestCase):
     def _make_bundle(self,path):
         payload=_bundle_payload()
@@ -330,6 +380,82 @@ class PhysicalArtifactVerifierTests(unittest.TestCase):
             "runtime-measured-lineage",
         )
         self.assertTrue(report["sensor_evidence_sha256"])
+        self.assertEqual(
+            report["sensor_staging_replay_status"],
+            "NOT_APPLICABLE",
+        )
+        self.assertFalse(report["sensor_staging_receipts_reverified"])
+
+    def test_probe_apply_audited_artifacts_can_replay_original_receipts(self):
+        with tempfile.TemporaryDirectory() as d:
+            root=Path(d)
+            bundle,trajectory,receipt,_,behavior,commission_sha=self._valid_chain(root)
+
+            apply_paths=[]
+            for role in ("co2","rain"):
+                path=root/f"{role}-apply.json"
+                path.write_text(
+                    json.dumps(_apply_receipt(role,commission_sha)),
+                    encoding="utf-8",
+                )
+                apply_paths.append(path)
+
+            audited=build_sensor_evidence(
+                readiness=_probe_readiness(),
+                site_lineage=require_hardware_site_lineage(_identity()),
+                commissioning_identity_sha256="same-hardware",
+                commissioning_bundle_sha256=commission_sha,
+                sensor_apply_receipts=apply_paths,
+            )
+
+            trajectory_payload=json.loads(
+                trajectory.read_text(encoding="utf-8").strip()
+            )
+            trajectory_payload["context"].update({
+                "sensor_evidence_origin":audited["sensor_evidence_origin"],
+                "runtime_sensor_lineage":audited["runtime_sensor_lineage"],
+                "sensor_staging_lineage":audited["sensor_staging_lineage"],
+                "sensor_evidence_sha256":audited["sensor_evidence_sha256"],
+            })
+            trajectory.write_text(
+                json.dumps(trajectory_payload)+"\n",
+                encoding="utf-8",
+            )
+
+            receipt_payload=json.loads(
+                receipt.read_text(encoding="utf-8")
+            )
+            receipt_payload.update({
+                "sensor_evidence_origin":audited["sensor_evidence_origin"],
+                "runtime_sensor_lineage":audited["runtime_sensor_lineage"],
+                "sensor_staging_lineage":audited["sensor_staging_lineage"],
+                "sensor_evidence_sha256":audited["sensor_evidence_sha256"],
+                "trajectory_sha256":hashlib.sha256(
+                    trajectory.read_bytes()
+                ).hexdigest(),
+            })
+            receipt.write_text(
+                json.dumps(receipt_payload),
+                encoding="utf-8",
+            )
+
+            report=verify_physical_tau0_artifacts(
+                trajectory_path=trajectory,
+                receipt_path=receipt,
+                commission_bundle_path=bundle,
+                sensor_apply_receipt_paths=apply_paths,
+            )
+
+        self.assertTrue(report["valid_artifacts"],report["reasons"])
+        self.assertEqual(
+            report["sensor_evidence_origin"],
+            "probe-apply-audited",
+        )
+        self.assertEqual(
+            report["sensor_staging_replay_status"],
+            "VERIFIED",
+        )
+        self.assertTrue(report["sensor_staging_receipts_reverified"])
 
     def test_sensor_evidence_origin_mismatch_between_trajectory_and_receipt_is_rejected(self):
         with tempfile.TemporaryDirectory() as d:

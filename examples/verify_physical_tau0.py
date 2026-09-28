@@ -12,11 +12,21 @@ def main(argv=None):
     parser.add_argument("--trajectory",default="artifacts/physical-tau0.jsonl")
     parser.add_argument("--receipt",default="artifacts/physical-tau0-audit.json")
     parser.add_argument("--commission-bundle",required=True)
+    parser.add_argument(
+        "--sensor-apply-receipt",
+        action="append",
+        default=[],
+        help=(
+            "Optional original WindowPilot sensor_apply receipt. Supply both "
+            "CO2 and rain receipts to fully replay probe-apply-audited staging."
+        ),
+    )
     args=parser.parse_args(argv)
     report=verify_physical_tau0_artifacts(
         trajectory_path=args.trajectory,
         receipt_path=args.receipt,
         commission_bundle_path=args.commission_bundle,
+        sensor_apply_receipt_paths=args.sensor_apply_receipt,
     )
     print(json.dumps(report,ensure_ascii=False,indent=2))
     return 0 if report["valid_artifacts"] else 2

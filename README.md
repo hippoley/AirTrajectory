@@ -170,6 +170,15 @@ python examples/verify_physical_tau0.py \
   --trajectory artifacts/physical-tau0.jsonl \
   --receipt artifacts/physical-tau0-audit.json \
   --commission-bundle /path/to/physical-bringup.json
+
+# For a tau0 that claims probe-apply-audited sensor staging, optionally replay
+# the original WindowPilot receipts as well:
+python examples/verify_physical_tau0.py \
+  --trajectory artifacts/physical-tau0.jsonl \
+  --receipt artifacts/physical-tau0-audit.json \
+  --commission-bundle /path/to/physical-bringup.json \
+  --sensor-apply-receipt /path/to/sensor-runtime-apply.co2.json \
+  --sensor-apply-receipt /path/to/sensor-runtime-apply.rain.json
 ```
 
 This verifier does not contact hardware. It re-checks:
@@ -188,6 +197,8 @@ trajectory SHA-256
 + strictly increasing commissioning source timestamps
 + runtime CO₂/rain source lineage + sensor evidence SHA-256
 + optional probe-apply staging lineage when the receipt claims audited staging
++ optional original sensor_apply receipt replay:
+  file SHA-256 + full staging semantics must match persisted lineage
 + measured actuator position
 + pre-action CO₂/rain ThingModel + site-instance provenance
 + newer post-action CO₂/rain ThingModel + site-instance provenance
@@ -196,6 +207,8 @@ trajectory SHA-256
 AirTrajectory deliberately does **not** copy the raw vendor ThingModel bundle or the private deployment manifest. WindowPilot owns product-registry and physical-site validation; AirTrajectory carries only the non-secret site/room/device-instance identity plus cryptographic lineage required to prove that the same verified installed device produced the physical trajectory.
 
 The physical closeout is complete only when capture returned `valid_tau0=true` **and** this independent artifact verification returns `valid_artifacts=true`.
+
+For `probe-apply-audited` captures, artifact verification remains internally valid when the original apply receipts are unavailable, but reports `sensor_staging_replay_status=NOT_SUPPLIED`. Supplying both original receipts upgrades that independent replay result to `VERIFIED`; a partial set, altered file SHA, mismatched runtime/site identity, or changed staging semantics is rejected.
 
 ## Non-goals
 

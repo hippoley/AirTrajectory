@@ -5,6 +5,7 @@ from pathlib import Path
 
 from airtrajectory.sensor_lineage import (
     build_sensor_evidence,
+    reverify_sensor_apply_receipts,
     validate_sensor_evidence_context,
 )
 
@@ -196,6 +197,80 @@ class SensorLineageTests(unittest.TestCase):
             commissioning_identity_sha256="same-hardware",
             commissioning_bundle_sha256="b"*64,
         )
+
+    def test_original_apply_receipts_can_be_fully_replayed(self):
+        with tempfile.TemporaryDirectory() as d:
+            root=Path(d)
+            paths=[]
+            for role in ("co2","rain"):
+                path=root/f"{role}.json"
+                path.write_text(
+                    json.dumps(_apply_receipt(role,"b"*64)),
+                    encoding="utf-8",
+                )
+                paths.append(path)
+            evidence=build_sensor_evidence(
+                readiness=_readiness(probe=True),
+                site_lineage=_site_lineage(),
+                commissioning_identity_sha256="same-hardware",
+                commissioning_bundle_sha256="b"*64,
+                sensor_apply_receipts=paths,
+            )
+            replayed=reverify_sensor_apply_receipts(
+                paths,
+                expected_staging_lineage=evidence[
+                    "sensor_staging_lineage"
+                ],
+                runtime_lineage=evidence["runtime_sensor_lineage"],
+                commissioning_identity_sha256="same-hardware",
+                commissioning_bundle_sha256="b"*64,
+                site_lineage=_site_lineage(),
+            )
+
+        self.assertEqual(
+            replayed,
+            evidence["sensor_staging_lineage"],
+        )
+
+    def test_apply_receipt_file_sha_tamper_is_detected_on_replay(self):
+        with tempfile.TemporaryDirectory() as d:
+            root=Path(d)
+            paths=[]
+            for role in ("co2","rain"):
+                path=root/f"{role}.json"
+                path.write_text(
+                    json.dumps(_apply_receipt(role,"b"*64)),
+                    encoding="utf-8",
+                )
+                paths.append(path)
+            evidence=build_sensor_evidence(
+                readiness=_readiness(probe=True),
+                site_lineage=_site_lineage(),
+                commissioning_identity_sha256="same-hardware",
+                commissioning_bundle_sha256="b"*64,
+                sensor_apply_receipts=paths,
+            )
+
+            # Same semantic JSON, different source-file bytes -> different
+            # apply_receipt_sha256 and therefore not the captured artifact.
+            paths[0].write_text(
+                paths[0].read_text(encoding="utf-8")+"\n",
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(
+                RuntimeError,
+                "do not match persisted sensor_staging_lineage",
+            ):
+                reverify_sensor_apply_receipts(
+                    paths,
+                    expected_staging_lineage=evidence[
+                        "sensor_staging_lineage"
+                    ],
+                    runtime_lineage=evidence["runtime_sensor_lineage"],
+                    commissioning_identity_sha256="same-hardware",
+                    commissioning_bundle_sha256="b"*64,
+                    site_lineage=_site_lineage(),
+                )
 
     def test_partial_apply_receipt_set_fails_closed(self):
         with tempfile.TemporaryDirectory() as d:
