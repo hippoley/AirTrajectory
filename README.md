@@ -79,7 +79,9 @@ plan = compile_spatial_plan(
 )
 ```
 
-It resolves each normalized `position_t` to a deterministic anchor on its declared wall and assigns stable symbolic `zone:*`, `path:*`, and `control:*` identities. Moving a window changes its placement anchor while preserving connectivity identity. The current fixed floor plan uses browser/canvas coordinates, so the plan explicitly reports `metric_geometry_ready=false`: it does **not** pretend that UI coordinates are metres or that an engineering-valid CONTAM PRJ can already be generated. Metric opening dimensions/elevation and wall azimuth remain the next compiler inputs.
+It resolves each normalized `position_t` to a deterministic anchor on its declared wall and assigns stable symbolic `zone:*`, `path:*`, and `control:*` identities. Moving a window changes its placement anchor while preserving connectivity identity. The current fixed floor plan uses browser/canvas coordinates, so the plan does **not** pretend that UI coordinates are metres.
+
+The layout schema now also accepts optional physical geometry without fabricating it: walls may provide `length_m` + `azimuth_deg`, and openings may provide `width_m` + `height_m` + `sill_height_m`. The spatial compiler reports missing fields per wall/opening, flips `metric_geometry_ready=true` only when the whole layout is physically specified, and derives `distance_along_wall_m = position_t × length_m`. Invalid azimuths, non-positive dimensions, openings wider than their wall, or `max_area_m2` larger than the physical opening area fail closed. Even with complete metric inputs, `prj_generation_implemented=false` remains explicit until a real CONTAM writer exists.
 
 ## Verified capability matrix
 
