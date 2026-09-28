@@ -11,9 +11,12 @@ import json
 from pathlib import Path
 
 from .lineage import (
+    compare_hardware_site_lineage,
     compare_hardware_thingmodel_lineage,
     is_sha256,
+    require_hardware_site_lineage,
     require_hardware_thingmodel_lineage,
+    sensor_binding_matches_site,
     sensor_binding_valid,
 )
 
@@ -44,7 +47,7 @@ def _load_trajectory_record(path: Path, trajectory_id: str):
     return matches[0]
 
 
-def _check_sensor_rows(rows, *, step_index, phase, reasons):
+def _check_sensor_rows(rows, *, step_index, phase, reasons, site_lineage):
     by_type={
         item.get("sensor_type"):item
         for item in rows
@@ -55,9 +58,14 @@ def _check_sensor_rows(rows, *, step_index, phase, reasons):
         if item is None:
             reasons.append(f"step {step_index} missing {phase}{label} evidence")
             continue
-        if not sensor_binding_valid(item.get("provenance")):
+        provenance=item.get("provenance")
+        if not sensor_binding_valid(provenance):
             reasons.append(
-                f"step {step_index} {phase}{label} evidence missing valid ThingModel provenance"
+                f"step {step_index} {phase}{label} evidence missing valid ThingModel/site provenance"
+            )
+        elif not sensor_binding_matches_site(provenance,site_lineage):
+            reasons.append(
+                f"step {step_index} {phase}{label} evidence belongs to a different physical site contract"
             )
 
 
@@ -139,6 +147,22 @@ def verify_physical_tau0_artifacts(*, trajectory_path, receipt_path, commission_
     except RuntimeError as exc:
         reasons.append(str(exc))
 
+    expected_site_lineage=None
+    try:
+        expected_site_lineage=require_hardware_site_lineage(
+            commissioning_identity,
+            label="commissioning hardware identity",
+        )
+        compare_hardware_site_lineage(
+            commissioning_identity,
+            runtime_identity,
+            label="runtime",
+        )
+        if receipt.get("site_lineage")!=expected_site_lineage:
+            reasons.append("tau0 receipt physical-site lineage does not match hardware identities")
+    except RuntimeError as exc:
+        reasons.append(str(exc))
+
     bundle={}
     try:
         bundle=_load_json(commission_bundle_path)
@@ -155,6 +179,18 @@ def verify_physical_tau0_artifacts(*, trajectory_path, receipt_path, commission_
             )
             if expected_lineage is not None and bundle_lineage!=expected_lineage:
                 reasons.append("commissioning bundle ThingModel lineage mismatch")
+        except RuntimeError as exc:
+            reasons.append(str(exc))
+        try:
+            bundle_site_lineage=require_hardware_site_lineage(
+                bundle_identity,
+                label="commissioning bundle hardware identity",
+            )
+            if (
+                expected_site_lineage is not None
+                and bundle_site_lineage!=expected_site_lineage
+            ):
+                reasons.append("commissioning bundle physical-site lineage mismatch")
         except RuntimeError as exc:
             reasons.append(str(exc))
 
@@ -187,6 +223,8 @@ def verify_physical_tau0_artifacts(*, trajectory_path, receipt_path, commission_
                 reasons.append("trajectory runtime hardware identity lineage mismatch")
             if context.get("thingmodel_lineage")!=expected_lineage:
                 reasons.append("trajectory ThingModel lineage mismatch")
+            if context.get("site_lineage")!=expected_site_lineage:
+                reasons.append("trajectory physical-site lineage mismatch")
             if context.get("commissioning_bundle_sha256")!=expected_commission_sha:
                 reasons.append("trajectory commissioning bundle lineage mismatch")
             if context.get("preflight_receipt_sha256")!=preflight_receipt_sha:
@@ -207,7 +245,13 @@ def verify_physical_tau0_artifacts(*, trajectory_path, receipt_path, commission_
                     item for item in (step.get("sensor_readings") or [])
                     if isinstance(item,dict)
                 ]
-                _check_sensor_rows(pre_rows,step_index=index,phase="",reasons=reasons)
+                _check_sensor_rows(
+                    pre_rows,
+                    step_index=index,
+                    phase="",
+                    reasons=reasons,
+                    site_lineage=expected_site_lineage or {},
+                )
 
                 feedback=[
                     item for item in (step.get("actuator_feedback") or [])
@@ -233,6 +277,7 @@ def verify_physical_tau0_artifacts(*, trajectory_path, receipt_path, commission_
                     step_index=index,
                     phase="post-action ",
                     reasons=reasons,
+                    site_lineage=expected_site_lineage or {},
                 )
                 if feedback_ts is not None:
                     for item in post_rows:
@@ -255,6 +300,7 @@ def verify_physical_tau0_artifacts(*, trajectory_path, receipt_path, commission_
         "commissioning_identity_sha256":commissioning_id or None,
         "runtime_hardware_identity_sha256":runtime_id,
         "thingmodel_lineage":expected_lineage,
+        "site_lineage":expected_site_lineage,
         "preflight_receipt_sha256":preflight_receipt_sha or None,
         "gateway_contract_sha256":gateway_contract_sha or None,
     }

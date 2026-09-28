@@ -3,7 +3,12 @@ from dataclasses import asdict, dataclass
 import time
 from typing import Iterable, List, Optional
 from .trajectory import ActuatorFeedback, RewardVector, SemanticAction, Trajectory, TrajectoryStep, TrajectoryStore, TransitionAction
-from .lineage import compare_hardware_thingmodel_lineage, sensor_binding_valid
+from .lineage import (
+    compare_hardware_site_lineage,
+    compare_hardware_thingmodel_lineage,
+    sensor_binding_matches_site,
+    sensor_binding_valid,
+)
 
 @dataclass(frozen=True)
 class DriverCapabilities:
@@ -165,6 +170,17 @@ def validate_physical_tau0(trajectory: Trajectory) -> PhysicalEvidenceReport:
     except RuntimeError as exc:
         reasons.append(str(exc))
 
+    try:
+        site_lineage=compare_hardware_site_lineage(
+            trajectory.context.get("commissioning_hardware_identity") or {},
+            runtime_identity,
+            label="runtime",
+        )
+        if trajectory.context.get("site_lineage")!=site_lineage:
+            reasons.append("trajectory physical-site lineage does not match commissioning/runtime identity")
+    except RuntimeError as exc:
+        reasons.append(str(exc))
+
     preflight_receipt=trajectory.context.get("preflight_receipt_sha256")
     preflight_id=trajectory.context.get("preflight_hardware_identity_sha256")
     gateway_contract=trajectory.context.get("gateway_contract_sha256")
@@ -176,6 +192,7 @@ def validate_physical_tau0(trajectory: Trajectory) -> PhysicalEvidenceReport:
         reasons.append("preflight/commissioning hardware identity mismatch")
     if not gateway_contract:
         reasons.append("trajectory missing gateway contract lineage")
+    expected_site_lineage=trajectory.context.get("site_lineage") or {}
     for step in trajectory.steps:
         sensor_types={r.sensor_type for r in step.sensor_readings}
         if "co2" not in sensor_types: reasons.append(f"step {step.index} missing CO2 evidence")
@@ -183,7 +200,13 @@ def validate_physical_tau0(trajectory: Trajectory) -> PhysicalEvidenceReport:
         for reading in step.sensor_readings:
             if reading.sensor_type in ("co2","rain") and not sensor_binding_valid(reading.provenance):
                 reasons.append(
-                    f"step {step.index} {reading.sensor_type} evidence missing valid ThingModel provenance"
+                    f"step {step.index} {reading.sensor_type} evidence missing valid ThingModel/site provenance"
+                )
+            elif reading.sensor_type in ("co2","rain") and not sensor_binding_matches_site(
+                reading.provenance,expected_site_lineage
+            ):
+                reasons.append(
+                    f"step {step.index} {reading.sensor_type} evidence belongs to a different physical site contract"
                 )
 
         if not step.actuator_feedback: reasons.append(f"step {step.index} missing actuator feedback")
@@ -196,7 +219,13 @@ def validate_physical_tau0(trajectory: Trajectory) -> PhysicalEvidenceReport:
         for reading in step.next_sensor_readings:
             if reading.sensor_type in ("co2","rain") and not sensor_binding_valid(reading.provenance):
                 reasons.append(
-                    f"step {step.index} post-action {reading.sensor_type} evidence missing valid ThingModel provenance"
+                    f"step {step.index} post-action {reading.sensor_type} evidence missing valid ThingModel/site provenance"
+                )
+            elif reading.sensor_type in ("co2","rain") and not sensor_binding_matches_site(
+                reading.provenance,expected_site_lineage
+            ):
+                reasons.append(
+                    f"step {step.index} post-action {reading.sensor_type} evidence belongs to a different physical site contract"
                 )
 
         if step.actuator_feedback and step.next_sensor_readings:

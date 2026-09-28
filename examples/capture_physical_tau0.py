@@ -6,7 +6,9 @@ from pathlib import Path
 
 from airtrajectory.drivers import WindowPilotHTTPDriver
 from airtrajectory.lineage import (
+    compare_hardware_site_lineage,
     compare_hardware_thingmodel_lineage,
+    require_hardware_site_lineage,
     require_hardware_thingmodel_lineage,
 )
 from airtrajectory.physical import (
@@ -59,6 +61,10 @@ def capture_physical_tau0(
         commissioning_identity,
         label="commissioning hardware identity",
     )
+    site_lineage=require_hardware_site_lineage(
+        commissioning_identity,
+        label="commissioning hardware identity",
+    )
 
     readiness=driver.physical_readiness()
     if readiness.get("capture_preconditions") is not True:
@@ -74,11 +80,21 @@ def capture_physical_tau0(
         runtime_identity,
         label="runtime",
     )
+    compare_hardware_site_lineage(
+        commissioning_identity,
+        runtime_identity,
+        label="runtime",
+    )
 
     registry_bound=readiness.get("registry_bound_sensors")
     if registry_bound != {"co2_ppm":True,"rain":True}:
         raise RuntimeError(
             "WindowPilot physical capture requires registry-bound CO2 and rain evidence"
+        )
+    site_bound=readiness.get("site_bound_sensors")
+    if site_bound != {"co2_ppm":True,"rain":True}:
+        raise RuntimeError(
+            "WindowPilot physical capture requires site-bound CO2 and rain evidence"
         )
 
     caps=driver.capabilities()
@@ -97,6 +113,7 @@ def capture_physical_tau0(
             "commissioning_hardware_identity":commissioning_identity,
             "runtime_hardware_identity":runtime_identity,
             "thingmodel_lineage":thingmodel_lineage,
+            "site_lineage":site_lineage,
             "commissioning_bundle_sha256":commission_bundle_sha256,
             "preflight_receipt_sha256":preflight_receipt_sha256,
             "preflight_hardware_identity_sha256":preflight_identity_sha256,
@@ -116,6 +133,7 @@ def capture_physical_tau0(
         "commissioning_hardware_identity":commissioning_identity,
         "runtime_hardware_identity":runtime_identity,
         "thingmodel_lineage":thingmodel_lineage,
+        "site_lineage":site_lineage,
         "commissioning_bundle_sha256":commission_bundle_sha256,
         "preflight_receipt_sha256":preflight_receipt_sha256,
         "preflight_hardware_identity_sha256":preflight_identity_sha256,

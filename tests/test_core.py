@@ -19,12 +19,13 @@ from airtrajectory.telemetry import DecisionTelemetry
 from airtrajectory.dataset import transition_rows, counterfactual_rows, audited_physical_transition_rows
 from airtrajectory.bc import TabularBC
 from airtrajectory.offline_rl import OfflineQ
-from airtrajectory.lineage import require_hardware_thingmodel_lineage
+from airtrajectory.lineage import require_hardware_site_lineage, require_hardware_thingmodel_lineage
 
 
 def _hardware_identity(identity_sha):
     return {
         "identity_sha256":identity_sha,
+        "device_id":"window-device-01",
         "thingmodel_product_model":"CWDS-CA01",
         "thingmodel_product_key":"6nZ1oIh6VNu",
         "thingmodel_version":"v1",
@@ -32,6 +33,15 @@ def _hardware_identity(identity_sha):
         "thingmodel_source_bundle_sha256":"2"*64,
         "thingmodel_registry_sha256":"3"*64,
         "thingmodel_contract_sha256":"4"*64,
+        "site_id":"test.single-room",
+        "room_id":"living",
+        "device_instance_id":"living.window.primary",
+        "site_device_id":"window-device-01",
+        "site_product_model":"CWDS-CA01",
+        "site_product_key":"6nZ1oIh6VNu",
+        "site_manifest_sha256":"8"*64,
+        "site_instance_contract_sha256":"9"*64,
+        "site_contract_sha256":"a"*64,
     }
 
 
@@ -46,6 +56,10 @@ def _sensor_binding(kind):
             "source_bundle_sha256":"2"*64,
             "registry_sha256":"3"*64,
             "contract_sha256":"6"*64,
+            "site_id":"test.single-room",
+            "site_instance_id":"living.air.primary",
+            "site_manifest_sha256":"8"*64,
+            "site_contract_sha256":"a"*64,
         }
     return {
         "product_model":"CWDS-CA01",
@@ -56,6 +70,10 @@ def _sensor_binding(kind):
         "source_bundle_sha256":"2"*64,
         "registry_sha256":"3"*64,
         "contract_sha256":"7"*64,
+        "site_id":"test.single-room",
+        "site_instance_id":"living.window.primary",
+        "site_manifest_sha256":"8"*64,
+        "site_contract_sha256":"a"*64,
     }
 
 
@@ -72,6 +90,7 @@ class CoreTests(unittest.TestCase):
                     "capture_preconditions":True,
                     "hardware_identity":_hardware_identity("same"),
                     "registry_bound_sensors":{"co2_ppm":True,"rain":True},
+                    "site_bound_sensors":{"co2_ppm":True,"rain":True},
                     "reasons":[],
                 }
         driver=CommissionedFake(co2_ppm=1400,measured_feedback=True)
@@ -116,6 +135,7 @@ class CoreTests(unittest.TestCase):
                     "capture_preconditions":True,
                     "hardware_identity":_hardware_identity("runtime-B"),
                     "registry_bound_sensors":{"co2_ppm":True,"rain":True},
+                    "site_bound_sensors":{"co2_ppm":True,"rain":True},
                     "reasons":[],
                 }
             def set_position(self,opening_id,target_pct):
@@ -423,6 +443,9 @@ class CoreTests(unittest.TestCase):
             "thingmodel_lineage":require_hardware_thingmodel_lineage(
                 _hardware_identity("same-hardware")
             ),
+            "site_lineage":require_hardware_site_lineage(
+                _hardware_identity("same-hardware")
+            ),
         })
         trajectory.append(TrajectoryStep(0,{"co2":1400},[TransitionAction("W1",50)],[TransitionAction("W1",0)],{"co2":1390},RewardVector(safety=-1),intervention="RAIN_SAFE_CLOSE",info={"trace_id":"trace-1","provenance":"physical"}))
         row=list(transition_rows(trajectory))[0]
@@ -433,6 +456,7 @@ class CoreTests(unittest.TestCase):
         self.assertEqual(row["preflight_hardware_identity_sha256"],"same-hardware")
         self.assertEqual(row["gateway_contract_sha256"],"b"*64)
         self.assertEqual(row["thingmodel_lineage"]["thingmodel_product_model"],"CWDS-CA01")
+        self.assertEqual(row["site_lineage"]["device_instance_id"],"living.window.primary")
         self.assertFalse(row["is_counterfactual"])
 
     def test_counterfactual_rows_are_not_behavior_samples(self):
@@ -558,6 +582,7 @@ class CoreTests(unittest.TestCase):
                     "commissioning_hardware_identity":identity,
                     "runtime_hardware_identity":identity,
                     "thingmodel_lineage":require_hardware_thingmodel_lineage(identity),
+                    "site_lineage":require_hardware_site_lineage(identity),
                     "preflight_receipt_sha256":"a"*64,
                     "preflight_hardware_identity_sha256":"same-hardware",
                     "gateway_contract_sha256":"b"*64,
