@@ -13,9 +13,12 @@ This repository is deliberately decoupled from device runtimes such as WindowPil
 ## Architecture
 
 ```text
-Floor plan / topology
+Topology source
+Fixed JSON today / arbitrary JSON, 2D, 3D later
         ↓
-Topology compiler
+Topology manifest
+        ↓
+Runtime topology + CONTAM compile contract
         ↓
 Physics backend
 Fast model / CONTAM / CFD adapter
@@ -37,6 +40,9 @@ Real trajectories back into AirTrajectory
 
 | Capability | Status | Evidence boundary |
 | --- | --- | --- |
+| Fixed floor-plan topology manifest | ✅ verified | current room/wall geometry is locked in `web/data/home_topology.fixed.json`; windows/doors may move along declared walls |
+| Arbitrary topology JSON import | 🟡 reserved | provider boundary exists; arbitrary room/wall mutation is intentionally not enabled yet |
+| topology → CONTAM automatic compilation | 🟡 reserved | `contam_compile_contract()` defines zones/walls/openings and reserved PRJ/control/path outputs; no fake PRJ generation |
 | Multi-room / multi-window scenario simulator | ✅ verified | deterministic toy/surrogate physics; not engineering truth |
 | Agent → safety gate → executed action → reward → trajectory | ✅ verified | proposed/executed/intervention are preserved |
 | Behavior Cloning baseline | ✅ verified | topology-local discrete policy trained from behavior rows |
@@ -55,6 +61,52 @@ Real trajectories back into AirTrajectory
 The fast multizone backend remains a learning surrogate. CONTAM is now an executable higher-fidelity backend, but a real room trajectory is still the final evidence gate.
 
 The real-device rows above are intentionally **not removed when hardware is unavailable**. The web console keeps those gates visible as `REAL / RESERVED` and activates a clearly labeled mock fallback beside them. The bundled fallback starts from the illustrative single-room seed used during development: 30 m² / 75 m³, 2 occupants, indoor CO₂ 1400 ppm, outdoor CO₂ 430 ppm, dry weather, 0% initial opening, 1.5 m/s wind and a 20% simulated target. Its trajectory is `τ_sim`, not `physical τ₀`.
+
+## Topology source boundary
+
+The current UI intentionally uses a **fixed floor plan with editable opening positions**.
+
+```text
+web/data/home_topology.fixed.json
+        ↓
+TopologyManifest
+        ├── BuildingTopology
+        ├── browser renderer / opening editor
+        ├── trajectory topology context
+        └── contam_compile_contract()
+```
+
+Current edit policy is explicit:
+
+```text
+room geometry          LOCKED
+wall geometry          LOCKED
+room connectivity      LOCKED
+window position        EDITABLE along its declared wall
+door position          EDITABLE along its declared wall
+opening state / %      EDITABLE
+```
+
+Moving a window or door changes only `position_on_wall`; it does not silently change which zones the opening connects. The browser marks prior trajectories stale after an opening move and records the current topology id/revision/opening positions in new browser `τ_sim` steps.
+
+The same manifest already exposes the stable future compiler boundary:
+
+```python
+manifest.contam_compile_contract()
+```
+
+That contract contains zone volumes, wall segments, opening connectivity, wall placement, `position_on_wall`, maximum area and controllability. Its status is deliberately `RESERVED`: it does **not** claim that arbitrary topology → CONTAM PRJ/control/path generation is complete.
+
+Later providers can replace only the source layer:
+
+```text
+FixedTopologyProvider       ← current
+JsonTopologyProvider        ← reserved
+2DPlanTopologyProvider      ← reserved
+3DSceneTopologyProvider     ← reserved
+```
+
+The downstream runtime/trajectory/CONTAM contract is intended to remain stable.
 
 ## Quick start
 
@@ -90,7 +142,7 @@ docs/
 1. Supply the real WindowPilot gateway contract: property set/get endpoints, device ID, authentication, timestamp path, quality path, and measured-position source.
 2. Run WindowPilot read-only preflight, then the bounded `READ → OPEN 5% → STOP → CLOSE` commissioning sequence on one real window.
 3. Start WindowPilot hardware mode with fresh measured CO₂/rain evidence and capture the first audited physical τ₀.
-4. Add topology compilation from the real ThingModel/floor-plan source rather than generated chain scenarios.
+4. Implement the reserved topology→CONTAM compiler behind the existing manifest contract, then add arbitrary JSON / 2D / 3D topology providers without changing downstream consumers.
 5. Expand the learning stack and quantify sim→real transfer on held-out structural families.
 
 ## Physical τ₀ evidence chain
