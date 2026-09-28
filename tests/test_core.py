@@ -19,6 +19,7 @@ from airtrajectory.telemetry import DecisionTelemetry
 from airtrajectory.dataset import transition_rows, counterfactual_rows, audited_physical_transition_rows
 from airtrajectory.bc import TabularBC
 from airtrajectory.offline_rl import OfflineQ
+from airtrajectory.commissioning import require_commissioning_behavior
 from airtrajectory.lineage import require_hardware_site_lineage, require_hardware_thingmodel_lineage
 
 
@@ -77,6 +78,70 @@ def _sensor_binding(kind):
     }
 
 
+def _commissioning_payload():
+    return {
+        "excursion_pct":5.0,
+        "phases":[
+            {
+                "phase":"READ","commanded_pct":0.0,"measured_pct":0.0,
+                "timestamp":101.0,"source":"bench-encoder","quality":"measured",
+                "observed_delta_pct":0.0,"sample_count":1,
+                "position_span_pct":0.0,"timestamp_advanced":True,
+            },
+            {
+                "phase":"OPEN_5","commanded_pct":5.0,"measured_pct":5.0,
+                "timestamp":102.0,"source":"bench-encoder","quality":"measured",
+                "observed_delta_pct":5.0,"sample_count":1,
+                "position_span_pct":0.0,"timestamp_advanced":True,
+            },
+            {
+                "phase":"STOP","commanded_pct":5.0,"measured_pct":5.0,
+                "timestamp":104.0,"source":"bench-encoder","quality":"measured",
+                "observed_delta_pct":0.0,"sample_count":2,
+                "position_span_pct":0.0,"timestamp_advanced":True,
+            },
+            {
+                "phase":"CLOSE","commanded_pct":0.0,"measured_pct":0.0,
+                "timestamp":105.0,"source":"bench-encoder","quality":"measured",
+                "observed_delta_pct":-5.0,"sample_count":1,
+                "position_span_pct":0.0,"timestamp_advanced":True,
+            },
+        ],
+        "behavior_witness":{
+            "initial_closed_observed":True,
+            "open_observed_delta_pct":5.0,
+            "stop_sample_count":2,
+            "stop_position_span_pct":0.0,
+            "close_observed_delta_pct":-5.0,
+            "source_timestamps":[101.0,102.0,104.0,105.0],
+            "timestamps_strictly_increasing":True,
+            "reality_delta_observed":True,
+        },
+    }
+
+
+def _commission_bundle(identity, preflight=None):
+    payload={
+        "schema_version":"0.3",
+        "status":"PASS",
+        "hardware_identity":identity,
+        "commissioning":_commissioning_payload(),
+    }
+    if preflight is not None:
+        payload["preflight"]=preflight
+    return payload
+
+
+def _commissioning_behavior():
+    return require_commissioning_behavior(
+        {
+            "schema_version":"0.3",
+            "status":"PASS",
+            "commissioning":_commissioning_payload(),
+        }
+    )
+
+
 class CoreTests(unittest.TestCase):
     def test_physical_capture_aborts_before_command_on_simulator(self):
         spec=importlib.util.spec_from_file_location(
@@ -96,15 +161,14 @@ class CoreTests(unittest.TestCase):
         driver=CommissionedFake(co2_ppm=1400,measured_feedback=True)
         with tempfile.TemporaryDirectory() as d:
             bundle=Path(d)/"commission.json"
-            bundle.write_text(json.dumps({
-                "status":"PASS",
-                "hardware_identity":_hardware_identity("same"),
-                "preflight":{
+            bundle.write_text(json.dumps(_commission_bundle(
+                _hardware_identity("same"),
+                {
                     "receipt_sha256":"a"*64,
                     "hardware_identity_sha256":"same",
                     "gateway_contract_sha256":"b"*64,
                 },
-            }))
+            )))
             with self.assertRaisesRegex(RuntimeError,"still simulated"):
                 module.capture_physical_tau0(
                     driver=driver,
@@ -144,15 +208,14 @@ class CoreTests(unittest.TestCase):
         driver=IdentityMismatch()
         with tempfile.TemporaryDirectory() as d:
             bundle=Path(d)/"commission.json"
-            bundle.write_text(json.dumps({
-                "status":"PASS",
-                "hardware_identity":_hardware_identity("commission-A"),
-                "preflight":{
+            bundle.write_text(json.dumps(_commission_bundle(
+                _hardware_identity("commission-A"),
+                {
                     "receipt_sha256":"c"*64,
                     "hardware_identity_sha256":"commission-A",
                     "gateway_contract_sha256":"d"*64,
                 },
-            }))
+            )))
             with self.assertRaisesRegex(RuntimeError,"does not match"):
                 module.capture_physical_tau0(
                     driver=driver,
@@ -190,10 +253,9 @@ class CoreTests(unittest.TestCase):
         driver=NoTouch()
         with tempfile.TemporaryDirectory() as d:
             bundle=Path(d)/"commission.json"
-            bundle.write_text(json.dumps({
-                "status":"PASS",
-                "hardware_identity":{"identity_sha256":"same"},
-            }))
+            bundle.write_text(json.dumps(_commission_bundle(
+                {"identity_sha256":"same"},
+            )))
             with self.assertRaisesRegex(RuntimeError,"preflight lineage"):
                 module.capture_physical_tau0(
                     driver=driver,
@@ -436,10 +498,13 @@ class CoreTests(unittest.TestCase):
             list(audited_physical_transition_rows(trajectory))
 
     def test_dataset_uses_executed_action_and_preserves_proposal(self):
+        behavior=_commissioning_behavior()
         trajectory=Trajectory("demo","rule",context={
             "preflight_receipt_sha256":"a"*64,
             "preflight_hardware_identity_sha256":"same-hardware",
             "gateway_contract_sha256":"b"*64,
+            "commissioning_behavior_witness":behavior["normalized"],
+            "commissioning_behavior_sha256":behavior["sha256"],
             "thingmodel_lineage":require_hardware_thingmodel_lineage(
                 _hardware_identity("same-hardware")
             ),
@@ -455,6 +520,11 @@ class CoreTests(unittest.TestCase):
         self.assertEqual(row["preflight_receipt_sha256"],"a"*64)
         self.assertEqual(row["preflight_hardware_identity_sha256"],"same-hardware")
         self.assertEqual(row["gateway_contract_sha256"],"b"*64)
+        self.assertEqual(row["commissioning_behavior_sha256"],behavior["sha256"])
+        self.assertEqual(
+            row["commissioning_behavior_witness"]["behavior_witness"]["reality_delta_observed"],
+            True,
+        )
         self.assertEqual(row["thingmodel_lineage"]["thingmodel_product_model"],"CWDS-CA01")
         self.assertEqual(row["site_lineage"]["device_instance_id"],"living.window.primary")
         self.assertFalse(row["is_counterfactual"])
@@ -564,6 +634,7 @@ class CoreTests(unittest.TestCase):
             def capabilities(self):
                 return DriverCapabilities("external-test-contract",False,True,("co2","rain"))
         identity=_hardware_identity("same-hardware")
+        behavior=_commissioning_behavior()
         env=PhysicalWindowEnvironment(
             ContractReal(
                 co2_ppm=1400,
@@ -586,6 +657,8 @@ class CoreTests(unittest.TestCase):
                     "preflight_receipt_sha256":"a"*64,
                     "preflight_hardware_identity_sha256":"same-hardware",
                     "gateway_contract_sha256":"b"*64,
+                    "commissioning_behavior_witness":behavior["normalized"],
+                    "commissioning_behavior_sha256":behavior["sha256"],
                 },
             )
         report=validate_physical_tau0(trajectory)
