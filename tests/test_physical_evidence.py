@@ -211,6 +211,18 @@ class PhysicalArtifactVerifierTests(unittest.TestCase):
     def _behavior(self,bundle):
         return require_commissioning_behavior(bundle)
 
+    def _tau0_policy(self):
+        return {
+            "policy_id":"physical-tau0-probe-v1",
+            "target_pct":5.0,
+            "max_target_pct":5.0,
+            "minimum_reality_delta_pct":2.0,
+            "position_tolerance_pct":1.0,
+            "steps":1,
+            "requires_measured_baseline":True,
+            "requires_safe_closeout":True,
+        }
+
     def _make_trajectory(self,path,commission_sha,behavior):
         identity=_identity()
         sensor_evidence=_sensor_evidence(commission_sha)
@@ -241,8 +253,11 @@ class PhysicalArtifactVerifierTests(unittest.TestCase):
                     "quality":"encoder-measured",
                     "source":"CWDS-CA01",
                 },
+                "tau0_capture_policy":self._tau0_policy(),
             },
             "steps":[{
+                "proposed_actions":[{"opening_id":"w1","target_pct":5.0}],
+                "executed_actions":[{"opening_id":"w1","target_pct":5.0}],
                 "sensor_readings":[
                     {
                         "sensor_type":"co2","timestamp":100.0,
@@ -279,6 +294,7 @@ class PhysicalArtifactVerifierTests(unittest.TestCase):
             "valid_tau0":True,
             "environment_kind":"physical",
             "steps":1,
+            "tau0_capture_policy":self._tau0_policy(),
             "commissioning_identity_sha256":"same-hardware",
             "commissioning_hardware_identity":identity,
             "runtime_hardware_identity":identity,
@@ -330,6 +346,11 @@ class PhysicalArtifactVerifierTests(unittest.TestCase):
         self._make_receipt(receipt,trajectory,commission_sha,behavior)
         return bundle,trajectory,receipt,bundle_payload,behavior,commission_sha
 
+    def _refresh_trajectory_sha(self,trajectory,receipt):
+        payload=json.loads(receipt.read_text(encoding="utf-8"))
+        payload["trajectory_sha256"]=hashlib.sha256(trajectory.read_bytes()).hexdigest()
+        receipt.write_text(json.dumps(payload),encoding="utf-8")
+
     def test_valid_artifact_chain_passes(self):
         with tempfile.TemporaryDirectory() as d:
             root=Path(d)
@@ -359,6 +380,64 @@ class PhysicalArtifactVerifierTests(unittest.TestCase):
         )
         self.assertTrue(report["sensor_evidence_sha256"])
         self.assertTrue(report["closeout_confirmed"])
+
+    def test_zero_motion_cannot_be_promoted_to_physical_tau0(self):
+        with tempfile.TemporaryDirectory() as d:
+            root=Path(d)
+            bundle,trajectory,receipt,_,_,_=self._valid_chain(root)
+            payload=json.loads(trajectory.read_text(encoding="utf-8"))
+            payload["steps"][0]["actuator_feedback"][0]["measured_position_pct"]=0.0
+            trajectory.write_text(json.dumps(payload)+"\n",encoding="utf-8")
+            self._refresh_trajectory_sha(trajectory,receipt)
+            report=verify_physical_tau0_artifacts(
+                trajectory_path=trajectory,
+                receipt_path=receipt,
+                commission_bundle_path=bundle,
+            )
+        self.assertFalse(report["valid_artifacts"])
+        self.assertTrue(any(
+            "no required positive measured Reality Delta" in reason
+            for reason in report["reasons"]
+        ))
+
+    def test_oversized_probe_target_is_rejected(self):
+        with tempfile.TemporaryDirectory() as d:
+            root=Path(d)
+            bundle,trajectory,receipt,_,_,_=self._valid_chain(root)
+            payload=json.loads(trajectory.read_text(encoding="utf-8"))
+            payload["steps"][0]["proposed_actions"][0]["target_pct"]=50.0
+            payload["steps"][0]["executed_actions"][0]["target_pct"]=50.0
+            trajectory.write_text(json.dumps(payload)+"\n",encoding="utf-8")
+            self._refresh_trajectory_sha(trajectory,receipt)
+            report=verify_physical_tau0_artifacts(
+                trajectory_path=trajectory,
+                receipt_path=receipt,
+                commission_bundle_path=bundle,
+            )
+        self.assertFalse(report["valid_artifacts"])
+        self.assertTrue(any(
+            "exceeds bounded tau0 target" in reason
+            for reason in report["reasons"]
+        ))
+
+    def test_capture_policy_tamper_is_rejected(self):
+        with tempfile.TemporaryDirectory() as d:
+            root=Path(d)
+            bundle,trajectory,receipt,_,_,_=self._valid_chain(root)
+            receipt_payload=json.loads(receipt.read_text(encoding="utf-8"))
+            receipt_payload["tau0_capture_policy"]["target_pct"]=50.0
+            receipt.write_text(json.dumps(receipt_payload),encoding="utf-8")
+            report=verify_physical_tau0_artifacts(
+                trajectory_path=trajectory,
+                receipt_path=receipt,
+                commission_bundle_path=bundle,
+            )
+        self.assertFalse(report["valid_artifacts"])
+        self.assertTrue(any(
+            "capture target must be >0 and <=5%" in reason
+            or "capture policy does not match receipt" in reason
+            for reason in report["reasons"]
+        ))
 
     def test_missing_closeout_evidence_is_rejected(self):
         with tempfile.TemporaryDirectory() as d:
