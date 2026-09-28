@@ -296,7 +296,14 @@ function frame(){
   ctx.restore();
   requestAnimationFrame(frame);
 }
-function ensureFrames(s){if(s.frames)return s.frames;return s.series.map((v,i)=>({step:i,co2:{living:v},openings:{W1:(s.opens[0]??0)*100,W2:(s.opens[1]??0)*100,W3:(s.opens[2]??0)*100,D1:(s.opens[3]??1)*100}}))}
+function ensureFrames(s){
+  if(s.frames)return s.frames;
+  return s.series.map((v,i)=>{
+    const frameOpenings={};
+    openings.forEach((o,index)=>{frameOpenings[o.id]=((s.opens??[])[index]??o.open)*100});
+    return{step:i,co2:{living:v},openings:frameOpenings};
+  });
+}
 function metrics(s){const d=Math.max(0,baseline-s.co2);return{coverage:Math.min(96,Math.round(60+d/15)),dead:Math.max(3,Math.round(24-d/22))}}function applyFrame(i,step){selected=i;const s=scenarios[i],frames=ensureFrames(s),k=Math.max(0,Math.min(step,frames.length-1)),fr=frames[k],living=fr.co2.living??s.series[k]??s.co2,m=metrics({...s,co2:living});cursor=k;currentFrame=fr;for(const o of openings){if(fr.openings&&fr.openings[o.id]!=null)o.open=fr.openings[o.id]/100}document.querySelector("#scenario").textContent="PLAYING COUNTERFACTUAL";document.querySelector("#scenarioTitle").textContent=s.name;document.querySelector("#co2").textContent=Math.round(living).toLocaleString();document.querySelector("#coverage").textContent=m.coverage;document.querySelector("#dead").textContent=m.dead;document.querySelector("#clock").textContent=`t+${String(k+1).padStart(2,"0")}`;document.querySelector("#frameCount").textContent=`${String(k+1).padStart(2,"0")} / ${frames.length}`;const scrub=document.querySelector("#scrubber");scrub.max=Math.max(0,frames.length-1);scrub.value=k;renderInspector();reseedForField();document.querySelectorAll(".branch").forEach((b,j)=>b.classList.toggle("active",i===j));document.querySelectorAll(".node").forEach((n,j)=>{n.classList.toggle("cursor",j===Math.floor(k/Math.max(1,frames.length-1)*8));n.classList.toggle("past",j<=Math.floor(k/Math.max(1,frames.length-1)*8))})}
 function applyScenario(i){stop();applyFrame(i,ensureFrames(scenarios[i]).length-1);updateVector(scenarios[i])}
 function stop(){if(timer){clearInterval(timer);timer=null}document.querySelector("#play").textContent="▶";document.querySelector("#timeline").classList.remove("playing")}
@@ -305,13 +312,41 @@ function scoreVector(s){if(s.metrics)return{iaq:s.metrics.iaq,flow:s.metrics.flo
 function objectiveScore(s){const v=scoreVector(s);if(objective==="fresh")return v.iaq*.7+v.flow*.3;if(objective==="quiet")return v.iaq*.35+v.motion*.65;return v.iaq*.55+v.flow*.2+v.motion*.25}
 function updateVector(s){const v=scoreVector(s);document.querySelector("#compareTitle").textContent=s.name+" · t+30";document.querySelector("#vector").innerHTML=`<span>IAQ <b>${v.iaq}</b></span><span>FLOW <b>${v.flow}</b></span><span>MOTION <b>${v.motion}</b></span><span>RETURN <b>${Number(v.ret).toFixed(2)}</b></span>`}
 function spark(series){const min=Math.min(...series),max=Math.max(...series),span=Math.max(1,max-min);return series.map(v=>"▁▂▃▄▅▆▇█"[Math.min(7,Math.floor((v-min)/span*7))]).join("")}function renderBranches(){const best=scenarios.reduce((b,s,i,a)=>objectiveScore(s)>objectiveScore(a[b])?i:b,0);document.querySelector("#branches").innerHTML=scenarios.map((s,i)=>`<article class="branch ${i===best?"best":""}" data-i="${i}"><b>${s.name}</b><div class="outcome">${s.co2} ppm</div><span class="delta">↓ ${baseline-s.co2} ppm · t+30</span><div class="spark">${spark(s.series)}</div><small>return ${s.return}</small></article>`).join("");document.querySelectorAll(".branch").forEach(b=>b.onclick=()=>{const i=+b.dataset.i;applyScenario(i);updateVector(scenarios[i])})}
-document.querySelector("#fork").onclick=()=>{if(trajectoryStale)return;renderBranches();stop();document.querySelector("#forkState").textContent="BACKEND ORIGIN";applyFrame(2,0)};document.querySelector("#strategy").onclick=()=>{if(trajectoryStale)return;renderBranches();const best=scenarios.reduce((b,s,i,a)=>objectiveScore(s)>objectiveScore(a[b])?i:b,0);stop();applyFrame(best,0);updateVector(scenarios[best]);play()};document.querySelector("#play").onclick=play;document.querySelector("#scrubber").oninput=e=>{stop();applyFrame(selected,+e.target.value)};windEl.oninput=()=>document.querySelector("#windLabel").textContent=`${windEl.value}°`;speedEl.oninput=()=>{document.querySelector("#speedLabel").textContent=`${(+speedEl.value).toFixed(1)} m/s`;renderInspector()};const tl=document.querySelector("#timeline");for(let i=0;i<9;i++){const n=document.createElement("div");n.className="node"+(i===5?" active":"");tl.append(n);if(i<8){const l=document.createElement("div");l.className="line";tl.append(l)}}loadScenarios();frame();
-canvas.addEventListener("mousemove",e=>{const rect=canvas.getBoundingClientRect(),x=(e.clientX-rect.left)*canvas.width/rect.width,y=(e.clientY-rect.top)*canvas.height/rect.height,r=inside(x,y),p=document.querySelector("#probe");if(!r){p.classList.add("hidden");return}const key=r.name.toLowerCase(),co2=currentFrame?.co2?.[key],v=backendVelocity(x,y)||flowAt(x,y,{seed:0}),speed=Math.hypot(...v);p.classList.remove("hidden");p.style.left=Math.min(rect.width-155,e.clientX-rect.left+14)+"px";p.style.top=Math.max(55,e.clientY-rect.top-18)+"px";document.querySelector("#probeRoom").textContent=r.name;document.querySelector("#probeValue").textContent=(co2!=null?co2+" ppm · ":"")+speed.toFixed(2)+(currentFrame?.field?" backend field":" flow proxy")});canvas.addEventListener("mouseleave",()=>document.querySelector("#probe").classList.add("hidden"));renderInspector();
+document.querySelector("#fork").onclick=()=>{if(trajectoryStale)return;renderBranches();stop();document.querySelector("#forkState").textContent="BACKEND ORIGIN";applyFrame(2,0)};document.querySelector("#strategy").onclick=()=>{if(trajectoryStale)return;renderBranches();const best=scenarios.reduce((b,s,i,a)=>objectiveScore(s)>objectiveScore(a[b])?i:b,0);stop();applyFrame(best,0);updateVector(scenarios[best]);play()};document.querySelector("#play").onclick=play;document.querySelector("#scrubber").oninput=e=>{stop();applyFrame(selected,+e.target.value)};windEl.oninput=()=>document.querySelector("#windLabel").textContent=`${windEl.value}°`;speedEl.oninput=()=>{document.querySelector("#speedLabel").textContent=`${(+speedEl.value).toFixed(1)} m/s`;renderInspector()};const tl=document.querySelector("#timeline");for(let i=0;i<9;i++){const n=document.createElement("div");n.className="node"+(i===5?" active":"");tl.append(n);if(i<8){const l=document.createElement("div");l.className="line";tl.append(l)}}
+async function bootSpatialLab(){
+  const h=document.querySelector("#health");
+  try{
+    await loadTopologyContract();
+    initializeParticles();
+    await loadScenarios();
+    renderInspector();
+    frame();
+  }catch(err){
+    h.className="health fallback";
+    h.querySelector("b").textContent="TOPOLOGY CONTRACT BLOCKED";
+    document.querySelector("#scenario").textContent="FIXED FLOORPLAN UNAVAILABLE";
+    document.querySelector("#scenarioTitle").textContent=err.message;
+    throw err;
+  }
+}
+bootSpatialLab();
+canvas.addEventListener("mousemove",e=>{const rect=canvas.getBoundingClientRect(),x=(e.clientX-rect.left)*canvas.width/rect.width,y=(e.clientY-rect.top)*canvas.height/rect.height,r=inside(x,y),p=document.querySelector("#probe");if(!r){p.classList.add("hidden");return}const key=r.name.toLowerCase(),co2=currentFrame?.co2?.[key],v=backendVelocity(x,y)||flowAt(x,y,{seed:0}),speed=Math.hypot(...v);p.classList.remove("hidden");p.style.left=Math.min(rect.width-155,e.clientX-rect.left+14)+"px";p.style.top=Math.max(55,e.clientY-rect.top-18)+"px";document.querySelector("#probeRoom").textContent=r.name;document.querySelector("#probeValue").textContent=(co2!=null?co2+" ppm · ":"")+speed.toFixed(2)+(currentFrame?.field?" backend field":" flow proxy")});canvas.addEventListener("mouseleave",()=>document.querySelector("#probe").classList.add("hidden"));
 document.querySelectorAll(".preset").forEach(btn=>btn.onclick=()=>{objective=btn.dataset.preset;document.querySelectorAll(".preset").forEach(x=>x.classList.toggle("active",x===btn));renderBranches()});
-canvas.addEventListener("pointerdown",e=>{const p=canvasPoint(e),hit=hitOpening(p.x,p.y);if(hit){dragOpening=hit;dragMoved=false;canvas.classList.add("dragging-opening");selectOpening(hit.id);document.querySelector("#selectedOpening").textContent=hit.id+" · DRAG ALONG WALL";canvas.setPointerCapture(e.pointerId);return}if(hitSharedWall(p.x,p.y)){dragWall={startX:p.x};canvas.classList.add("resizing-wall");canvas.setPointerCapture(e.pointerId)}});
-canvas.addEventListener("pointermove",e=>{const p=canvasPoint(e);if(dragOpening){const ox=dragOpening.x,oy=dragOpening.y;constrainOpeningToWall(dragOpening,p.x,p.y);if(Math.hypot(dragOpening.x-ox,dragOpening.y-oy)>.5)dragMoved=true;return}if(dragWall)resizeLivingBedroomWall(p.x)});
-canvas.addEventListener("pointerup",e=>{if(dragWall){const changed=Math.abs(canvasPoint(e).x-dragWall.startX)>1;dragWall=null;canvas.classList.remove("resizing-wall");if(canvas.hasPointerCapture(e.pointerId))canvas.releasePointerCapture(e.pointerId);if(changed)invalidateTrajectory("Living / Bedroom shared wall resized");return}if(!dragOpening)return;const edited=dragOpening,moved=dragMoved;dragOpening=null;dragMoved=false;canvas.classList.remove("dragging-opening");if(canvas.hasPointerCapture(e.pointerId))canvas.releasePointerCapture(e.pointerId);if(moved)invalidateTrajectory(edited.id+" moved along wall");else cycleOpening(edited.id)});
-canvas.addEventListener("pointercancel",()=>{dragOpening=null;dragMoved=false;dragWall=null;canvas.classList.remove("dragging-opening","resizing-wall")});
+canvas.addEventListener("pointerdown",e=>{
+ const p=canvasPoint(e),hit=hitOpening(p.x,p.y);
+ if(!hit)return;
+ selectOpening(hit.id);
+ if(topologyCapabilities.opening_position_editable&&hit.positionEditable===true){
+   dragOpening=hit;dragMoved=false;canvas.classList.add("dragging-opening");
+   document.querySelector("#selectedOpening").textContent=hit.id+" · DRAG ALONG "+hit.wallId.toUpperCase();
+   canvas.setPointerCapture(e.pointerId);
+ }else{
+   document.querySelector("#selectedOpening").textContent=hit.id+" · POSITION LOCKED";
+ }
+});
+canvas.addEventListener("pointermove",e=>{const p=canvasPoint(e);if(dragOpening){const ox=dragOpening.x,oy=dragOpening.y;constrainOpeningToWall(dragOpening,p.x,p.y);if(Math.hypot(dragOpening.x-ox,dragOpening.y-oy)>.5)dragMoved=true}});
+canvas.addEventListener("pointerup",e=>{if(!dragOpening)return;const edited=dragOpening,moved=dragMoved;dragOpening=null;dragMoved=false;canvas.classList.remove("dragging-opening");if(canvas.hasPointerCapture(e.pointerId))canvas.releasePointerCapture(e.pointerId);if(moved)invalidateTrajectory(edited.id+" moved along "+edited.wallId);else cycleOpening(edited.id)});
+canvas.addEventListener("pointercancel",()=>{dragOpening=null;dragMoved=false;canvas.classList.remove("dragging-opening")});
 document.querySelectorAll(".view").forEach(btn=>btn.onclick=()=>{viewMode=btn.dataset.view;document.querySelectorAll(".view").forEach(x=>x.classList.toggle("active",x===btn));const legend=document.querySelector("#viewLegend");legend.innerHTML=viewMode==="flow"?"<span>→ backend direction</span><span>· filament magnitude</span><span>∷ opening flow</span>":viewMode==="co2"?"<span>room fill · backend CO₂</span><span>timeline frame aware</span>":"<span>× low-flow cells</span><span>backend field threshold</span>"});
 
 document.querySelector("#rerun").onclick=requestPhysicsRerun;
@@ -337,7 +372,7 @@ async function loadMockFallbackArtifact(){
 }
 function applyMockFallback(){
  if(!mockFallback)return;
- browserTau=mockFallback.trajectory.map(step=>JSON.parse(JSON.stringify(step)));selectedTauOrigin=null;
+ browserTau=mockFallback.trajectory.map(step=>({...JSON.parse(JSON.stringify(step)),context:{topology:currentTopologySnapshot()}}));selectedTauOrigin=null;
  const s=mockFallback.scenario,last=browserTau[browserTau.length-1].next_observation;
  physicalCo2.value=String(last.co2_ppm);physicalRain.checked=!!last.rain;physicalPosition=Number(last.opening_pct);
  speedEl.value=String(s.wind_speed_mps);document.querySelector("#speedLabel").textContent=Number(s.wind_speed_mps).toFixed(1)+" m/s";
@@ -381,7 +416,7 @@ function physicalStep(target,semantic){
  const o=physicalObservation(),proposed=target,executed=o.rain&&target>0?0:target,intervention=o.rain&&target>0?"RAIN_SAFE_CLOSE":null;
  physicalPosition=executed;
  const nextObservation={co2_ppm:o.co2_ppm,rain:o.rain,opening_pct:executed};
- const step={index:browserTau.length,environment_kind:"mock-browser-contract",evidence_class:"tau_sim",physical_evidence:false,observation:o,semantic_action:semantic,proposed_action:{opening_id:"W1",target_pct:proposed},intervention,executed_action:{opening_id:"W1",target_pct:executed},actuator_feedback:{measured_position_pct:null,estimated_position_pct:executed,quality:"browser-simulated"},next_observation:nextObservation};
+ const step={index:browserTau.length,environment_kind:"mock-browser-contract",evidence_class:"tau_sim",physical_evidence:false,context:{topology:currentTopologySnapshot()},observation:o,semantic_action:semantic,proposed_action:{opening_id:"W1",target_pct:proposed},intervention,executed_action:{opening_id:"W1",target_pct:executed},actuator_feedback:{measured_position_pct:null,estimated_position_pct:executed,quality:"browser-simulated"},next_observation:nextObservation};
  browserTau.push(step);
  const w1=openings.find(o=>o.id==="W1");w1.open=executed/100;
  selectedOpening="W1";renderOpeningInspector();
