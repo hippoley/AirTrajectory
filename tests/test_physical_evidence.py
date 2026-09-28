@@ -333,6 +333,11 @@ class PhysicalArtifactVerifierTests(unittest.TestCase):
         self._make_receipt(receipt,trajectory,commission_sha,behavior)
         return bundle,trajectory,receipt,bundle_payload,behavior,commission_sha
 
+    def _refresh_trajectory_sha(self,trajectory,receipt):
+        payload=json.loads(receipt.read_text(encoding="utf-8"))
+        payload["trajectory_sha256"]=hashlib.sha256(trajectory.read_bytes()).hexdigest()
+        receipt.write_text(json.dumps(payload),encoding="utf-8")
+
     def test_valid_artifact_chain_passes(self):
         with tempfile.TemporaryDirectory() as d:
             root=Path(d)
@@ -616,6 +621,83 @@ class PhysicalArtifactVerifierTests(unittest.TestCase):
         self.assertTrue(any(
             "trajectory commissioning behavior" in reason or
             "behavior witness/hash mismatch" in reason
+            for reason in report["reasons"]
+        ))
+
+    def test_zero_motion_cannot_be_promoted_to_physical_tau0(self):
+        with tempfile.TemporaryDirectory() as d:
+            root=Path(d)
+            bundle,trajectory,receipt,_,_,_=self._valid_chain(root)
+            payload=json.loads(trajectory.read_text(encoding="utf-8"))
+            payload["steps"][0]["actuator_feedback"][0]["measured_position_pct"]=0.0
+            trajectory.write_text(json.dumps(payload)+"\n",encoding="utf-8")
+            self._refresh_trajectory_sha(trajectory,receipt)
+            report=verify_physical_tau0_artifacts(
+                trajectory_path=trajectory,
+                receipt_path=receipt,
+                commission_bundle_path=bundle,
+            )
+        self.assertFalse(report["valid_artifacts"])
+        self.assertTrue(any(
+            "no required measured Reality Delta" in reason
+            for reason in report["reasons"]
+        ))
+
+    def test_oversized_probe_target_is_rejected_even_with_small_feedback(self):
+        with tempfile.TemporaryDirectory() as d:
+            root=Path(d)
+            bundle,trajectory,receipt,_,_,_=self._valid_chain(root)
+            payload=json.loads(trajectory.read_text(encoding="utf-8"))
+            payload["steps"][0]["proposed_actions"][0]["target_pct"]=50.0
+            payload["steps"][0]["executed_actions"][0]["target_pct"]=50.0
+            trajectory.write_text(json.dumps(payload)+"\n",encoding="utf-8")
+            self._refresh_trajectory_sha(trajectory,receipt)
+            report=verify_physical_tau0_artifacts(
+                trajectory_path=trajectory,
+                receipt_path=receipt,
+                commission_bundle_path=bundle,
+            )
+        self.assertFalse(report["valid_artifacts"])
+        self.assertTrue(any(
+            "exceeds bounded tau0 target" in reason
+            for reason in report["reasons"]
+        ))
+
+    def test_tau0_must_restore_final_closed_state(self):
+        with tempfile.TemporaryDirectory() as d:
+            root=Path(d)
+            bundle,trajectory,receipt,_,_,_=self._valid_chain(root)
+            payload=json.loads(trajectory.read_text(encoding="utf-8"))
+            payload["steps"][1]["actuator_feedback"][0]["measured_position_pct"]=5.0
+            trajectory.write_text(json.dumps(payload)+"\n",encoding="utf-8")
+            self._refresh_trajectory_sha(trajectory,receipt)
+            report=verify_physical_tau0_artifacts(
+                trajectory_path=trajectory,
+                receipt_path=receipt,
+                commission_bundle_path=bundle,
+            )
+        self.assertFalse(report["valid_artifacts"])
+        self.assertTrue(any(
+            "did not restore closed state" in reason
+            for reason in report["reasons"]
+        ))
+
+    def test_tau0_requires_measured_pre_action_position(self):
+        with tempfile.TemporaryDirectory() as d:
+            root=Path(d)
+            bundle,trajectory,receipt,_,_,_=self._valid_chain(root)
+            payload=json.loads(trajectory.read_text(encoding="utf-8"))
+            payload["context"]["reset_info"].pop("initial_position_feedback")
+            trajectory.write_text(json.dumps(payload)+"\n",encoding="utf-8")
+            self._refresh_trajectory_sha(trajectory,receipt)
+            report=verify_physical_tau0_artifacts(
+                trajectory_path=trajectory,
+                receipt_path=receipt,
+                commission_bundle_path=bundle,
+            )
+        self.assertFalse(report["valid_artifacts"])
+        self.assertTrue(any(
+            "missing measured pre-action position feedback" in reason
             for reason in report["reasons"]
         ))
 
