@@ -37,14 +37,6 @@ def capture_physical_tau0(
     if not expected:
         raise RuntimeError("commissioning evidence bundle missing hardware identity")
 
-    # This is the cross-repository evidence contract. AirTrajectory does not
-    # embed WindowPilot's vendor registry; it requires the commissioned runtime
-    # to carry the product/source/registry/contract hashes it verified.
-    thingmodel_lineage=require_hardware_thingmodel_lineage(
-        commissioning_identity,
-        label="commissioning hardware identity",
-    )
-
     preflight=bundle.get("preflight")
     if not isinstance(preflight,dict):
         raise RuntimeError("commissioning evidence bundle missing read-only preflight lineage")
@@ -59,6 +51,14 @@ def capture_physical_tau0(
             raise RuntimeError(f"commissioning evidence bundle has invalid {label} SHA-256")
     if preflight_identity_sha256!=expected:
         raise RuntimeError("preflight hardware identity does not match commissioning hardware identity")
+
+    # Cross-repository evidence contract. AirTrajectory does not embed the
+    # vendor registry; it requires the commissioning identity to carry the
+    # product/source/registry/contract hashes WindowPilot verified.
+    thingmodel_lineage=require_hardware_thingmodel_lineage(
+        commissioning_identity,
+        label="commissioning hardware identity",
+    )
 
     readiness=driver.physical_readiness()
     if readiness.get("capture_preconditions") is not True:
