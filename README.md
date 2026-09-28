@@ -173,7 +173,23 @@ python examples/check_physical_tau0_preflight.py \
 
 A preflight PASS proves the commissioning bundle, current runtime identity, write gate and live sensor lineage are mutually consistent. It does **not** count as physical τ₀ because no trajectory motion has happened.
 
-Only after that gate is green, run the capture CLI:
+Only after that gate is green, run the capture CLI. Physical τ₀ is a
+bounded, reversible reality-contact probe rather than a ventilation-policy
+rollout:
+
+```text
+measured pre-action position <= 1%
+→ OPEN target <= 5%
+→ measured position Reality Delta >= 2 percentage points
+→ CLOSE target 0%
+→ measured final position <= 1%
+```
+
+If a command has already been attempted and capture fails mid-flight (for
+example, post-action sensor evidence times out), the CLI issues an emergency
+close before surfacing the failure. A zero-motion trace, a >5% probe, an
+unknown/estimated-only starting position, or a trace that does not restore the
+window closed cannot become physical τ₀.
 
 ```bash
 python examples/capture_physical_tau0.py \
@@ -239,6 +255,11 @@ trajectory SHA-256
 + policy cannot weaken excursion, tolerance, STOP-sample or timestamp requirements
 + READ near-closed, OPEN positive delta, STOP multi-sample hold, CLOSE negative delta
 + strictly increasing commissioning source timestamps
++ τ₀ capture policy == physical-tau0-probe-v1
++ measured pre-action actuator position and near-closed start
++ exact reversible τ₀ action sequence: OPEN <=5% then CLOSE 0%
++ measured Reality Delta >= the persisted minimum threshold
++ final measured closeout position back inside the closed tolerance
 + runtime CO₂/rain source lineage + sensor evidence SHA-256
 + optional probe-apply staging lineage when the receipt claims audited staging
 + measured actuator position
