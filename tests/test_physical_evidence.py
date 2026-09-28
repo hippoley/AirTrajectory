@@ -233,6 +233,14 @@ class PhysicalArtifactVerifierTests(unittest.TestCase):
                 "runtime_sensor_lineage":sensor_evidence["runtime_sensor_lineage"],
                 "sensor_staging_lineage":sensor_evidence["sensor_staging_lineage"],
                 "sensor_evidence_sha256":sensor_evidence["sensor_evidence_sha256"],
+                "position_tolerance_pct":1.0,
+                "baseline_position_feedback":{
+                    "position_pct":0.0,
+                    "timestamp":99.0,
+                    "measured":True,
+                    "quality":"encoder-measured",
+                    "source":"CWDS-CA01",
+                },
             },
             "steps":[{
                 "sensor_readings":[
@@ -286,6 +294,26 @@ class PhysicalArtifactVerifierTests(unittest.TestCase):
             "runtime_sensor_lineage":sensor_evidence["runtime_sensor_lineage"],
             "sensor_staging_lineage":sensor_evidence["sensor_staging_lineage"],
             "sensor_evidence_sha256":sensor_evidence["sensor_evidence_sha256"],
+            "position_tolerance_pct":1.0,
+            "baseline_position_feedback":{
+                "position_pct":0.0,
+                "timestamp":99.0,
+                "measured":True,
+                "quality":"encoder-measured",
+                "source":"CWDS-CA01",
+            },
+            "closeout":{
+                "target_pct":0.0,
+                "tolerance_pct":1.0,
+                "feedback":{
+                    "actuator_id":"w1",
+                    "timestamp":103.0,
+                    "measured_position_pct":0.0,
+                    "estimated_position_pct":None,
+                    "quality":"encoder-measured",
+                },
+                "confirmed_closed":True,
+            },
             "trajectory_sha256":hashlib.sha256(trajectory_path.read_bytes()).hexdigest(),
         }
         path.write_text(json.dumps(payload),encoding="utf-8")
@@ -330,6 +358,52 @@ class PhysicalArtifactVerifierTests(unittest.TestCase):
             "runtime-measured-lineage",
         )
         self.assertTrue(report["sensor_evidence_sha256"])
+        self.assertTrue(report["closeout_confirmed"])
+
+    def test_missing_closeout_evidence_is_rejected(self):
+        with tempfile.TemporaryDirectory() as d:
+            root=Path(d)
+            bundle,trajectory,receipt,_,_,_=self._valid_chain(root)
+            payload=json.loads(receipt.read_text(encoding="utf-8"))
+            payload.pop("closeout")
+            receipt.write_text(json.dumps(payload),encoding="utf-8")
+            report=verify_physical_tau0_artifacts(
+                trajectory_path=trajectory,
+                receipt_path=receipt,
+                commission_bundle_path=bundle,
+            )
+        self.assertFalse(report["valid_artifacts"])
+        self.assertTrue(any("closeout" in reason for reason in report["reasons"]))
+
+    def test_open_closeout_position_is_rejected(self):
+        with tempfile.TemporaryDirectory() as d:
+            root=Path(d)
+            bundle,trajectory,receipt,_,_,_=self._valid_chain(root)
+            payload=json.loads(receipt.read_text(encoding="utf-8"))
+            payload["closeout"]["feedback"]["measured_position_pct"]=4.0
+            receipt.write_text(json.dumps(payload),encoding="utf-8")
+            report=verify_physical_tau0_artifacts(
+                trajectory_path=trajectory,
+                receipt_path=receipt,
+                commission_bundle_path=bundle,
+            )
+        self.assertFalse(report["valid_artifacts"])
+        self.assertTrue(any("did not return closed" in reason for reason in report["reasons"]))
+
+    def test_closeout_must_be_newer_than_trajectory_feedback(self):
+        with tempfile.TemporaryDirectory() as d:
+            root=Path(d)
+            bundle,trajectory,receipt,_,_,_=self._valid_chain(root)
+            payload=json.loads(receipt.read_text(encoding="utf-8"))
+            payload["closeout"]["feedback"]["timestamp"]=101.0
+            receipt.write_text(json.dumps(payload),encoding="utf-8")
+            report=verify_physical_tau0_artifacts(
+                trajectory_path=trajectory,
+                receipt_path=receipt,
+                commission_bundle_path=bundle,
+            )
+        self.assertFalse(report["valid_artifacts"])
+        self.assertTrue(any("not newer than trajectory" in reason for reason in report["reasons"]))
 
     def test_sensor_evidence_origin_mismatch_between_trajectory_and_receipt_is_rejected(self):
         with tempfile.TemporaryDirectory() as d:
