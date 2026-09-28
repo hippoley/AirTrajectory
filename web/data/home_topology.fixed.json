@@ -1,0 +1,183 @@
+{
+  "schema_version": "0.1",
+  "topology_id": "demo.fixed-three-room.v1",
+  "provider": "fixed-json",
+  "edit_policy": {
+    "layout_mutable": false,
+    "room_geometry_mutable": false,
+    "wall_geometry_mutable": false,
+    "opening_position_mutable": true,
+    "opening_state_mutable": true
+  },
+  "canvas": {
+    "width": 1100,
+    "height": 650
+  },
+  "rooms": [
+    {
+      "id": "living",
+      "name": "LIVING",
+      "volume_m3": 75,
+      "geometry": {
+        "x": 180,
+        "y": 120,
+        "w": 350,
+        "h": 250
+      }
+    },
+    {
+      "id": "bedroom",
+      "name": "BEDROOM",
+      "volume_m3": 45,
+      "geometry": {
+        "x": 530,
+        "y": 120,
+        "w": 300,
+        "h": 250
+      }
+    },
+    {
+      "id": "study",
+      "name": "STUDY",
+      "volume_m3": 42,
+      "geometry": {
+        "x": 350,
+        "y": 370,
+        "w": 480,
+        "h": 170
+      }
+    }
+  ],
+  "walls": [
+    {
+      "id": "living-west",
+      "kind": "exterior",
+      "segment": {
+        "x1": 180,
+        "y1": 120,
+        "x2": 180,
+        "y2": 370
+      }
+    },
+    {
+      "id": "bedroom-east",
+      "kind": "exterior",
+      "segment": {
+        "x1": 830,
+        "y1": 120,
+        "x2": 830,
+        "y2": 370
+      }
+    },
+    {
+      "id": "study-south",
+      "kind": "exterior",
+      "segment": {
+        "x1": 350,
+        "y1": 540,
+        "x2": 830,
+        "y2": 540
+      }
+    },
+    {
+      "id": "living-bedroom",
+      "kind": "interior",
+      "segment": {
+        "x1": 530,
+        "y1": 120,
+        "x2": 530,
+        "y2": 370
+      }
+    },
+    {
+      "id": "living-study",
+      "kind": "interior",
+      "segment": {
+        "x1": 350,
+        "y1": 370,
+        "x2": 530,
+        "y2": 370
+      }
+    }
+  ],
+  "openings": [
+    {
+      "id": "W1",
+      "kind": "window",
+      "wall_id": "living-west",
+      "source": "living",
+      "target": "OUTSIDE",
+      "position_on_wall": 0.36,
+      "max_area_m2": 1.5,
+      "controllable": true,
+      "initial_open_pct": 65,
+      "render_side": "left"
+    },
+    {
+      "id": "W2",
+      "kind": "window",
+      "wall_id": "bedroom-east",
+      "source": "bedroom",
+      "target": "OUTSIDE",
+      "position_on_wall": 0.34,
+      "max_area_m2": 1.3,
+      "controllable": true,
+      "initial_open_pct": 35,
+      "render_side": "right"
+    },
+    {
+      "id": "W3",
+      "kind": "window",
+      "wall_id": "study-south",
+      "source": "study",
+      "target": "OUTSIDE",
+      "position_on_wall": 0.77,
+      "max_area_m2": 1.4,
+      "controllable": true,
+      "initial_open_pct": 55,
+      "render_side": "bottom"
+    },
+    {
+      "id": "D1",
+      "kind": "door",
+      "wall_id": "living-bedroom",
+      "source": "living",
+      "target": "bedroom",
+      "position_on_wall": 0.56,
+      "max_area_m2": 1.8,
+      "controllable": true,
+      "initial_open_pct": 100,
+      "render_side": "internal"
+    },
+    {
+      "id": "D2",
+      "kind": "door",
+      "wall_id": "living-study",
+      "source": "living",
+      "target": "study",
+      "position_on_wall": 0.5,
+      "max_area_m2": 1.8,
+      "controllable": true,
+      "initial_open_pct": 100,
+      "render_side": "internal-horizontal"
+    }
+  ],
+  "future_adapters": {
+    "json_topology_importer": {
+      "status": "reserved",
+      "input": "user topology JSON"
+    },
+    "plan_2d_importer": {
+      "status": "reserved",
+      "input": "2D/CAD-derived topology"
+    },
+    "scene_3d_importer": {
+      "status": "reserved",
+      "input": "3D scene topology"
+    },
+    "contam_compiler": {
+      "status": "reserved",
+      "output": "CONTAM PRJ/control/path mappings"
+    }
+  }
+}
