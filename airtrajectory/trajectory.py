@@ -32,6 +32,7 @@ class SensorReading:
     unit: str
     timestamp: float
     quality: str = "unknown"
+    provenance: Dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
