@@ -59,11 +59,22 @@ def capture_physical_tau0(
     policy=Tau0ProbePolicy(opening_id)
     context_extra["tau0_capture_policy"]=policy.capture_policy()
     env=PhysicalWindowEnvironment(driver,opening_id,require_measured_feedback=True)
-    trajectory=record_physical_trajectory(
-        env,policy,SafetyResolver(),
-        topology_id,TrajectoryStore(out),steps=steps,
-        context_extra=context_extra,
-    )
+    try:
+        trajectory=record_physical_trajectory(
+            env,policy,SafetyResolver(),
+            topology_id,TrajectoryStore(out),steps=steps,
+            context_extra=context_extra,
+        )
+    except Exception as exc:
+        if env.motion_attempted:
+            try:
+                driver.set_position(opening_id,0.0)
+            except Exception as close_exc:
+                raise RuntimeError(
+                    f"physical tau0 capture failed: {exc}; "
+                    f"emergency closeout also failed: {close_exc}"
+                ) from exc
+        raise
 
     report=validate_physical_tau0(trajectory)
     payload={
