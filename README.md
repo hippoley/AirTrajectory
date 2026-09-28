@@ -85,7 +85,8 @@ Both receive the same normalized opening positions. Moving an opening changes it
 | WindowPilot runtime bridge | ✅ verified | runtime capabilities/readiness are discovered over HTTP and fail closed when provenance is incomplete |
 | WindowPilot hardware integration path | ✅ software-verified | CWDS-CA01 driver lives in WindowPilot; AirTrajectory requires matching commissioning/runtime identity |
 | Real device commissioning | ❌ not captured | reserved real-hardware gate; requires real gateway endpoint/auth/device ID and a physical READ → OPEN 5% → STOP → CLOSE pass |
-| Physical τ₀ | ❌ not captured | reserved real-evidence gate; requires preflight lineage, commissioned hardware identity, fresh measured sensors, actual movement, and post-action evidence |
+| Physical τ₀ zero-motion preflight | ✅ software-verified | one shared gate revalidates commissioning behavior, write readiness, identity/site/ThingModel continuity, and live CO₂/rain lineage before any motion |
+| Physical τ₀ | ❌ not captured | reserved real-evidence gate; requires preflight PASS plus actual movement, measured actuator feedback, and newer post-action sensor evidence |
 | Mock hardware fallback | ✅ runnable | deterministic mock API/actuator path keeps the interaction loop usable while real integration is unavailable; never promoted as hardware evidence |
 | Mock τ_sim artifact | ✅ runnable | `web/data/mock_physical_fallback.json`; `physical_evidence=false`, illustrative simulation only |
 
@@ -161,7 +162,18 @@ read-only preflight PASS
 → τ₀ audit PASS
 ```
 
-The capture CLI is:
+The physical gate is deliberately split into three stages. First run the **zero-motion preflight**; it contacts WindowPilot but issues no actuator command:
+
+```bash
+python examples/check_physical_tau0_preflight.py \
+  --windowpilot http://127.0.0.1:8001 \
+  --commission-bundle /path/to/physical-bringup.json \
+  --receipt artifacts/physical-tau0-preflight.json
+```
+
+A preflight PASS proves the commissioning bundle, current runtime identity, write gate and live sensor lineage are mutually consistent. It does **not** count as physical τ₀ because no trajectory motion has happened.
+
+Only after that gate is green, run the capture CLI:
 
 ```bash
 python examples/capture_physical_tau0.py \
@@ -181,7 +193,7 @@ python examples/capture_physical_tau0.py \
   --receipt artifacts/physical-tau0-audit.json
 ```
 
-Older commissioning bundles are rejected before AirTrajectory asks WindowPilot for runtime readiness or a physical command unless they prove read-only preflight lineage, WindowPilot schema >=0.3 behavior evidence, and the bounded commissioning acceptance policy. AirTrajectory independently reconstructs that policy and rejects missing or weakened criteria. A mere `status=PASS`, four phase labels, or a self-asserted witness are not sufficient.
+Both the zero-motion preflight and the capture CLI call the same `validate_physical_tau0_preconditions()` function, so the read-only gate cannot silently drift from the rules used immediately before motion. Older commissioning bundles are rejected before AirTrajectory asks WindowPilot for a physical command unless they prove read-only preflight lineage, WindowPilot schema >=0.3 behavior evidence, and the bounded commissioning acceptance policy. AirTrajectory independently reconstructs that policy and rejects missing or weakened criteria. A mere `status=PASS`, four phase labels, or a self-asserted witness are not sufficient.
 
 Sensor source evidence has deliberately separate levels:
 
