@@ -368,7 +368,7 @@ def validate_physical_tau0(trajectory: Trajectory) -> PhysicalEvidenceReport:
         all_actions=step.proposed_actions+step.executed_actions
         if any(a.target_pct > 5.0 or a.target_pct < 0 for a in all_actions):
             reasons.append(f"step {step.index} exceeds bounded tau0 target")
-        if step.executed_actions:
+        if step.executed_actions and target_pct is not None:
             expected_target=target_pct if step.index==0 else 0.0
             if any(abs(float(a.target_pct)-float(expected_target))>1e-9 for a in step.executed_actions):
                 reasons.append(
