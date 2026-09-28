@@ -96,6 +96,7 @@ class WindowPilotHTTPDriver(PhysicalWindowDriver):
                 continue
             value=sensors[key]
             if isinstance(value,bool): value=float(value)
+            provenance={}
             if caps.simulated:
                 ts=now
                 quality="simulated-windowpilot-receipt-time"
@@ -126,6 +127,12 @@ class WindowPilotHTTPDriver(PhysicalWindowDriver):
                     continue
                 sensor_id=source
                 quality=str(ev.get("quality") or "measured-windowpilot-source-time")
+                binding=ev.get("thingmodel_binding")
+                if required and not isinstance(binding,dict):
+                    raise RuntimeError(
+                        f"WindowPilot hardware sensor {key} missing verified ThingModel binding"
+                    )
+                provenance=dict(binding or {})
             rows.append(SensorReading(
                 sensor_id=sensor_id,
                 sensor_type=sensor_type,
@@ -133,6 +140,7 @@ class WindowPilotHTTPDriver(PhysicalWindowDriver):
                 unit=unit,
                 timestamp=ts,
                 quality=quality,
+                provenance=provenance,
             ))
         return rows
 
