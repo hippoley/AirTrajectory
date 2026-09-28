@@ -285,7 +285,7 @@ class CoreTests(unittest.TestCase):
                 driver=driver,
                 opening_id="w1",
                 topology_id="physical-test",
-                steps=1,
+                steps=2,
                 out=root/"tau.jsonl",
                 receipt=receipt,
                 commission_bundle=bundle,
@@ -933,10 +933,13 @@ class CoreTests(unittest.TestCase):
             env.reset()
 
     def test_measured_feedback_gate_rejects_estimate_only_driver(self):
-        env=PhysicalWindowEnvironment(FakePhysicalWindowDriver(measured_feedback=False),"w1",require_measured_feedback=True)
-        observation,_=env.reset()
+        env=PhysicalWindowEnvironment(
+            FakePhysicalWindowDriver(measured_feedback=False),
+            "w1",
+            require_measured_feedback=True,
+        )
         with self.assertRaisesRegex(RuntimeError,"measured actuator position required"):
-            env.step(RulePolicy("w1")(observation))
+            env.reset()
 
     def test_invalid_topology_rejected(self):
         with self.assertRaises(ValueError):
