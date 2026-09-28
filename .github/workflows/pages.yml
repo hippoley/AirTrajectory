@@ -70,6 +70,26 @@ jobs:
           assert "not engineering truth" in p["provenance"]
           print("validated learning experiment")
           PY
+      - name: Validate mock physical fallback artifact
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p=json.loads(Path("web/data/mock_physical_fallback.json").read_text())
+          assert p["kind"] == "mock-physical-fallback"
+          assert p["provenance"]["physical_evidence"] is False
+          assert p["provenance"]["engineering_truth"] is False
+          assert p["scenario"]["indoor_co2_start_ppm"] == 1400
+          assert p["scenario"]["outdoor_co2_ppm"] == 430
+          assert p["scenario"]["window_initial_pct"] == 0
+          assert p["scenario"]["window_target_pct"] == 20
+          assert p["scenario"]["wind_speed_mps"] == 1.5
+          assert len(p["trajectory"]) >= 4
+          assert all(step["environment_kind"] == "mock-simulation" for step in p["trajectory"])
+          assert all(step["evidence_class"] == "tau_sim" for step in p["trajectory"])
+          assert all(step["actuator_feedback"]["measured_position_pct"] is None for step in p["trajectory"])
+          print("validated mock physical fallback")
+          PY
       - name: Validate filament renderer
         run: |
           node --check web/lab.js
@@ -109,6 +129,14 @@ jobs:
           grep -q 'shared wall resized' web/lab.js
           grep -q 'PHYSICAL CONTROL CONSOLE / τ₀ GATE' web/index.html
           grep -q 'REAL τ₀ · NOT CAPTURED' web/index.html
+          grep -q 'REAL / RESERVED' web/index.html
+          grep -q 'FALLBACK / ACTIVE' web/index.html
+          grep -q 'Vendor API / 厂商真实 API' web/index.html
+          grep -q 'Physical motion / 真实运动' web/index.html
+          grep -q 'mock τ_sim' web/index.html
+          grep -q 'function loadMockFallbackArtifact' web/lab.js
+          grep -q 'function applyMockFallback' web/lab.js
+          grep -q 'physical_evidence:false' web/lab.js
           grep -q 'function physicalStep' web/lab.js
           grep -q 'RAIN_SAFE_CLOSE' web/lab.js
           grep -q 'browser-simulated' web/lab.js
