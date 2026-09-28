@@ -81,5 +81,67 @@ class SpatialCompilePlanTests(unittest.TestCase):
             )
 
 
+    def test_metric_geometry_becomes_contam_input_ready_when_complete(self):
+        payload = json.loads(LAYOUT.read_text(encoding="utf-8"))
+        for wall in payload["walls"]:
+            wall["length_m"] = 4.0
+            wall["azimuth_deg"] = 90.0
+        for opening in payload["openings"]:
+            opening["width_m"] = 1.0
+            opening["height_m"] = 2.0
+            opening["sill_height_m"] = 0.5
+            opening["max_area_m2"] = min(opening["max_area_m2"], 2.0)
+
+        plan = compile_spatial_plan(LayoutContract.from_dict(payload))
+
+        self.assertTrue(plan["metric_geometry_ready"])
+        contam = plan["backend_requirements"]["contam"]
+        self.assertTrue(contam["metric_inputs_ready"])
+        self.assertEqual(contam["missing_metric_wall_fields"], {})
+        self.assertEqual(contam["missing_metric_opening_fields"], {})
+        self.assertFalse(contam["prj_generation_implemented"])
+        self.assertFalse(contam["prj_generation_ready"])
+
+        w1 = next(x for x in plan["openings"] if x["id"] == "W1")
+        self.assertAlmostEqual(
+            w1["metric"]["distance_along_wall_m"],
+            4.0 * 0.36,
+        )
+
+    def test_partial_metric_geometry_reports_entity_level_missing_fields(self):
+        payload = json.loads(LAYOUT.read_text(encoding="utf-8"))
+        payload["walls"][0]["length_m"] = 2.5
+        payload["walls"][0]["azimuth_deg"] = 270.0
+        payload["openings"][0]["width_m"] = 1.2
+        payload["openings"][0]["height_m"] = 1.5
+
+        plan = compile_spatial_plan(LayoutContract.from_dict(payload))
+        contam = plan["backend_requirements"]["contam"]
+
+        self.assertFalse(plan["metric_geometry_ready"])
+        self.assertIn("W1", contam["missing_metric_opening_fields"])
+        self.assertEqual(
+            contam["missing_metric_opening_fields"]["W1"],
+            ["sill_height_m"],
+        )
+        self.assertNotIn(
+            "living-west",
+            contam["missing_metric_wall_fields"],
+        )
+
+    def test_invalid_metric_geometry_fails_closed(self):
+        payload = json.loads(LAYOUT.read_text(encoding="utf-8"))
+        payload["walls"][0]["length_m"] = 1.0
+        payload["walls"][0]["azimuth_deg"] = 361.0
+        with self.assertRaisesRegex(ValueError, "azimuth_deg"):
+            LayoutContract.from_dict(payload)
+
+        payload = json.loads(LAYOUT.read_text(encoding="utf-8"))
+        payload["walls"][0]["length_m"] = 0.8
+        payload["openings"][0]["width_m"] = 1.2
+        with self.assertRaisesRegex(ValueError, "exceeds wall length_m"):
+            LayoutContract.from_dict(payload)
+
+
 if __name__ == "__main__":
     unittest.main()
