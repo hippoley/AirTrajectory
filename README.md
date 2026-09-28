@@ -101,6 +101,9 @@ read-only preflight PASS
 → locked ThingModel product/source/registry/contract lineage
 → physical-site manifest lineage (site / room / installed device instance)
 → bounded commissioning PASS
+→ independently revalidated behavior witness:
+   initial closed + OPEN positive delta + STOP hold + CLOSE negative delta
+→ commissioning behavior SHA-256
 → same runtime hardware + same ThingModel + same physical-site lineage
 → fresh measured CO₂ + rain with verified product-property + site-instance bindings
 → real window command
@@ -119,7 +122,7 @@ python examples/capture_physical_tau0.py \
   --receipt artifacts/physical-tau0-audit.json
 ```
 
-Older commissioning bundles that do not prove the read-only preflight lineage are rejected before AirTrajectory asks WindowPilot for a physical command.
+Older commissioning bundles are rejected before AirTrajectory asks WindowPilot for runtime readiness or a physical command unless they prove both read-only preflight lineage **and** WindowPilot schema >=0.3 commissioning behavior evidence. A mere `status=PASS` or four phase labels are not sufficient.
 
 After capture, re-verify the persisted artifacts independently:
 
@@ -140,6 +143,9 @@ trajectory SHA-256
 + physical-site / room / device-instance lineage
 + site manifest / instance / site-contract SHA-256 continuity
 + gateway contract lineage
++ commissioning behavior witness / SHA-256
++ READ near-closed, OPEN positive delta, STOP multi-sample hold, CLOSE negative delta
++ strictly increasing commissioning source timestamps
 + measured actuator position
 + pre-action CO₂/rain ThingModel + site-instance provenance
 + newer post-action CO₂/rain ThingModel + site-instance provenance

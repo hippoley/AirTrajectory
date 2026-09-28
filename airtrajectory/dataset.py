@@ -23,6 +23,8 @@ def transition_rows(trajectory: Trajectory):
             "preflight_receipt_sha256":trajectory.context.get("preflight_receipt_sha256"),
             "preflight_hardware_identity_sha256":trajectory.context.get("preflight_hardware_identity_sha256"),
             "gateway_contract_sha256":trajectory.context.get("gateway_contract_sha256"),
+            "commissioning_behavior_sha256":trajectory.context.get("commissioning_behavior_sha256"),
+            "commissioning_behavior_witness":trajectory.context.get("commissioning_behavior_witness"),
             "thingmodel_lineage":trajectory.context.get("thingmodel_lineage"),
             "site_lineage":trajectory.context.get("site_lineage"),
             "step_index":step.index,

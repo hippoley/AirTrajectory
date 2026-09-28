@@ -3,6 +3,7 @@ from dataclasses import asdict, dataclass
 import time
 from typing import Iterable, List, Optional
 from .trajectory import ActuatorFeedback, RewardVector, SemanticAction, Trajectory, TrajectoryStep, TrajectoryStore, TransitionAction
+from .commissioning import validate_commissioning_behavior_context
 from .lineage import (
     compare_hardware_site_lineage,
     compare_hardware_thingmodel_lineage,
@@ -178,6 +179,14 @@ def validate_physical_tau0(trajectory: Trajectory) -> PhysicalEvidenceReport:
         )
         if trajectory.context.get("site_lineage")!=site_lineage:
             reasons.append("trajectory physical-site lineage does not match commissioning/runtime identity")
+    except RuntimeError as exc:
+        reasons.append(str(exc))
+
+    try:
+        validate_commissioning_behavior_context(
+            trajectory.context.get("commissioning_behavior_witness"),
+            trajectory.context.get("commissioning_behavior_sha256"),
+        )
     except RuntimeError as exc:
         reasons.append(str(exc))
 

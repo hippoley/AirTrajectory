@@ -4,6 +4,7 @@ import hashlib
 import json
 from pathlib import Path
 
+from airtrajectory.commissioning import require_commissioning_behavior
 from airtrajectory.drivers import WindowPilotHTTPDriver
 from airtrajectory.lineage import (
     compare_hardware_site_lineage,
@@ -33,6 +34,10 @@ def capture_physical_tau0(
     bundle=json.loads(bundle_path.read_text(encoding="utf-8"))
     if bundle.get("status")!="PASS":
         raise RuntimeError("commissioning evidence bundle did not pass")
+
+    commissioning_behavior=require_commissioning_behavior(bundle)
+    commissioning_behavior_witness=commissioning_behavior["normalized"]
+    commissioning_behavior_sha256=commissioning_behavior["sha256"]
 
     commissioning_identity=bundle.get("hardware_identity") or {}
     expected=commissioning_identity.get("identity_sha256")
@@ -118,6 +123,8 @@ def capture_physical_tau0(
             "preflight_receipt_sha256":preflight_receipt_sha256,
             "preflight_hardware_identity_sha256":preflight_identity_sha256,
             "gateway_contract_sha256":gateway_contract_sha256,
+            "commissioning_behavior_witness":commissioning_behavior_witness,
+            "commissioning_behavior_sha256":commissioning_behavior_sha256,
         },
     )
 
@@ -138,6 +145,8 @@ def capture_physical_tau0(
         "preflight_receipt_sha256":preflight_receipt_sha256,
         "preflight_hardware_identity_sha256":preflight_identity_sha256,
         "gateway_contract_sha256":gateway_contract_sha256,
+        "commissioning_behavior_witness":commissioning_behavior_witness,
+        "commissioning_behavior_sha256":commissioning_behavior_sha256,
         "trajectory_sha256":hashlib.sha256(Path(out).read_bytes()).hexdigest(),
     }
 
