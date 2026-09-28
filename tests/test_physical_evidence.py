@@ -164,6 +164,43 @@ def _bundle_payload():
     }
 
 
+def _sensor_evidence(commission_sha):
+    readiness={
+        "sensor_evidence_lineage":{
+            "co2_ppm":{
+                "timestamp":100.0,
+                "quality":"measured",
+                "source":"mqtt-co2-gateway",
+                "source_scheme":"measured-runtime-source",
+                "source_contract_sha256":None,
+                "fresh":True,
+                "measured":True,
+                "registry_bound":True,
+                "site_bound":True,
+                "thingmodel_binding":_binding("co2"),
+            },
+            "rain":{
+                "timestamp":100.0,
+                "quality":"measured",
+                "source":"mqtt-rain-gateway",
+                "source_scheme":"measured-runtime-source",
+                "source_contract_sha256":None,
+                "fresh":True,
+                "measured":True,
+                "registry_bound":True,
+                "site_bound":True,
+                "thingmodel_binding":_binding("rain"),
+            },
+        }
+    }
+    return build_sensor_evidence(
+        readiness=readiness,
+        site_lineage=require_hardware_site_lineage(_identity()),
+        commissioning_identity_sha256="same-hardware",
+        commissioning_bundle_sha256=commission_sha,
+    )
+
+
 class PhysicalArtifactVerifierTests(unittest.TestCase):
     def _make_bundle(self,path):
         payload=_bundle_payload()
@@ -175,6 +212,7 @@ class PhysicalArtifactVerifierTests(unittest.TestCase):
 
     def _make_trajectory(self,path,commission_sha,behavior):
         identity=_identity()
+        sensor_evidence=_sensor_evidence(commission_sha)
         payload={
             "id":"trajectory-1",
             "environment_kind":"physical",
@@ -190,6 +228,10 @@ class PhysicalArtifactVerifierTests(unittest.TestCase):
                 "gateway_contract_sha256":"b"*64,
                 "commissioning_behavior_witness":behavior["normalized"],
                 "commissioning_behavior_sha256":behavior["sha256"],
+                "sensor_evidence_origin":sensor_evidence["sensor_evidence_origin"],
+                "runtime_sensor_lineage":sensor_evidence["runtime_sensor_lineage"],
+                "sensor_staging_lineage":sensor_evidence["sensor_staging_lineage"],
+                "sensor_evidence_sha256":sensor_evidence["sensor_evidence_sha256"],
             },
             "steps":[{
                 "sensor_readings":[
@@ -222,6 +264,7 @@ class PhysicalArtifactVerifierTests(unittest.TestCase):
 
     def _make_receipt(self,path,trajectory_path,commission_sha,behavior):
         identity=_identity()
+        sensor_evidence=_sensor_evidence(commission_sha)
         payload={
             "trajectory_id":"trajectory-1",
             "valid_tau0":True,
@@ -238,6 +281,10 @@ class PhysicalArtifactVerifierTests(unittest.TestCase):
             "gateway_contract_sha256":"b"*64,
             "commissioning_behavior_witness":behavior["normalized"],
             "commissioning_behavior_sha256":behavior["sha256"],
+            "sensor_evidence_origin":sensor_evidence["sensor_evidence_origin"],
+            "runtime_sensor_lineage":sensor_evidence["runtime_sensor_lineage"],
+            "sensor_staging_lineage":sensor_evidence["sensor_staging_lineage"],
+            "sensor_evidence_sha256":sensor_evidence["sensor_evidence_sha256"],
             "trajectory_sha256":hashlib.sha256(trajectory_path.read_bytes()).hexdigest(),
         }
         path.write_text(json.dumps(payload),encoding="utf-8")
@@ -277,6 +324,34 @@ class PhysicalArtifactVerifierTests(unittest.TestCase):
             report["commissioning_behavior_sha256"],
             behavior["sha256"],
         )
+        self.assertEqual(
+            report["sensor_evidence_origin"],
+            "runtime-measured-lineage",
+        )
+        self.assertTrue(report["sensor_evidence_sha256"])
+
+    def test_sensor_evidence_origin_mismatch_between_trajectory_and_receipt_is_rejected(self):
+        with tempfile.TemporaryDirectory() as d:
+            root=Path(d)
+            bundle,trajectory,receipt,_,_,_=self._valid_chain(root)
+            payload=json.loads(trajectory.read_text(encoding="utf-8"))
+            payload["context"]["sensor_evidence_origin"]="probe-labeled"
+            trajectory.write_text(json.dumps(payload)+"\n",encoding="utf-8")
+            receipt_payload=json.loads(receipt.read_text(encoding="utf-8"))
+            receipt_payload["trajectory_sha256"]=hashlib.sha256(
+                trajectory.read_bytes()
+            ).hexdigest()
+            receipt.write_text(json.dumps(receipt_payload),encoding="utf-8")
+            report=verify_physical_tau0_artifacts(
+                trajectory_path=trajectory,
+                receipt_path=receipt,
+                commission_bundle_path=bundle,
+            )
+        self.assertFalse(report["valid_artifacts"])
+        self.assertTrue(any(
+            "sensor_evidence_origin" in reason
+            for reason in report["reasons"]
+        ))
 
     def test_tampered_trajectory_is_rejected(self):
         with tempfile.TemporaryDirectory() as d:
