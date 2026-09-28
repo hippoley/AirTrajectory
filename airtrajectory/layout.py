@@ -14,6 +14,9 @@ It validates the seam those components will use later.
 from __future__ import annotations
 
 from dataclasses import dataclass
+import hashlib
+import json
+from pathlib import Path
 from typing import Any
 
 from .topology import BuildingTopology, OpeningEdge, ZoneNode
@@ -72,6 +75,11 @@ class LayoutContract:
     walls: tuple[LayoutWall,...]
     openings: tuple[LayoutOpening,...]
     compiler_contract: dict[str,Any]
+
+    @classmethod
+    def from_file(cls,path: str|Path) -> "LayoutContract":
+        payload=json.loads(Path(path).read_text(encoding="utf-8"))
+        return cls.from_dict(payload)
 
     @classmethod
     def from_dict(cls,payload: dict[str,Any]) -> "LayoutContract":
@@ -258,4 +266,121 @@ class LayoutContract:
             "walls":[wall.__dict__.copy() for wall in self.walls],
             "openings":[opening.__dict__.copy() for opening in self.openings],
             "compiler_contract":dict(self.compiler_contract),
+        }
+
+    def sha256(self) -> str:
+        raw=json.dumps(
+            self.web_snapshot(),
+            sort_keys=True,
+            separators=(",",":"),
+            ensure_ascii=False,
+        ).encode("utf-8")
+        return hashlib.sha256(raw).hexdigest()
+
+    def trajectory_context(
+        self,
+        *,
+        topology_revision: int=0,
+        opening_positions: dict[str,float]|None=None,
+    ) -> dict[str,Any]:
+        positions={
+            opening.id:opening.position_t
+            for opening in self.openings
+        }
+        if opening_positions:
+            unknown=set(opening_positions)-set(positions)
+            if unknown:
+                raise ValueError(
+                    "unknown opening positions: "
+                    +",".join(sorted(unknown))
+                )
+            for opening_id,value in opening_positions.items():
+                numeric=float(value)
+                if not 0<=numeric<=1:
+                    raise ValueError(
+                        f"opening {opening_id} position must be between 0 and 1"
+                    )
+                positions[opening_id]=numeric
+
+        return {
+            "topology_id":self.topology_id,
+            "layout_contract_sha256":self.sha256(),
+            "source_kind":self.source_kind,
+            "topology_revision":int(topology_revision),
+            "capabilities":dict(self.capabilities),
+            "opening_positions":positions,
+        }
+
+    def contam_compile_contract(
+        self,
+        *,
+        opening_positions: dict[str,float]|None=None,
+    ) -> dict[str,Any]:
+        """Stable input seam for the future arbitrary topology -> CONTAM compiler.
+
+        This method deliberately returns RESERVED and does not create a PRJ.
+        """
+        positions={
+            opening.id:opening.position_t
+            for opening in self.openings
+        }
+        if opening_positions:
+            unknown=set(opening_positions)-set(positions)
+            if unknown:
+                raise ValueError(
+                    "unknown opening positions: "
+                    +",".join(sorted(unknown))
+                )
+            for opening_id,value in opening_positions.items():
+                numeric=float(value)
+                if not 0<=numeric<=1:
+                    raise ValueError(
+                        f"opening {opening_id} position must be between 0 and 1"
+                    )
+                positions[opening_id]=numeric
+
+        return {
+            "schema_version":"0.1",
+            "status":"RESERVED",
+            "compiler":"topology-to-contam",
+            "topology_id":self.topology_id,
+            "layout_contract_sha256":self.sha256(),
+            "outside_id":self.outside_id,
+            "zones":[
+                {
+                    "id":room.id,
+                    "volume_m3":room.volume_m3,
+                    "geometry":{
+                        "x":room.x,
+                        "y":room.y,
+                        "w":room.w,
+                        "h":room.h,
+                    },
+                }
+                for room in self.rooms
+            ],
+            "walls":[wall.__dict__.copy() for wall in self.walls],
+            "openings":[
+                {
+                    "id":opening.id,
+                    "kind":opening.kind,
+                    "wall_id":opening.wall_id,
+                    "source":opening.source,
+                    "target":opening.target,
+                    "position_t":positions[opening.id],
+                    "max_area_m2":opening.max_area_m2,
+                    "controllable":opening.state_editable,
+                }
+                for opening in self.openings
+            ],
+            "reserved_outputs":{
+                "prj_path":None,
+                "zone_numbers":None,
+                "opening_controls":None,
+                "path_numbers":None,
+            },
+            "note":(
+                "Contract only. Arbitrary topology -> CONTAM PRJ compilation "
+                "is not claimed complete."
+            ),
         }

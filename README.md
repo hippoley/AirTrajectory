@@ -53,10 +53,27 @@ Moving a door or window changes its normalized `position_t`, increments the topo
 
 The Python `LayoutContract` independently validates this fixed-layout boundary and projects the same file into the existing graph-level `BuildingTopology`. That keeps UI geometry and learning connectivity behind one contract instead of two hand-maintained topology definitions.
 
+The same contract now exposes both downstream seams explicitly:
+
+```python
+layout.trajectory_context(
+    topology_revision=3,
+    opening_positions={"W1": 0.72, "D1": 0.25},
+)
+
+layout.contam_compile_contract(
+    opening_positions={"W1": 0.72, "D1": 0.25},
+)
+```
+
+Both receive the same normalized opening positions. Moving an opening changes its wall position but not its room connectivity. The CONTAM method currently returns `status=RESERVED` with zone/wall/opening inputs and empty PRJ/control/path outputs; it is a real compiler seam, not a claim that arbitrary topology → CONTAM compilation is finished.
+
 ## Verified capability matrix
 
 | Capability | Status | Evidence boundary |
 | --- | --- | --- |
+| Fixed layout → UI / trajectory contract | ✅ verified | one `home_topology.fixed.json`; room/wall geometry locked, window/door wall position editable |
+| Layout → CONTAM compiler seam | 🟡 reserved | same opening positions flow into `contam_compile_contract()`; PRJ/control/path generation remains intentionally unimplemented |
 | Multi-room / multi-window scenario simulator | ✅ verified | deterministic toy/surrogate physics; not engineering truth |
 | Agent → safety gate → executed action → reward → trajectory | ✅ verified | proposed/executed/intervention are preserved |
 | Behavior Cloning baseline | ✅ verified | topology-local discrete policy trained from behavior rows |
