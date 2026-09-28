@@ -66,6 +66,73 @@ class LayoutContractTests(unittest.TestCase):
         self.assertEqual(a.zones,b.zones)
         self.assertEqual(a.openings,b.openings)
 
+    def test_trajectory_context_binds_opening_positions_without_mutating_layout(self):
+        contract=LayoutContract.from_dict(self._payload())
+        context=contract.trajectory_context(
+            topology_revision=3,
+            opening_positions={"W1":0.72,"D1":0.25},
+        )
+
+        self.assertEqual(context["topology_id"],contract.topology_id)
+        self.assertEqual(context["topology_revision"],3)
+        self.assertEqual(context["opening_positions"]["W1"],0.72)
+        self.assertEqual(context["opening_positions"]["D1"],0.25)
+        self.assertFalse(
+            context["capabilities"]["floorplan_geometry_editable"]
+        )
+        self.assertEqual(
+            len(context["layout_contract_sha256"]),
+            64,
+        )
+
+    def test_reserved_contam_contract_reflects_current_opening_positions(self):
+        contract=LayoutContract.from_dict(self._payload())
+        compiled=contract.contam_compile_contract(
+            opening_positions={"W2":0.81,"D2":0.18},
+        )
+
+        self.assertEqual(compiled["status"],"RESERVED")
+        self.assertEqual(compiled["compiler"],"topology-to-contam")
+        self.assertIsNone(compiled["reserved_outputs"]["prj_path"])
+        self.assertIsNone(
+            compiled["reserved_outputs"]["opening_controls"]
+        )
+        positions={
+            opening["id"]:opening["position_t"]
+            for opening in compiled["openings"]
+        }
+        self.assertEqual(positions["W2"],0.81)
+        self.assertEqual(positions["D2"],0.18)
+        self.assertIn("not claimed complete",compiled["note"])
+
+    def test_contam_contract_keeps_connectivity_when_window_moves(self):
+        contract=LayoutContract.from_dict(self._payload())
+        base=contract.contam_compile_contract()
+        moved=contract.contam_compile_contract(
+            opening_positions={"W1":0.9},
+        )
+
+        base_w1=next(x for x in base["openings"] if x["id"]=="W1")
+        moved_w1=next(x for x in moved["openings"] if x["id"]=="W1")
+        self.assertEqual(base_w1["source"],moved_w1["source"])
+        self.assertEqual(base_w1["target"],moved_w1["target"])
+        self.assertEqual(base_w1["wall_id"],moved_w1["wall_id"])
+        self.assertNotEqual(
+            base_w1["position_t"],
+            moved_w1["position_t"],
+        )
+
+    def test_trajectory_and_contam_reject_unknown_opening_override(self):
+        contract=LayoutContract.from_dict(self._payload())
+        with self.assertRaisesRegex(ValueError,"unknown opening"):
+            contract.trajectory_context(
+                opening_positions={"W404":0.5},
+            )
+        with self.assertRaisesRegex(ValueError,"unknown opening"):
+            contract.contam_compile_contract(
+                opening_positions={"W404":0.5},
+            )
+
     def test_current_contract_rejects_floorplan_geometry_editing(self):
         payload=self._payload()
         payload["capabilities"]["floorplan_geometry_editable"]=True
