@@ -15,6 +15,10 @@ def _test_binding(sensor_type: str):
             "source_bundle_sha256":"2"*64,
             "registry_sha256":"3"*64,
             "contract_sha256":"4"*64,
+            "site_id":"test.single-room",
+            "site_instance_id":"living.air.primary",
+            "site_manifest_sha256":"8"*64,
+            "site_contract_sha256":"a"*64,
         }
     return {
         "product_model":"TEST-WINDOW",
@@ -25,6 +29,10 @@ def _test_binding(sensor_type: str):
         "source_bundle_sha256":"2"*64,
         "registry_sha256":"3"*64,
         "contract_sha256":"6"*64,
+        "site_id":"test.single-room",
+        "site_instance_id":"living.window.primary",
+        "site_manifest_sha256":"8"*64,
+        "site_contract_sha256":"a"*64,
     }
 
 
