@@ -13,12 +13,16 @@ def rollout(
     policy_id: str,
     max_steps: int = 120,
     safety_resolver=None,
+    context_extra=None,
 ) -> Trajectory:
     observation, reset_info = env.reset()
+    context={"reset_info": reset_info}
+    if context_extra:
+        context.update(dict(context_extra))
     trajectory = Trajectory(
         topology_id=topology_id,
         policy_id=policy_id,
-        context={"reset_info": reset_info},
+        context=context,
     )
 
     for index in range(max_steps):
