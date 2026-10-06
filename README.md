@@ -101,7 +101,8 @@ Ambient forcing is now explicit as well. `airtrajectory.contam_boundary.bind_bou
 | CONTAM IR → deterministic writer manifest | ✅ verified | symbolic zones/paths/controls receive stable 1-based numeric IDs with mapping SHA-256 |
 | Writer manifest → airflow-element binding | ✅ verified | explicit profile binds deterministic `element:*` identities; production gate rejects illustrative profiles |
 | Bound manifest → boundary forcing | ✅ verified | wind/weather + contaminant profiles are explicit, hashed, zone-complete, and production-gated |
-| Forced manifest → PRJ | 🟡 reserved | concrete CONTAM serialization remains unimplemented |
+| Forced manifest → PRJ readiness audit | ✅ verified | section/entity-level blockers are explicit and hashed; no file is emitted while incomplete |
+| PRJ readiness → generated PRJ | 🟡 reserved | concrete CONTAM serialization remains blocked until all stored fields are explicit |
 | Multi-room / multi-window scenario simulator | ✅ verified | deterministic toy/surrogate physics; not engineering truth |
 | Agent → safety gate → executed action → reward → trajectory | ✅ verified | proposed/executed/intervention are preserved |
 | Behavior Cloning baseline | ✅ verified | topology-local discrete policy trained from behavior rows |
@@ -312,3 +313,16 @@ python examples/bind_contam_boundary.py \
 ```
 
 For production-style validation, supply an engineering-reviewed airflow profile and pass `--require-engineering-validated`. The bundled boundary example demonstrates the schema only; site weather and contaminant assumptions still require actual project evidence.
+
+### CONTAM PRJ serialization readiness
+
+Before writing a concrete `.prj`, AirTrajectory now performs a section-level readiness audit against the fields required by the NIST CONTAM 3.4 project format. The first-pass audit covers Section 10 (Airflow Elements), Section 14 (Zones), Section 15 (Initial Zone Concentrations), and Section 16 (Airflow Paths), plus the global project/species/level sections.
+
+```bash
+python examples/inspect_contam_prj_readiness.py \
+  artifacts/contam-forced.json \
+  --require-ready \
+  --out artifacts/contam-prj-readiness.json
+```
+
+The current forced manifest is intentionally expected to remain `BLOCKED`: it still lacks concrete stored PRJ values such as airflow `lam/turb/Re`, zone level/height/initial temperature/pressure, an explicit ppm→mass-fraction conversion policy, and low-level path records. These are now reported per section and per entity rather than silently guessed. A `.prj` writer will only be enabled after this gate reaches `READY_FOR_PRJ_SERIALIZATION`.
