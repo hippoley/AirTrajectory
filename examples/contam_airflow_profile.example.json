@@ -1,8 +1,8 @@
 {
   "schema_version": "0.1",
   "profile_id": "example-engineering-profile",
-  "evidence_level": "project-calibrated",
-  "engineering_validated": true,
+  "evidence_level": "illustrative-schema",
+  "engineering_validated": false,
   "source": {
     "title": "Replace with project-specific calibration or engineering reference",
     "publisher": "project-owner",
