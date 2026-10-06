@@ -28,6 +28,10 @@ class ContamForkProfile:
     scalar_controls: Mapping[str, ContamScalarControl] = field(default_factory=dict)
     co2_contaminant_index: int = 0
     evaluation_zone: str = "living"
+    evidence_level: str = "simulation"
+    trusted_for_promotion: bool = False
+    prj_initial_co2_ppm: Mapping[str, float] = field(default_factory=dict)
+    origin_state_mode: str = "declared-only"
 
 
 def _validate_origin(profile: ContamForkProfile, origin: dict) -> tuple[dict, dict, dict]:
@@ -41,6 +45,19 @@ def _validate_origin(profile: ContamForkProfile, origin: dict) -> tuple[dict, di
     scalar_ids=set(profile.scalar_controls)
     if set(co2)!=zones:
         raise ValueError("CONTAM fork co2_ppm must exactly cover profile zones")
+    if profile.prj_initial_co2_ppm:
+        expected={k:float(v) for k,v in profile.prj_initial_co2_ppm.items()}
+        if set(expected)!=zones:
+            raise ValueError("CONTAM profile prj_initial_co2_ppm must exactly cover profile zones")
+        mismatched=[
+            k for k in sorted(zones)
+            if abs(float(co2[k])-expected[k])>1e-6
+        ]
+        if mismatched:
+            raise ValueError(
+                "CONTAM real-origin CO2 must match PRJ initial state until runtime state injection is verified: "
+                + ",".join(mismatched)
+            )
     if set(openings)!=opening_ids:
         raise ValueError("CONTAM fork opening_pct must exactly cover profile openings")
     if set(scalars)!=scalar_ids:
@@ -132,11 +149,20 @@ def _run_actions_branch(
         initial_input_controls=dict(profile.initial_input_controls),
         scalar_controls=dict(profile.scalar_controls),
         initial_scalar_values=dict(origin_scalars),
+        warm_start=False,
     )
     observations=[]
     total_return=0.0
     try:
         _,meta=env.reset()
+        for opening_id,control in profile.opening_controls.items():
+            value=control.value_for_pct(origin_openings[opening_id])
+            if control.control_name:
+                env.session.set_named_input_control(control.control_name,value)
+            else:
+                env.session.set_input_control(control.control_number,value)
+        meta=dict(meta)
+        meta["fork_origin_opening_controls_applied"]=True
         normalized=_normalize_actions(profile,actions)
         for _ in range(max(1,int(horizon_steps))):
             obs,reward,done,truncated,_=env.step(normalized)
@@ -199,8 +225,13 @@ def contam_fork_request(
             "end_scalar_values":dict(final.get("scalar_values") or {}),
             "series":[round(float(x["co2_ppm"][evaluation_zone]),3) for x in observations],
             "return":round(float(total_return),6),
-            "provenance":"backend-generated · CONTAM · engineering simulation",
-            "trusted_for_promotion":True,
+            "provenance":(
+                "backend-generated · CONTAM · engineering-trusted"
+                if profile.trusted_for_promotion
+                else "backend-generated · CONTAM · simulation-only"
+            ),
+            "evidence_level":profile.evidence_level,
+            "trusted_for_promotion":bool(profile.trusted_for_promotion),
         })
 
     return {
@@ -209,12 +240,20 @@ def contam_fork_request(
         "profile_id":profile_id,
         "topology_id":str(payload.get("topology_id",profile_id)),
         "opening_id":opening_id,
-        "origin_kind":"explicit-snapshot",
+        "origin_kind":(
+            "prj-initial-verified"
+            if profile.prj_initial_co2_ppm
+            else profile.origin_state_mode
+        ),
         "backend":"contamxpy",
         "physics_fidelity":"CONTAM",
-        "trusted_for_promotion":True,
+        "evidence_level":profile.evidence_level,
+        "trusted_for_promotion":bool(profile.trusted_for_promotion),
         "horizon_minutes":horizon_steps,
         "contam":meta.get("contam") if isinstance(meta,dict) else None,
+        "origin_opening_controls_applied":bool(
+            isinstance(meta,dict) and meta.get("fork_origin_opening_controls_applied")
+        ),
         "branches":branches,
     }
 
@@ -267,8 +306,13 @@ def contam_strategy_fork_request(
             "end_scalar_values":dict(final.get("scalar_values") or {}),
             "series":[round(float(x["co2_ppm"][evaluation_zone]),3) for x in observations],
             "return":round(float(total_return),6),
-            "provenance":"backend-generated · CONTAM · engineering simulation",
-            "trusted_for_promotion":True,
+            "provenance":(
+                "backend-generated · CONTAM · engineering-trusted"
+                if profile.trusted_for_promotion
+                else "backend-generated · CONTAM · simulation-only"
+            ),
+            "evidence_level":profile.evidence_level,
+            "trusted_for_promotion":bool(profile.trusted_for_promotion),
         })
 
     return {
@@ -276,11 +320,19 @@ def contam_strategy_fork_request(
         "request_id":str(payload.get("request_id","")),
         "profile_id":profile_id,
         "topology_id":str(payload.get("topology_id",profile_id)),
-        "origin_kind":"explicit-snapshot",
+        "origin_kind":(
+            "prj-initial-verified"
+            if profile.prj_initial_co2_ppm
+            else profile.origin_state_mode
+        ),
         "backend":"contamxpy",
         "physics_fidelity":"CONTAM",
-        "trusted_for_promotion":True,
+        "evidence_level":profile.evidence_level,
+        "trusted_for_promotion":bool(profile.trusted_for_promotion),
         "horizon_minutes":horizon_steps,
         "contam":meta.get("contam") if isinstance(meta,dict) else None,
+        "origin_opening_controls_applied":bool(
+            isinstance(meta,dict) and meta.get("fork_origin_opening_controls_applied")
+        ),
         "branches":branches,
     }
