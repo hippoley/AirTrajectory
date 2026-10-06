@@ -37,8 +37,21 @@ jobs:
         run: |
           python -c "import inspect,contamxpy; print('cxLib', inspect.signature(contamxpy.cxLib)); print('setupSimulation', inspect.signature(contamxpy.cxLib.setupSimulation)); print('doSimStep', inspect.signature(contamxpy.cxLib.doSimStep)); print('endSimulation', inspect.signature(contamxpy.cxLib.endSimulation))"
       - name: Download official contamxpy source demo
+        shell: pwsh
         run: |
-          python -m pip download --no-deps "--no-binary=:all:" contamxpy==0.0.9 -d _contam_sdist
+          @'
+          import json
+          from pathlib import Path
+          import urllib.request
+
+          Path("_contam_sdist").mkdir(exist_ok=True)
+          with urllib.request.urlopen("https://pypi.org/pypi/contamxpy/0.0.9/json") as response:
+              metadata=json.load(response)
+          sdist=next(item for item in metadata["urls"] if item["packagetype"]=="sdist")
+          target=Path("_contam_sdist/contamxpy-0.0.9.tar.gz")
+          urllib.request.urlretrieve(sdist["url"], target)
+          print("downloaded", target, "from", sdist["url"])
+          '@ | python -
       - name: Extract a real NIST demo PRJ
         shell: pwsh
         run: |
