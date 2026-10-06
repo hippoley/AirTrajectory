@@ -919,3 +919,33 @@ driver.physical_readiness()
 ```
 
 It fails closed when an endpoint is simulated, measured position is unavailable, CO2 lacks provenance, endpoint hardware identity changes during capture, or CO2 sources span multiple physical sites. The resulting capture carries a hashed `windowpilot_capture_provenance` that is preserved through alignment and into the final validation receipt.
+
+
+### One-command WindowPilot field validation
+
+The direct hardware path can now run as one read-only command:
+
+```bash
+python examples/run_windowpilot_field_validation.py \
+  artifacts/engineering-runtime.json \
+  artifacts/field-validation-protocol.frozen.json \
+  examples/windowpilot_endpoints.example.json \
+  --validation-id site-run-001 \
+  --out artifacts/windowpilot-field-validation.json \
+  --capture-out artifacts/windowpilot-field-capture.json \
+  --aligned-out artifacts/windowpilot-field-aligned.json \
+  --require-pass
+```
+
+This command performs:
+
+```text
+WindowPilot measured CO2 + measured position
+→ multi-endpoint site / hardware identity checks
+→ timestamped field-capture records
+→ approved time alignment
+→ prediction-vs-field metrics
+→ FIELD_VALIDATION_PASSED / FAILED
+```
+
+The path is read-only: it never calls `set_position()` or WindowPilot actuator endpoints. Fixed openings such as D1/D2 remain declared topology assumptions and are checked against runtime predictions instead of being fabricated as measured records.
