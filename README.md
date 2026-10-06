@@ -546,3 +546,25 @@ python examples/compile_contam_profile.py review \
 The review bundle's `approved_profile_sha256` must match the current profile payload. Any later edit invalidates the old review binding.
 
 The bundled evidence files remain examples with placeholder instrument/reviewer identities. They demonstrate the executable contract but are not field evidence for a real building.
+
+
+### Evidence validity vs engineering approval
+
+Issuing an evidence receipt proves that the bundle is structurally valid, typed, timestamped, source-bound, and hashable. It does **not** by itself mean that an engineer approved the evidence for production use.
+
+For metric geometry, airflow calibration, and boundary measurements, engineering promotion requires an explicit approval block in the raw evidence bundle:
+
+```json
+{
+  "approval": {
+    "approved": true,
+    "approved_by": "Engineer name",
+    "approved_role": "HVAC / building-airflow engineer",
+    "approved_at": "2026-10-06T14:30:00+08:00"
+  }
+}
+```
+
+Without that block, the evidence-backed profile remains `engineering_validated=false` and the final engineering-readiness audit fails closed. The final audit also re-checks receipt approval independently, so manually flipping the profile boolean cannot bypass the gate.
+
+`prj_engineering_review` is the exception because the review receipt itself is the approval act and is additionally bound to the exact reviewed profile SHA.
