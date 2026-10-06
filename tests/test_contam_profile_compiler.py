@@ -15,8 +15,8 @@ ROOT = Path(__file__).resolve().parents[1]
 LAYOUT = ROOT / "web" / "data" / "home_topology.fixed.json"
 
 
-def common(evidence_type, evidence_id, data):
-    return {
+def common(evidence_type, evidence_id, data, *, approved=False):
+    payload = {
         "schema_version": "0.1",
         "evidence_id": evidence_id,
         "evidence_type": evidence_type,
@@ -26,6 +26,14 @@ def common(evidence_type, evidence_id, data):
         "source": {"kind": "instrument", "id": evidence_id},
         "data": data,
     }
+    if approved:
+        payload["approval"] = {
+            "approved": True,
+            "approved_by": "Engineer A",
+            "approved_role": "HVAC engineer",
+            "approved_at": "2026-10-06T14:30:00+08:00",
+        }
+    return payload
 
 
 class ContamProfileCompilerTests(unittest.TestCase):
@@ -118,13 +126,25 @@ class ContamProfileCompilerTests(unittest.TestCase):
             self.layout,
             self.geometry_bundle(),
         )
-        self.assertTrue(profile["engineering_validated"])
+        self.assertFalse(profile["engineering_validated"])
         self.assertEqual(profile["evidence_level"], "measured")
         self.assertEqual(profile["rooms"]["living"]["volume_m3"], 75.0)
         self.assertEqual(
             profile["evidence_receipts"][0]["evidence_type"],
             "metric_geometry_measurement",
         )
+
+    def test_metric_profile_becomes_engineering_validated_only_with_approval(self):
+        bundle = self.geometry_bundle()
+        bundle["approval"] = {
+            "approved": True,
+            "approved_by": "Engineer A",
+            "approved_role": "HVAC engineer",
+            "approved_at": "2026-10-06T14:30:00+08:00",
+        }
+        profile = compile_metric_overlay_from_evidence(self.layout, bundle)
+        self.assertTrue(profile["engineering_validated"])
+        self.assertTrue(profile["evidence_receipts"][0]["approval"]["approved"])
 
     def test_metric_profile_rejects_partial_geometry(self):
         bundle = self.geometry_bundle()
