@@ -156,6 +156,18 @@ class ContamPrjProfileTests(unittest.TestCase):
         self.assertEqual(w1["relative_height_m"], 0.9)
         self.assertEqual(bound["project_controls"]["time_step_s"], 60)
 
+    def test_unsupported_project_mode_fails_closed(self):
+        p=profile()
+        p["project_controls"]["mode"]="cyclic"
+        with self.assertRaisesRegex(ValueError,"steady or transient"):
+            bind_prj_serialization_profile(forced_manifest(),p)
+
+    def test_invalid_project_time_step_fails_closed(self):
+        p=profile()
+        p["project_controls"]["time_step_s"]=0
+        with self.assertRaisesRegex(ValueError,"time_step_s must be positive"):
+            bind_prj_serialization_profile(forced_manifest(),p)
+
     def test_unknown_zone_override_fails_closed(self):
         p = profile()
         p["zone_overrides"] = {"zone:garage": {"relative_height_m": 1.0}}
