@@ -6,6 +6,7 @@ import unittest
 from airtrajectory.demo_physical_config import (
     build_windowpilot_drivers,
     load_windowpilot_driver_config,
+    resolve_windowpilot_headers,
 )
 
 
@@ -40,6 +41,38 @@ class DemoPhysicalConfigTests(unittest.TestCase):
             path.write_text(json.dumps(payload), encoding="utf-8")
             with self.assertRaisesRegex(ValueError, "both endpoint-driven and fixed"):
                 load_windowpilot_driver_config(path)
+
+    def test_headers_env_resolves_runtime_secret_without_persisting_value(self):
+        spec = {
+            "base_url": "http://w1",
+            "headers_env": {
+                "Authorization": "WINDOWPILOT_AUTH",
+            },
+        }
+        headers = resolve_windowpilot_headers(
+            spec,
+            environ={"WINDOWPILOT_AUTH": "Bearer secret"},
+        )
+        self.assertEqual(headers, {"Authorization": "Bearer secret"})
+        self.assertNotIn("Bearer secret", json.dumps(spec))
+
+    def test_invalid_headers_env_shape_fails_closed(self):
+        payload = {
+            "schema_version": "0.1",
+            "windowpilot_endpoints": {
+                "W1": {
+                    "base_url": "http://w1",
+                    "headers_env": ["Authorization"],
+                }
+            },
+            "fixed_openings": {},
+        }
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "physical.json"
+            path.write_text(json.dumps(payload), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "headers_env must be an object"):
+                load_windowpilot_driver_config(path)
+
 
 
 if __name__ == "__main__":

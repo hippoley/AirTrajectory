@@ -12,6 +12,7 @@ import time
 from typing import Any, Callable, Mapping
 
 from .drivers.windowpilot import WindowPilotHTTPDriver
+from .demo_physical_config import resolve_windowpilot_headers
 from .windowpilot_contract_mapping import (
     build_windowpilot_response_adapter,
 )
@@ -107,12 +108,14 @@ def probe_windowpilot_http_contract(
     base_url: str,
     request_json: Callable[[str, str, Any], Any] | None = None,
     response_adapter: Callable[[str, Any], dict[str, Any]] | None = None,
+    headers: Mapping[str, str] | None = None,
     clock_fn=time.time,
 ) -> dict[str, Any]:
     driver = WindowPilotHTTPDriver(
         base_url=base_url,
         request_json=request_json,
         response_adapter=response_adapter,
+        headers=dict(headers or {}),
     )
     fetch = driver._request_json
     endpoints = {
@@ -394,6 +397,7 @@ def probe_windowpilot_config(
             base_url=base_url,
             request_json=request_json,
             response_adapter=response_adapter,
+            headers=resolve_windowpilot_headers(spec),
             clock_fn=clock_fn,
         )
 

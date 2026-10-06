@@ -22,6 +22,7 @@ class WindowPilotHTTPDriver(PhysicalWindowDriver):
         timeout_s: float=2.0,
         request_json: Callable|None=None,
         response_adapter: Callable|None=None,
+        headers: dict[str,str]|None=None,
         feedback_timeout_s: float=5.0,
         feedback_poll_interval_s: float=0.1,
         position_tolerance_pct: float=1.0,
@@ -37,6 +38,7 @@ class WindowPilotHTTPDriver(PhysicalWindowDriver):
         self.stop_on_feedback_timeout=bool(stop_on_feedback_timeout)
         self._raw_request_json=request_json or self._stdlib_request
         self._response_adapter=response_adapter
+        self._headers=dict(headers or {})
         self._sleep=sleep_fn
         self._clock=clock_fn
 
@@ -95,7 +97,10 @@ class WindowPilotHTTPDriver(PhysicalWindowDriver):
             self.base_url+path,
             data=body,
             method=method,
-            headers={"Content-Type":"application/json"},
+            headers={
+                "Content-Type":"application/json",
+                **self._headers,
+            },
         )
         with urlopen(req, timeout=self.timeout_s) as response:
             return json.loads(response.read().decode("utf-8"))
