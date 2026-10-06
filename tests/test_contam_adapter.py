@@ -96,6 +96,39 @@ class ContamAdapterTests(unittest.TestCase):
             s.close()
 
 
+    def test_session_initializes_input_controls_before_setup_and_validates_names(self):
+        with tempfile.TemporaryDirectory() as d:
+            prj=Path(d)/"demo.prj"; prj.write_text("fixture")
+            initial={
+                1:{"name":"W2_open","value":0.35},
+                2:{"name":"W1_open","value":0.65},
+            }
+            s=ContamXSession(
+                prj,
+                binding_factory=AmbientInitCx,
+                initial_input_controls=initial,
+            )
+            s.setup()
+            self.assertEqual(
+                AmbientInitCx.last_instance.controls,
+                {1:0.35,2:0.65},
+            )
+            s.close()
+
+    def test_session_rejects_initial_control_name_index_drift(self):
+        with tempfile.TemporaryDirectory() as d:
+            prj=Path(d)/"demo.prj"; prj.write_text("fixture")
+            s=ContamXSession(
+                prj,
+                binding_factory=AmbientInitCx,
+                initial_input_controls={
+                    1:{"name":"W1_open","value":0.65},
+                },
+            )
+            with self.assertRaisesRegex(RuntimeError,"mapping drift"):
+                s.setup()
+
+
     def test_session_reduces_directional_path_flows_to_net_flow(self):
         class DirectionalCx(FakeCx):
             def getPathFlow(self,p): return [0.3,-0.1]
