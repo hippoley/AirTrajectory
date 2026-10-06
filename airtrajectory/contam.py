@@ -139,14 +139,14 @@ class CONTAMEnvironment(VentilationEnvironment):
     """AirTrajectory environment backed by an actual CONTAM PRJ co-simulation."""
     def __init__(
         self,topology,prj_path,zone_numbers:Dict[str,int],opening_controls:Dict[str,ContamControl],
-        co2_contaminant_number:int=1,path_numbers:Optional[Dict[str,int]]=None,max_steps:int=120,
+        co2_contaminant_index:int=0,path_numbers:Optional[Dict[str,int]]=None,max_steps:int=120,
         binding_factory:Optional[Callable]=None,fixed_openings:Optional[Dict[str,float]]=None,
         initial_openings:Optional[Dict[str,float]]=None,rain:Optional[bool]=False,
         initial_co2_ppm:Optional[Dict[str,float]]=None,ambient:Optional[dict]=None,
         initial_input_controls:Optional[dict]=None,warm_start:bool=True,
     ):
         self.topology=topology; self.prj_path=Path(prj_path); self.zone_numbers=dict(zone_numbers)
-        self.opening_controls=dict(opening_controls); self.co2_contaminant_number=co2_contaminant_number
+        self.opening_controls=dict(opening_controls); self.co2_contaminant_index=co2_contaminant_index
         self.path_numbers=dict(path_numbers or {}); self.max_steps=max_steps; self.binding_factory=binding_factory
         self.fixed_openings={k:float(v) for k,v in (fixed_openings or {}).items()}
         self.rain=rain
@@ -180,7 +180,7 @@ class CONTAMEnvironment(VentilationEnvironment):
                 print(label,json.dumps(payload,sort_keys=True),flush=True)
 
     def _observation(self):
-        co2={z:co2_mass_fraction_to_ppm(self.session.zone_mass_fraction(n,self.co2_contaminant_number)) for z,n in self.zone_numbers.items()}
+        co2={z:co2_mass_fraction_to_ppm(self.session.zone_mass_fraction(n,self.co2_contaminant_index)) for z,n in self.zone_numbers.items()}
         flows={oid:self.session.path_flow(n) for oid,n in self.path_numbers.items()}
         return {"step":self._step,"co2_ppm":co2,"rain":self.rain,"opening_pct":dict(self.openings),"path_flow_kg_s":flows,"state_source":"contam-solved"}
 
