@@ -64,6 +64,15 @@ def main() -> int:
     action_ids={a.opening_id for a in first.executed_actions}
     if action_ids!={"W1","W2","W3","D1","D2"}:
         raise RuntimeError(f"unexpected executed opening set: {sorted(action_ids)}")
+    solved_co2=(first.next_observation or {}).get("co2_ppm") or {}
+    if set(solved_co2)!={"living","bedroom","study"}:
+        raise RuntimeError(
+            f"missing CONTAM solved CO2 state: {sorted(solved_co2)}"
+        )
+    if not any(float(value)>0.0 for value in solved_co2.values()):
+        raise RuntimeError(
+            "real CONTAM trajectory collapsed all solved zone CO2 values to zero"
+        )
     flow=(first.next_observation or {}).get("path_flow_kg_s") or {}
     if set(flow)!={"W1","W2","W3","D1","D2"}:
         raise RuntimeError(f"missing CONTAM path-flow evidence: {sorted(flow)}")
