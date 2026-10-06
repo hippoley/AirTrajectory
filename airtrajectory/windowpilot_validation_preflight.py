@@ -52,6 +52,20 @@ def preflight_windowpilot_field_validation(
 
     if runtime_receipt.get("status") != "ENGINEERING_RUNTIME_VERIFIED":
         raise ValueError("runtime receipt is not ENGINEERING_RUNTIME_VERIFIED")
+    provided_runtime_sha = str(
+        runtime_receipt.get("runtime_receipt_sha256") or ""
+    )
+    runtime_payload = dict(runtime_receipt)
+    runtime_payload.pop("runtime_receipt_sha256", None)
+    if provided_runtime_sha != _sha256(runtime_payload):
+        raise ValueError("runtime receipt SHA-256 integrity check failed")
+    prediction_series = runtime_receipt.get("prediction_series") or []
+    if runtime_receipt.get("prediction_series_sha256") != _sha256(
+        prediction_series
+    ):
+        raise ValueError(
+            "runtime prediction_series SHA-256 integrity check failed"
+        )
     if runtime_receipt.get("runtime_verified") is not True:
         raise ValueError("runtime receipt is not runtime_verified")
     if runtime_receipt.get("topology_id") != layout.topology_id:
@@ -60,6 +74,8 @@ def preflight_windowpilot_field_validation(
         raise ValueError("runtime receipt layout SHA-256 drift")
 
     steps = int(runtime_receipt.get("steps") or 0)
+    if len(prediction_series) != steps:
+        raise ValueError("runtime receipt prediction_series is incomplete")
     if steps < normalized["min_samples"]:
         raise ValueError("runtime prediction steps are below protocol minimum")
 
