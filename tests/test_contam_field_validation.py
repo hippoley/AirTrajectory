@@ -41,6 +41,12 @@ def protocol():
             "openings": ["W1", "W2", "W3", "D1", "D2"],
             "mae_pct_max": 2.0,
         },
+        "alignment": {
+            "sampling_interval_s": 60.0,
+            "max_skew_s": 10.0,
+            "aggregation": "nearest",
+            "accepted_qualities": ["measured"],
+        },
         "approval": {
             "approved": True,
             "approved_by": "Engineer A",
