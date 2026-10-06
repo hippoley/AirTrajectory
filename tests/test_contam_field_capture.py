@@ -182,6 +182,32 @@ class ContamFieldCaptureTests(unittest.TestCase):
         )
         self.assertEqual(result["samples"][0]["co2_ppm"]["living"], 1290.0)
 
+    def test_tampered_import_provenance_is_rejected(self):
+        raw = capture(
+            self.layout,
+            self.normalized["protocol_sha256"],
+        )
+        raw["import_provenance"] = {
+            "adapter": "field-capture-importer-v1",
+            "records_format": "csv",
+            "manifest_filename": "capture.manifest.json",
+            "manifest_sha256": "a" * 64,
+            "records_filename": "gateway.csv",
+            "records_sha256": "b" * 64,
+            "record_count": len(raw["records"]),
+            "import_receipt_sha256": "0" * 64,
+        }
+        with self.assertRaisesRegex(
+            ValueError,
+            "import_provenance SHA-256 integrity",
+        ):
+            compile_field_capture_bundle(
+                layout=self.layout,
+                runtime_receipt=runtime_receipt(self.layout),
+                protocol=protocol(),
+                capture=raw,
+            )
+
     def test_record_outside_alignment_window_fails_closed(self):
         raw = capture(
             self.layout,
