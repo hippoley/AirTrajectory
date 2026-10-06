@@ -17,7 +17,8 @@ def co2_mass_fraction_to_ppm(value: float) -> float:
 
 @dataclass(frozen=True)
 class ContamControl:
-    control_number: int
+    control_number: int = 0
+    control_name: str | None = None
     closed_value: float = 0.0
     open_value: float = 1.0
 
@@ -116,16 +117,24 @@ class CONTAMEnvironment(VentilationEnvironment):
     def __init__(
         self,topology,prj_path,zone_numbers:Dict[str,int],opening_controls:Dict[str,ContamControl],
         co2_contaminant_number:int=1,path_numbers:Optional[Dict[str,int]]=None,max_steps:int=120,
-        binding_factory:Optional[Callable]=None,
+        binding_factory:Optional[Callable]=None,fixed_openings:Optional[Dict[str,float]]=None,
+        initial_openings:Optional[Dict[str,float]]=None,
     ):
         self.topology=topology; self.prj_path=Path(prj_path); self.zone_numbers=dict(zone_numbers)
         self.opening_controls=dict(opening_controls); self.co2_contaminant_number=co2_contaminant_number
         self.path_numbers=dict(path_numbers or {}); self.max_steps=max_steps; self.binding_factory=binding_factory
-        self.session=None; self._step=0; self.openings={k:0.0 for k in topology.openings}
+        self.fixed_openings={k:float(v) for k,v in (fixed_openings or {}).items()}
+        self.initial_openings={k:float(v) for k,v in (initial_openings or {}).items()}
+        self.session=None; self._step=0; self.openings={k:self.initial_openings.get(k,0.0) for k in topology.openings}
+        self.openings.update(self.fixed_openings)
         missing=set(topology.zones)-set(self.zone_numbers)
         if missing: raise ValueError("missing CONTAM zone mappings: "+",".join(sorted(missing)))
         unknown=set(self.opening_controls)-set(topology.openings)
         if unknown: raise ValueError("unknown opening control mappings: "+",".join(sorted(unknown)))
+        fixed_unknown=set(self.fixed_openings)-set(topology.openings)
+        if fixed_unknown: raise ValueError("unknown fixed openings: "+",".join(sorted(fixed_unknown)))
+        overlap=set(self.opening_controls)&set(self.fixed_openings)
+        if overlap: raise ValueError("opening cannot be both CONTAM-controlled and fixed: "+",".join(sorted(overlap)))
 
     def _observation(self):
         co2={z:co2_mass_fraction_to_ppm(self.session.zone_mass_fraction(n,self.co2_contaminant_number)) for z,n in self.zone_numbers.items()}
@@ -135,17 +144,27 @@ class CONTAMEnvironment(VentilationEnvironment):
     def reset(self,seed=None):
         if self.session is not None: self.session.close()
         self.session=ContamXSession(self.prj_path,self.binding_factory)
-        meta=self.session.setup(); self._step=0; self.openings={k:0.0 for k in self.topology.openings}
+        meta=self.session.setup(); self._step=0; self.openings={k:self.initial_openings.get(k,0.0) for k in self.topology.openings}; self.openings.update(self.fixed_openings)
         return self._observation(),{"backend":"contamxpy","physics_fidelity":"CONTAM","contam":meta}
 
     def step(self,actions):
         actions=list(actions); previous=dict(self.openings)
         for action in actions:
             if action.opening_id not in self.topology.openings: raise KeyError(action.opening_id)
+            if action.opening_id in self.fixed_openings:
+                expected=self.fixed_openings[action.opening_id]
+                if abs(float(action.target_pct)-expected)>1e-9:
+                    raise RuntimeError(f"fixed CONTAM opening {action.opening_id} cannot move from {expected:.1f}% to {float(action.target_pct):.1f}%")
+                self.openings[action.opening_id]=expected
+                continue
             control=self.opening_controls.get(action.opening_id)
             if control is None:
                 raise RuntimeError(f"opening {action.opening_id} has no CONTAM input-control mapping")
-            self.session.set_input_control(control.control_number,control.value_for_pct(action.target_pct))
+            value=control.value_for_pct(action.target_pct)
+            if control.control_name:
+                self.session.set_named_input_control(control.control_name,value)
+            else:
+                self.session.set_input_control(control.control_number,value)
             self.openings[action.opening_id]=float(action.target_pct)
         self.session.step(); self._step+=1
         obs=self._observation()
