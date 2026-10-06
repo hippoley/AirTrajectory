@@ -235,7 +235,7 @@ def render_minimal_prj(manifest: dict[str, Any], *, project_name: str = "airtraj
             f"{float(path['constant_wind_pressure_pa']):.6g} "
             f"{float(path['wind_speed_modifier']):.6g} "
             f"{float(path['wall_azimuth_deg']):.6g} "
-            f"0 0 0 23 2 -1 0 0 0 0 0 {name}"
+            f"0 0 0 23 2 -1 0 0 0 0 0 {name} 0"
         )
     emit("-999")
 
