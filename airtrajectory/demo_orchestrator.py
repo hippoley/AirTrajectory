@@ -16,9 +16,39 @@ from .agents import MultiWindowRuleAgent
 from .demo_runtime import DemoRuntimeSnapshot
 from .contam import CONTAMEnvironment, ContamControl
 from .multiwindow_physical import MultiWindowPhysicalEnvironment
-from .physical import PhysicalWindowDriver, SafetyResolver
+from .physical import PhysicalWindowDriver, SafetyDecision, SafetyResolver
 from .rollout import rollout
 
+
+
+class TopologyAwareSafetyResolver:
+    """Apply environmental safety rules to exterior openings only."""
+
+    def __init__(self, topology, base_resolver):
+        self.topology=topology
+        self.base=base_resolver
+
+    def resolve(self, observation, actions):
+        proposed=list(actions)
+        exterior_ids={
+            edge.id
+            for edge in self.topology.openings.values()
+            if edge.source==self.topology.outside_id
+            or edge.target==self.topology.outside_id
+        }
+        exterior=[a for a in proposed if a.opening_id in exterior_ids]
+        decision=self.base.resolve(observation,exterior)
+        executed_exterior={a.opening_id:a for a in decision.executed}
+        executed=[
+            executed_exterior.get(a.opening_id,a)
+            if a.opening_id in exterior_ids else a
+            for a in proposed
+        ]
+        return SafetyDecision(
+            proposed=proposed,
+            executed=executed,
+            intervention=decision.intervention,
+        )
 
 @dataclass(frozen=True)
 class DemoRunResult:
@@ -43,7 +73,10 @@ def run_demo(
 ) -> DemoRunResult:
     topology = snapshot.layout.to_building_topology()
     policy = MultiWindowRuleAgent(topology)
-    resolver = safety_resolver or SafetyResolver()
+    resolver = TopologyAwareSafetyResolver(
+        topology,
+        safety_resolver or SafetyResolver(),
+    )
 
     if mode == "simulation":
         env = snapshot.toy_environment(
