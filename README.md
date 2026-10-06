@@ -95,7 +95,7 @@ Ambient forcing is now explicit as well. `airtrajectory.contam_boundary.bind_bou
 
 | Capability | Status | Evidence boundary |
 | --- | --- | --- |
-| Fixed layout → UI / trajectory contract | ✅ verified | one `home_topology.fixed.json`; room/wall geometry locked, window/door wall position editable |
+| Fixed layout → unified demo runtime snapshot | ✅ verified | one topology revision + opening state/position snapshot drives UI payload, physics input, and trajectory provenance |
 | Layout → spatial compile plan | ✅ verified | `position_t` resolves to deterministic wall anchors; path/control identities remain stable across moves |
 | Spatial plan → CONTAM IR | ✅ verified | metric-ready layouts compile into stable symbolic zones/paths/controls/ambient boundaries |
 | CONTAM IR → deterministic writer manifest | ✅ verified | symbolic zones/paths/controls receive stable 1-based numeric IDs with mapping SHA-256 |
@@ -113,6 +113,7 @@ Ambient forcing is now explicit as well. `airtrajectory.contam_boundary.bind_bou
 | Counterfactual fork runtime | ✅ verified | strict full-state HTTP origin; no hidden state invention |
 | CONTAM adapter | ✅ verified | official `contamxpy==0.0.9` + real NIST PRJ executes in Windows CI |
 | WindowPilot runtime bridge | ✅ verified | runtime capabilities/readiness are discovered over HTTP and fail closed when provenance is incomplete |
+| Multi-window physical execution bus | ✅ software-verified | per-opening drivers/readiness/measured feedback; any unready commanded window blocks the dispatch |
 | WindowPilot hardware integration path | ✅ software-verified | CWDS-CA01 driver lives in WindowPilot; AirTrajectory requires matching commissioning/runtime identity |
 | Real device commissioning | ❌ not captured | reserved real-hardware gate; requires real gateway endpoint/auth/device ID and a physical READ → OPEN 5% → STOP → CLOSE pass |
 | Physical τ₀ | ❌ not captured | reserved real-evidence gate; requires preflight lineage, commissioned hardware identity, fresh measured sensors, actual movement, and post-action evidence |
@@ -341,3 +342,31 @@ python examples/bind_contam_prj_profile.py \
 ```
 
 With a complete profile, the readiness audit can now reach `READY_FOR_PRJ_SERIALIZATION`. The bundled example remains `engineering_validated=false`; it proves schema completeness and compiler behavior, not building-specific engineering truth.
+
+### Multi-space / multi-window demo runtime
+
+The demo now has one resolved runtime snapshot as the shared provenance boundary for UI, physics inputs, and trajectories. `DemoRuntimeSnapshot` carries the topology revision, opening positions, opening states, and a deterministic snapshot SHA-256. The same snapshot can render the browser payload, feed the physics compiler seam, and be embedded in trajectory context.
+
+```bash
+python examples/run_multispace_demo.py \
+  --steps 10 \
+  --topology-revision 1 \
+  --out artifacts/multispace-demo.json
+```
+
+For real hardware, `MultiWindowPhysicalEnvironment` maps each physical opening to its own `PhysicalWindowDriver` / WindowPilot endpoint. Internal doors or other non-actuated openings can remain fixed topology state. Before any real movement, every commanded physical opening must report `physical_write_ready=true`; one blocked window blocks the entire dispatch. Measured position feedback is preserved per opening.
+
+```text
+one topology/config
+→ DemoRuntimeSnapshot
+├─ browser/UI payload
+├─ physics/compiler input
+└─ trajectory context
+
+W1 → WindowPilot A ┐
+W2 → WindowPilot B ├→ MultiWindowPhysicalEnvironment → one multi-window observation/step
+W3 → WindowPilot C ┘
+D1/D2 → fixed or separately actuated topology state
+```
+
+The current physical bus is software-verified only. It does not claim a real multi-window hardware run until the configured WindowPilot instances pass their own commissioning/write-readiness gates and return measured position feedback.
