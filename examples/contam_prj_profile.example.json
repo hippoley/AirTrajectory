@@ -1,0 +1,56 @@
+{
+  "schema_version": "0.1",
+  "profile_id": "example-prj-serialization-profile",
+  "evidence_level": "illustrative-schema",
+  "engineering_validated": false,
+  "source": {
+    "title": "Example explicit PRJ serialization fields",
+    "publisher": "AirTrajectory",
+    "note": "Schema/demo values only. Replace with project-specific engineering inputs before production use."
+  },
+  "zone_defaults": {
+    "level_number": 1,
+    "relative_height_m": 0.0,
+    "initial_temperature_k": 298.15,
+    "initial_pressure_pa": 101325.0
+  },
+  "airflow_element_storage": {
+    "window": {
+      "hydraulic_diameter_m": 1.0,
+      "laminar_flow_coefficient": 0.0,
+      "turbulent_flow_coefficient": 0.0,
+      "transition_reynolds_number": 30.0
+    },
+    "door": {
+      "hydraulic_diameter_m": 1.0,
+      "laminar_flow_coefficient": 0.0,
+      "turbulent_flow_coefficient": 0.0,
+      "transition_reynolds_number": 30.0
+    }
+  },
+  "species": {
+    "co2": {
+      "molecular_weight_g_mol": 44.0095,
+      "conversion": "ppmv-to-mass-fraction-mw-ratio"
+    }
+  },
+  "levels": {
+    "1": {
+      "name": "Ground",
+      "reference_height_m": 0.0
+    }
+  },
+  "project_controls": {
+    "mode": "steady",
+    "start": "00:00:00",
+    "stop": "01:00:00",
+    "time_step_s": 60
+  },
+  "path_records": {
+    "path:W1": {"prj_flags": 0, "filter_number": 0, "wind_profile_number": 0, "ahs_number": 0, "schedule_number": 0, "level_number": 1, "x_m": 0.0, "y_m": 1.8, "relative_height_m": 0.9, "element_multiplier": 1.0, "constant_wind_pressure_pa": 0.0, "wind_speed_modifier": 1.0},
+    "path:W2": {"prj_flags": 0, "filter_number": 0, "wind_profile_number": 0, "ahs_number": 0, "schedule_number": 0, "level_number": 1, "x_m": 5.0, "y_m": 1.7, "relative_height_m": 0.9, "element_multiplier": 1.0, "constant_wind_pressure_pa": 0.0, "wind_speed_modifier": 1.0},
+    "path:W3": {"prj_flags": 0, "filter_number": 0, "wind_profile_number": 0, "ahs_number": 0, "schedule_number": 0, "level_number": 1, "x_m": 3.8, "y_m": 5.0, "relative_height_m": 0.9, "element_multiplier": 1.0, "constant_wind_pressure_pa": 0.0, "wind_speed_modifier": 1.0},
+    "path:D1": {"prj_flags": 0, "filter_number": 0, "wind_profile_number": 0, "ahs_number": 0, "schedule_number": 0, "level_number": 1, "x_m": 5.0, "y_m": 2.8, "relative_height_m": 0.0, "element_multiplier": 1.0, "constant_wind_pressure_pa": 0.0, "wind_speed_modifier": 1.0},
+    "path:D2": {"prj_flags": 0, "filter_number": 0, "wind_profile_number": 0, "ahs_number": 0, "schedule_number": 0, "level_number": 1, "x_m": 2.5, "y_m": 5.0, "relative_height_m": 0.0, "element_multiplier": 1.0, "constant_wind_pressure_pa": 0.0, "wind_speed_modifier": 1.0}
+  }
+}
