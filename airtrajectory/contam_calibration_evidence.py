@@ -127,7 +127,26 @@ def _validate_boundary(data: dict[str, Any]) -> dict[str, Any]:
     if not 30000 <= float(weather.get("barometric_pressure_pa")) <= 120000:
         raise ValueError("boundary barometric_pressure_pa is outside supported range")
     for key, value in contaminants.items():
-        if float(value) < 0:
+        if isinstance(value, dict):
+            if value.get("unit") != "ppm":
+                raise ValueError(
+                    f"boundary contaminant {key} currently requires unit=ppm"
+                )
+            if float(value.get("outdoor_concentration")) < 0:
+                raise ValueError(
+                    f"boundary contaminant {key} outdoor concentration must be non-negative"
+                )
+            initial = value.get("initial_zone_concentration")
+            if not isinstance(initial, dict) or not initial:
+                raise ValueError(
+                    f"boundary contaminant {key} initial_zone_concentration is required"
+                )
+            for zone_key, zone_value in initial.items():
+                if float(zone_value) < 0:
+                    raise ValueError(
+                        f"boundary contaminant {key} zone {zone_key} must be non-negative"
+                    )
+        elif float(value) < 0:
             raise ValueError(f"boundary contaminant {key} must be non-negative")
     return {
         "contaminant_count": len(contaminants),
