@@ -16,15 +16,11 @@
   },
   "airflow_element_storage": {
     "window": {
-      "hydraulic_diameter_m": 1.0,
-      "laminar_flow_coefficient": 0.0,
-      "turbulent_flow_coefficient": 0.0,
+      "mode": "nist-orifice-derived",
       "transition_reynolds_number": 30.0
     },
     "door": {
-      "hydraulic_diameter_m": 1.0,
-      "laminar_flow_coefficient": 0.0,
-      "turbulent_flow_coefficient": 0.0,
+      "mode": "nist-orifice-derived",
       "transition_reynolds_number": 30.0
     }
   },
