@@ -251,6 +251,9 @@ def contam_fork_request(
         "trusted_for_promotion":bool(profile.trusted_for_promotion),
         "horizon_minutes":horizon_steps,
         "contam":meta.get("contam") if isinstance(meta,dict) else None,
+        "origin_opening_controls_applied":bool(
+            isinstance(meta,dict) and meta.get("fork_origin_opening_controls_applied")
+        ),
         "branches":branches,
     }
 
@@ -328,5 +331,8 @@ def contam_strategy_fork_request(
         "trusted_for_promotion":bool(profile.trusted_for_promotion),
         "horizon_minutes":horizon_steps,
         "contam":meta.get("contam") if isinstance(meta,dict) else None,
+        "origin_opening_controls_applied":bool(
+            isinstance(meta,dict) and meta.get("fork_origin_opening_controls_applied")
+        ),
         "branches":branches,
     }
