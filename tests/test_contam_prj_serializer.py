@@ -39,7 +39,7 @@ def manifest():
 
 def add_path(m,key,num,kind,boundary,source,target,element,azimuth,x,y,h):
     m["flow_paths"].append({
-        "key":key,"contam_path_number":num,"kind":kind,"boundary_kind":boundary,
+        "key":key,"layout_opening_id":key.split(":",1)[1],"contam_path_number":num,"kind":kind,"boundary_kind":boundary,
         "from":source,"to":target,
         "airflow_element":{"contam_element_number":element},
         "prj_flags":0,"filter_number":0,"wind_profile_number":0,"ahs_number":0,
