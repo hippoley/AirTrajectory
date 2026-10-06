@@ -201,6 +201,10 @@ class ContamRuntimeVerificationTests(unittest.TestCase):
             "fake-engineering-contam",
         )
         self.assertEqual(len(receipt["trajectory_sha256"]), 64)
+        self.assertEqual(len(receipt["prediction_series"]), 2)
+        self.assertEqual(len(receipt["prediction_series_sha256"]), 64)
+        self.assertEqual(set(receipt["prediction_series"][0]["co2_ppm"]), {"living","bedroom","study"})
+        self.assertEqual(set(receipt["prediction_series"][0]["opening_pct"]), {"W1","W2","W3","D1","D2"})
         self.assertEqual(len(receipt["runtime_receipt_sha256"]), 64)
 
     def test_prj_hash_drift_fails_closed(self):
