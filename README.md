@@ -1392,3 +1392,85 @@ save real GET payloads once
 → preflight
 → startup bundle / field validation
 ```
+
+
+### First-contact WindowPilot raw capture
+
+For the first real hardware contact, capture the exact bytes returned by the three read-only WindowPilot endpoints before iterating on mapping profiles:
+
+```bash
+export WINDOWPILOT_AUTH='Bearer ...'
+export WINDOWPILOT_API_KEY='...'
+
+python examples/capture_windowpilot_first_contact.py \
+  path/to/windowpilot-endpoints.json \
+  --out-dir artifacts/windowpilot-first-contact \
+  --manifest-out artifacts/windowpilot-first-contact.json
+```
+
+Endpoint authentication is configured by environment-variable reference, not by placing secrets in repository JSON:
+
+```json
+{
+  "windowpilot_endpoints": {
+    "W1": {
+      "base_url": "https://windowpilot.example",
+      "headers_env": {
+        "Authorization": "WINDOWPILOT_AUTH",
+        "X-API-Key": "WINDOWPILOT_API_KEY"
+      }
+    }
+  }
+}
+```
+
+The config stores only environment-variable names. Runtime header values are resolved immediately before the HTTP request and are not written into the first-contact manifest.
+
+The capture path is intentionally constrained to:
+
+```text
+GET /api/capabilities
+GET /api/physical-readiness
+GET /api/state
+```
+
+For each configured endpoint it writes:
+
+```text
+<out-dir>/<endpoint-id>/capabilities.json
+<out-dir>/<endpoint-id>/physical_readiness.json
+<out-dir>/<endpoint-id>/state.json
+```
+
+The manifest records only:
+
+```text
+base URL fingerprint
+request header names (never values)
+HTTP status
+content type
+exact response byte length
+exact response SHA-256
+endpoint capture SHA-256
+aggregate first-contact SHA-256
+network request count
+actuator_writes = 0
+```
+
+Response bodies must be successful 2xx JSON objects. Missing auth environment variables, unsafe endpoint IDs, non-JSON responses, and non-success HTTP responses fail closed.
+
+The captured files can be passed directly to the offline mapping evaluator:
+
+```bash
+python examples/evaluate_windowpilot_mapping_fixture.py \
+  path/to/mapping-profile.json \
+  artifacts/windowpilot-first-contact/W1/capabilities.json \
+  artifacts/windowpilot-first-contact/W1/physical_readiness.json \
+  artifacts/windowpilot-first-contact/W1/state.json \
+  --fixture-id site-a-w1-first-contact \
+  --report-out artifacts/windowpilot-mapping-evaluation.json \
+  --canonical-out artifacts/windowpilot-canonical-payloads.json \
+  --require-compatible
+```
+
+The same environment-backed HTTP header configuration is used by the live contract probe and WindowPilot drivers, so first-contact capture, live probe, preflight, and field validation do not diverge on authentication behavior.
