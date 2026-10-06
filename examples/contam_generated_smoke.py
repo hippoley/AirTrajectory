@@ -70,7 +70,7 @@ def main() -> int:
 
         print("ZONE_MASS_FRACTION_PROBE_BEGIN", flush=True)
         zone_mass_fractions = {
-            str(index): session.zone_mass_fraction(index, 1)
+            str(index): session.zone_mass_fraction(index, 0)
             for index in range(1, int(meta["zones"]) + 1)
         }
         print("ZONE_MASS_FRACTION_PROBE_READ", json.dumps(zone_mass_fractions, sort_keys=True), flush=True)
