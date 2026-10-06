@@ -847,3 +847,35 @@ import_receipt_sha256
 ```
 
 Those hashes are preserved through capture alignment and into the final field-validation receipt, so a validation result can be traced back to the exact gateway export bytes.
+
+
+### One-command field validation pipeline
+
+The import, alignment, and validation stages can now be executed as one reproducible command:
+
+```bash
+python examples/run_field_validation_pipeline.py \
+  artifacts/engineering-runtime.json \
+  artifacts/field-validation-protocol.frozen.json \
+  path/to/capture.manifest.json \
+  path/to/gateway.csv \
+  --out artifacts/field-validation-pipeline.json \
+  --aligned-out artifacts/field-measurements.aligned.json \
+  --require-pass
+```
+
+The same command accepts JSONL/NDJSON logs. The pipeline receipt binds:
+
+```text
+runtime receipt SHA
+protocol SHA
+source records SHA
+import receipt SHA
+raw capture SHA
+alignment SHA
+aligned bundle SHA
+field validation receipt SHA
+pipeline receipt SHA
+```
+
+Intermediate aligned samples are optional output for audit/debugging; they are not required for normal operation.
