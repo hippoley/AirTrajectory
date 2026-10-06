@@ -409,6 +409,24 @@ def validate_contam_against_field(
             <= normalized_protocol["co2"]["rmse_ppm_max"],
         }
 
+    fixed_openings = normalized_protocol[
+        "opening_position"
+    ]["fixed_openings"]
+    for step, prediction in predictions.items():
+        predicted_openings = prediction.get("opening_pct") or {}
+        for opening_id, expected_value in fixed_openings.items():
+            if opening_id not in predicted_openings:
+                raise ValueError(
+                    f"runtime prediction step {step} missing fixed opening {opening_id}"
+                )
+            if abs(
+                float(predicted_openings[opening_id])
+                - float(expected_value)
+            ) > 1e-9:
+                raise ValueError(
+                    f"runtime prediction step {step} violates fixed opening assumption for {opening_id}"
+                )
+
     opening_metrics = {}
     for opening_id in normalized_protocol["opening_position"]["openings"]:
         errors = []
