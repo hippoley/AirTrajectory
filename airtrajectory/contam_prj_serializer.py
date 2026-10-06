@@ -115,7 +115,7 @@ def render_minimal_prj(manifest: dict[str, Any], *, project_name: str = "airtraj
     emit("!   slae rs aflmaxi aflcnvg aflinit Tadj")
     emit("      0   1    100   1e-06      1    0")
     emit("!sim_mf slae rs maxi   relcnvg   abscnvg relax gamma ucc")
-    emit("    2             30  1.00e-04  1.00e-15 1.250         0 ! contaminant simulation: transient")
+    emit("    1             30  1.00e-04  1.00e-15 1.250         0 ! contaminant simulation: steady")
     emit("          0   1  100  1.00e-06  1.00e-15 1.100 1.000   0 ! (non-trace)")
     emit("          0   1  100  1.00e-06  1.00e-15 1.100 1.000   0 ! (trace)")
     emit("          0   1  100  1.00e-06  1.00e-15 1.100         0 ! (cvode)")
