@@ -202,6 +202,11 @@ class ContamRuntimeVerificationTests(unittest.TestCase):
         )
         self.assertEqual(len(receipt["trajectory_sha256"]), 64)
         self.assertEqual(len(receipt["prediction_series"]), 2)
+        self.assertEqual(receipt["simulation_time_step_s"], 60.0)
+        self.assertEqual(
+            [row["simulation_time_s"] for row in receipt["prediction_series"]],
+            [60.0, 120.0],
+        )
         self.assertEqual(len(receipt["prediction_series_sha256"]), 64)
         self.assertEqual(set(receipt["prediction_series"][0]["co2_ppm"]), {"living","bedroom","study"})
         self.assertEqual(set(receipt["prediction_series"][0]["opening_pct"]), {"W1","W2","W3","D1","D2"})
