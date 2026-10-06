@@ -62,8 +62,6 @@ class ContamXSession:
                 if "temperature_k" in ambient: cx.setAmbtTemperature(float(ambient["temperature_k"]))
                 for number,value in (ambient.get("mass_fractions") or {}).items():
                     cx.setAmbtMassFraction(int(number),float(value))
-                for index,spec in self.initial_input_controls.items():
-                    cx.setInputControlValue(int(index),float(spec["value"]))
         self.engine=factory(str(self.prj_path),0,True,init_callback)
         if hasattr(self.engine,"setVerbosity"): self.engine.setVerbosity(self.verbosity)
         setup_status=self.engine.setupSimulation(1)
@@ -78,6 +76,7 @@ class ContamXSession:
             actual=str(getattr(controls[index-1],"name",""))
             if expected and actual!=expected:
                 raise RuntimeError(f"CONTAM input-control mapping drift at {index}: expected {expected}, got {actual}")
+            self.engine.setInputControlValue(int(index),float(spec["value"]))
         return {
             "version":self.engine.getVersion() if hasattr(self.engine,"getVersion") else "unknown",
             "zones":getattr(self.engine,"nZones",None),
