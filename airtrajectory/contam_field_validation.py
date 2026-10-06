@@ -301,6 +301,22 @@ def _validate_measurements(
     if raw_capture_sha256 is not None and len(str(raw_capture_sha256)) != 64:
         raise ValueError("raw_capture_sha256 is invalid")
 
+    windowpilot_provenance = field_bundle.get(
+        "windowpilot_capture_provenance"
+    )
+    windowpilot_capture_sha256 = None
+    if windowpilot_provenance is not None:
+        if not isinstance(windowpilot_provenance, dict):
+            raise ValueError("windowpilot_capture_provenance must be an object")
+        wp_payload = dict(windowpilot_provenance)
+        windowpilot_capture_sha256 = str(
+            wp_payload.pop("adapter_receipt_sha256", "") or ""
+        )
+        if windowpilot_capture_sha256 != _sha256(wp_payload):
+            raise ValueError(
+                "windowpilot_capture_provenance SHA-256 integrity check failed"
+            )
+
     import_provenance = field_bundle.get("import_provenance")
     import_receipt_sha256 = None
     source_records_sha256 = None
@@ -325,6 +341,7 @@ def _validate_measurements(
         "alignment_sha256": alignment_sha256,
         "import_receipt_sha256": import_receipt_sha256,
         "source_records_sha256": source_records_sha256,
+        "windowpilot_capture_sha256": windowpilot_capture_sha256,
     }
 
 
@@ -437,6 +454,9 @@ def validate_contam_against_field(
         "alignment_sha256": measurements["alignment_sha256"],
         "import_receipt_sha256": measurements["import_receipt_sha256"],
         "source_records_sha256": measurements["source_records_sha256"],
+        "windowpilot_capture_sha256": measurements[
+            "windowpilot_capture_sha256"
+        ],
         "sample_count": len(measurements["samples"]),
         "co2_metrics": co2_metrics,
         "opening_position_metrics": opening_metrics,
