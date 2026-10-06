@@ -12,8 +12,11 @@ def main() -> int:
     parser.add_argument("prj")
     parser.add_argument("--expected-zones", type=int, required=True)
     parser.add_argument("--expected-paths", type=int, required=True)
+    parser.add_argument("--provenance", required=True)
     args = parser.parse_args()
 
+    provenance = json.load(open(args.provenance, encoding="utf-8"))
+    w1_path_number = int(provenance["path_numbers"]["path:W1"])
     session = ContamXSession(args.prj)
     try:
         meta = session.setup()
@@ -49,7 +52,7 @@ def main() -> int:
             close_probe.append(
                 {
                     "step_after_close": close_step,
-                    "w1_path_flow_kg_s": closed_flows["1"],
+                    "w1_path_flow_kg_s": closed_flows[str(w1_path_number)],
                 }
             )
 
@@ -63,8 +66,9 @@ def main() -> int:
             "input_controls": meta["input_controls"],
             "input_control_names": meta["input_control_names"],
             "w1_input_control_index": w1_index,
-            "w1_open_path_flow_kg_s": open_flows["1"],
-            "w1_closed_path_flow_kg_s": closed_flows["1"],
+            "w1_path_number": w1_path_number,
+            "w1_open_path_flow_kg_s": open_flows[str(w1_path_number)],
+            "w1_closed_path_flow_kg_s": closed_flows[str(w1_path_number)],
             "open_path_flow_kg_s": open_flows,
             "closed_path_flow_kg_s": closed_flows,
             "w1_close_probe": close_probe,
@@ -80,8 +84,8 @@ def main() -> int:
             )
         if not any(abs(value) > 1e-12 for value in open_flows.values()):
             raise RuntimeError("generated CONTAM project produced zero flow on every path")
-        open_w1 = abs(open_flows["1"])
-        closed_w1 = abs(closed_flows["1"])
+        open_w1 = abs(open_flows[str(w1_path_number)])
+        closed_w1 = abs(closed_flows[str(w1_path_number)])
         if open_w1 <= 1e-12:
             raise RuntimeError("W1 open control produced no measurable path flow")
         if closed_w1 > max(1e-8, open_w1 * 0.10):
