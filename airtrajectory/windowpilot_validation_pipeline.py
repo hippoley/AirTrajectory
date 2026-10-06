@@ -16,6 +16,9 @@ from .windowpilot_validation_preflight import (
 from .windowpilot_contract_baseline import (
     compare_windowpilot_contract_baseline,
 )
+from .windowpilot_startup_bundle import (
+    build_windowpilot_startup_bundle,
+)
 
 
 def _sha256(payload: Any) -> str:
@@ -40,6 +43,7 @@ def run_windowpilot_field_validation(
     sample_count: int | None = None,
     contract_baseline: dict[str, Any] | None = None,
     contract_probe_report: dict[str, Any] | None = None,
+    startup_bundle_id: str | None = None,
     sleep_fn=None,
     clock_fn=None,
 ) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
@@ -80,6 +84,20 @@ def run_windowpilot_field_validation(
         runtime_receipt=runtime_receipt,
         **preflight_kwargs,
     )
+
+    startup_bundle = None
+    if startup_bundle_id is not None:
+        if contract_baseline is None or contract_probe_report is None:
+            raise ValueError(
+                "startup_bundle_id requires contract baseline and current probe"
+            )
+        startup_bundle = build_windowpilot_startup_bundle(
+            baseline=contract_baseline,
+            probe_report=contract_probe_report,
+            comparison=contract_comparison,
+            preflight=preflight,
+            bundle_id=startup_bundle_id,
+        )
 
     capture = collect_windowpilot_field_capture(
         layout=layout,
@@ -131,6 +149,11 @@ def run_windowpilot_field_validation(
         "preflight_receipt_sha256": preflight[
             "preflight_receipt_sha256"
         ],
+        "startup_bundle_sha256": (
+            startup_bundle["startup_bundle_sha256"]
+            if startup_bundle is not None
+            else None
+        ),
         "windowpilot_capture_sha256": validation[
             "windowpilot_capture_sha256"
         ],
@@ -151,6 +174,7 @@ def run_windowpilot_field_validation(
             **payload,
             "pipeline_receipt_sha256": _sha256(payload),
             "field_validation": validation,
+            "startup_bundle": startup_bundle,
         },
         capture,
         aligned,
