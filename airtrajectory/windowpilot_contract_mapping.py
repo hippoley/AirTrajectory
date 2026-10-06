@@ -117,7 +117,11 @@ def validate_windowpilot_contract_mapping(
                 source_path = str(spec.get("path") or "")
                 coerce = str(spec.get("coerce") or "identity")
                 required = bool(spec.get("required", True))
-                default_present = "default" in spec
+                default_present = (
+                    bool(spec.get("default_present"))
+                    if "default_present" in spec
+                    else "default" in spec
+                )
                 default = spec.get("default")
             else:
                 raise ValueError(
