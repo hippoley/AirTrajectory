@@ -6,8 +6,8 @@ import unittest
 from airtrajectory.layout import LayoutContract
 from airtrajectory.physical import DriverCapabilities, PhysicalWindowDriver
 from airtrajectory.trajectory import ActuatorFeedback, SensorReading
-from airtrajectory.windowpilot_validation_pipeline import (
-    run_windowpilot_field_validation,
+from airtrajectory.windowpilot_validation_preflight import (
+    preflight_windowpilot_field_validation,
 )
 
 
@@ -29,7 +29,7 @@ def sha(payload):
 def protocol():
     return {
         "schema_version": "0.1",
-        "protocol_id": "wp-pipeline-v1",
+        "protocol_id": "wp-preflight-v1",
         "topology_id": "demo.fixed-three-room.v1",
         "min_samples": 2,
         "co2": {
@@ -64,7 +64,8 @@ def runtime(layout):
             "simulation_time_s": 60.0,
             "co2_ppm": {"living": 1290.0, "bedroom": 905.0, "study": 805.0},
             "opening_pct": {
-                "W1": 75.0, "W2": 35.0, "W3": 0.0, "D1": 100.0, "D2": 100.0
+                "W1": 75.0, "W2": 35.0, "W3": 0.0,
+                "D1": 100.0, "D2": 100.0,
             },
             "path_flow_kg_s": {},
         },
@@ -73,7 +74,8 @@ def runtime(layout):
             "simulation_time_s": 120.0,
             "co2_ppm": {"living": 1290.0, "bedroom": 905.0, "study": 805.0},
             "opening_pct": {
-                "W1": 75.0, "W2": 35.0, "W3": 0.0, "D1": 100.0, "D2": 100.0
+                "W1": 75.0, "W2": 35.0, "W3": 0.0,
+                "D1": 100.0, "D2": 100.0,
             },
             "path_flow_kg_s": {},
         },
@@ -118,16 +120,21 @@ def config():
                 "bedroom": "W2",
                 "study": "W3",
             },
+            "max_sample_age_s": 10.0,
+            "max_future_skew_s": 2.0,
         },
     }
 
 
 class FakeDriver(PhysicalWindowDriver):
-    def __init__(self, opening_id, co2, clock):
+    def __init__(self, opening_id, co2, clock, site_id="site-a"):
         self.opening_id = opening_id
-        self.co2 = co2
+        self.co2 = float(co2)
         self.clock = clock
+        self.site_id = site_id
         self.commands = 0
+        self.sensor_offset_s = 0.0
+        self.position_offset_s = 0.0
 
     def capabilities(self):
         return DriverCapabilities(
@@ -144,10 +151,10 @@ class FakeDriver(PhysicalWindowDriver):
                 sensor_type="co2",
                 value=self.co2,
                 unit="ppm",
-                timestamp=self.clock["now"],
+                timestamp=self.clock["now"] + self.sensor_offset_s,
                 quality="sensor-measured",
                 provenance={
-                    "site_id": "site-a",
+                    "site_id": self.site_id,
                     "product_key": "CWDS-CA01",
                     "property": "airSensor.co2",
                     "device_instance_id": f"sensor-{self.opening_id}",
@@ -170,7 +177,7 @@ class FakeDriver(PhysicalWindowDriver):
                     "W2": 35.0,
                     "W3": 0.0,
                 }[self.opening_id],
-                "timestamp": self.clock["now"],
+                "timestamp": self.clock["now"] + self.position_offset_s,
                 "measured": True,
                 "quality": "encoder-measured",
                 "source": f"encoder-{self.opening_id}",
@@ -187,44 +194,81 @@ class FakeDriver(PhysicalWindowDriver):
         )
 
 
-class WindowPilotValidationPipelineTests(unittest.TestCase):
-    def test_one_command_windowpilot_pipeline_passes_without_actuation(self):
-        layout = LayoutContract.from_file(LAYOUT)
-        clock = {"now": 1800000000.0}
-        drivers = {
-            "W1": FakeDriver("W1", 1290.0, clock),
-            "W2": FakeDriver("W2", 905.0, clock),
-            "W3": FakeDriver("W3", 805.0, clock),
+class WindowPilotValidationPreflightTests(unittest.TestCase):
+    def setUp(self):
+        self.layout = LayoutContract.from_file(LAYOUT)
+        self.clock = {"now": 1800000000.0}
+        self.drivers = {
+            "W1": FakeDriver("W1", 1290.0, self.clock),
+            "W2": FakeDriver("W2", 905.0, self.clock),
+            "W3": FakeDriver("W3", 805.0, self.clock),
         }
 
-        def sleep(seconds):
-            clock["now"] += float(seconds)
-
-        receipt, capture, aligned = run_windowpilot_field_validation(
-            layout=layout,
-            config=config(),
-            drivers=drivers,
+    def run_preflight(self, cfg=None, drivers=None):
+        return preflight_windowpilot_field_validation(
+            layout=self.layout,
+            config=cfg or config(),
+            drivers=drivers or self.drivers,
             protocol=protocol(),
-            runtime_receipt=runtime(layout),
-            validation_id="wp-pipeline-run-001",
-            sleep_fn=sleep,
-            clock_fn=lambda: clock["now"],
+            runtime_receipt=runtime(self.layout),
+            clock_fn=lambda: self.clock["now"],
         )
 
-        self.assertEqual(receipt["status"], "FIELD_VALIDATION_PASSED")
-        self.assertTrue(receipt["field_validation_verified"])
-        self.assertTrue(receipt["engineering_truth"])
-        self.assertTrue(all(driver.commands == 0 for driver in drivers.values()))
-        self.assertEqual(len(capture["records"]), 12)
-        self.assertEqual(len(aligned["samples"]), 2)
-        self.assertEqual(len(receipt["pipeline_receipt_sha256"]), 64)
+    def test_preflight_passes_read_only_and_returns_hash_receipt(self):
+        receipt = self.run_preflight()
+        self.assertEqual(receipt["status"], "PASS")
+        self.assertEqual(receipt["physical_site_id"], "site-a")
+        self.assertEqual(receipt["actuator_writes"], 0)
         self.assertEqual(len(receipt["preflight_receipt_sha256"]), 64)
-        self.assertEqual(
-            receipt["windowpilot_capture_sha256"],
-            aligned["windowpilot_capture_provenance"][
-                "adapter_receipt_sha256"
-            ],
+        self.assertTrue(
+            all(driver.commands == 0 for driver in self.drivers.values())
         )
+
+    def test_tampered_runtime_receipt_is_rejected_before_sampling(self):
+        run = runtime(self.layout)
+        run["prediction_series"][0]["co2_ppm"]["living"] += 500.0
+        with self.assertRaisesRegex(
+            ValueError,
+            "runtime receipt SHA-256 integrity",
+        ):
+            preflight_windowpilot_field_validation(
+                layout=self.layout,
+                config=config(),
+                drivers=self.drivers,
+                protocol=protocol(),
+                runtime_receipt=run,
+                clock_fn=lambda: self.clock["now"],
+            )
+
+    def test_stale_co2_is_rejected_before_sampling(self):
+        self.drivers["W2"].sensor_offset_s = -30.0
+        with self.assertRaisesRegex(RuntimeError, "CO2 reading is stale"):
+            self.run_preflight()
+
+    def test_future_position_timestamp_is_rejected(self):
+        self.drivers["W1"].position_offset_s = 5.0
+        with self.assertRaisesRegex(
+            RuntimeError,
+            "position timestamp is too far in the future",
+        ):
+            self.run_preflight()
+
+    def test_template_source_placeholder_is_rejected(self):
+        cfg = config()
+        cfg["field_capture"]["source"]["serial"] = "replace-with-system-serial"
+        with self.assertRaisesRegex(ValueError, "template placeholder"):
+            self.run_preflight(cfg=cfg)
+
+    def test_cross_site_endpoint_is_rejected(self):
+        bad = dict(self.drivers)
+        bad["W3"] = FakeDriver(
+            "W3",
+            805.0,
+            self.clock,
+            site_id="site-b",
+        )
+        with self.assertRaisesRegex(RuntimeError, "multiple physical sites"):
+            self.run_preflight(drivers=bad)
 
 
 if __name__ == "__main__":

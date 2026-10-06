@@ -949,3 +949,46 @@ WindowPilot measured CO2 + measured position
 ```
 
 The path is read-only: it never calls `set_position()` or WindowPilot actuator endpoints. Fixed openings such as D1/D2 remain declared topology assumptions and are checked against runtime predictions instead of being fabricated as measured records.
+
+
+### WindowPilot validation preflight
+
+Before waiting for a full field-validation capture, run a read-only preflight:
+
+```bash
+python examples/preflight_windowpilot_field_validation.py \
+  artifacts/engineering-runtime.json \
+  artifacts/field-validation-protocol.frozen.json \
+  path/to/windowpilot-endpoints.json \
+  --out artifacts/windowpilot-field-preflight.json
+```
+
+The preflight performs no actuator writes. It verifies, before sampling starts:
+
+```text
+runtime receipt / topology / layout match
+approved protocol + sample-count compatibility
+configured source metadata is no longer template placeholders
+all configured WindowPilot endpoints are present
+non-simulated execution
+measured position capability
+fresh measured position feedback
+fresh CO2 in ppm
+bounded clock skew
+valid hardware identity
+single physical site across CO2 sources
+fixed-opening assumptions match the protocol
+```
+
+The default example config uses:
+
+```json
+{
+  "max_sample_age_s": 10,
+  "max_future_skew_s": 2
+}
+```
+
+A successful preflight emits `status=PASS`, `actuator_writes=0`, endpoint identity/source summaries, and a deterministic `preflight_receipt_sha256`.
+
+The one-command WindowPilot validation pipeline now requires this preflight to pass before it starts the timed sampling loop and binds the preflight receipt hash into the final pipeline receipt.
