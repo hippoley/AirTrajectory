@@ -22,14 +22,21 @@ def main() -> int:
                 f"expected 3 external input controls, got {meta.get('input_controls')}"
             )
 
-        session.set_input_control(1, 1.0)
+        expected_names={"W1_open","W2_open","W3_open"}
+        actual_names=set(meta.get("input_control_names") or [])
+        if actual_names != expected_names:
+            raise RuntimeError(
+                f"unexpected input control names: {sorted(actual_names)}"
+            )
+        w1_index=session.input_control_index("W1_open")
+        session.set_named_input_control("W1_open", 1.0)
         session.step()
         open_flows = {
             str(index): session.path_flow(index)
             for index in range(1, int(meta["paths"]) + 1)
         }
 
-        session.set_input_control(1, 0.0)
+        session.set_named_input_control("W1_open", 0.0)
         session.step()
         closed_flows = {
             str(index): session.path_flow(index)
@@ -44,6 +51,8 @@ def main() -> int:
             "time_step_s": meta["time_step_s"],
             "version": meta["version"],
             "input_controls": meta["input_controls"],
+            "input_control_names": meta["input_control_names"],
+            "w1_input_control_index": w1_index,
             "w1_open_path_flow_kg_s": open_flows["1"],
             "w1_closed_path_flow_kg_s": closed_flows["1"],
             "open_path_flow_kg_s": open_flows,
