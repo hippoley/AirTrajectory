@@ -83,7 +83,11 @@ def capture(layout, protocol_sha):
                         "timestamp": stamp,
                         "signal_type": signal_type,
                         "target_id": target_id,
-                        "value": value - step,
+                        "value": (
+                            value - step
+                            if signal_type == "co2_ppm"
+                            else value
+                        ),
                         "unit": unit,
                         "quality": "measured",
                     }
