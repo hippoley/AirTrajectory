@@ -16,10 +16,21 @@
     "weather": {
       "wind_speed_m_s": 1.8,
       "wind_direction_deg": 190.0,
-      "barometric_pressure_pa": 100800.0
+      "outdoor_temperature_c": 25.2,
+      "barometric_pressure_pa": 100800.0,
+      "wind_pressure_model": "site-measured-facade-v1"
     },
     "contaminants": {
-      "co2_ppm": 428.0
+      "co2": {
+        "name": "CO2",
+        "unit": "ppm",
+        "outdoor_concentration": 428.0,
+        "initial_zone_concentration": {
+          "zone:living": 1370.0,
+          "zone:bedroom": 910.0,
+          "zone:study": 805.0
+        }
+      }
     }
   }
 }

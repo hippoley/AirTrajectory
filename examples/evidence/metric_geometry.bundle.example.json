@@ -4,7 +4,7 @@
   "evidence_type": "metric_geometry_measurement",
   "topology_id": "demo.fixed-three-room.v1",
   "captured_at": "2026-10-06T12:30:00+08:00",
-  "method": "laser-distance-and-compass-survey",
+  "method": "laser-distance-compass-and-room-volume-survey",
   "source": {
     "kind": "instrument",
     "id": "survey-kit-001",
@@ -13,11 +13,24 @@
     "calibration_ref": "replace-with-calibration-certificate"
   },
   "data": {
+    "rooms": {
+      "living": {"volume_m3": 75.0},
+      "bedroom": {"volume_m3": 37.5},
+      "study": {"volume_m3": 40.0}
+    },
     "walls": {
-      "living-west": {"length_m": 5.0, "azimuth_deg": 270.0}
+      "living-west": {"length_m": 5.0, "azimuth_deg": 270.0},
+      "bedroom-east": {"length_m": 5.0, "azimuth_deg": 90.0},
+      "study-south": {"length_m": 8.0, "azimuth_deg": 180.0},
+      "living-bedroom": {"length_m": 5.0, "azimuth_deg": 90.0},
+      "living-study": {"length_m": 4.0, "azimuth_deg": 180.0}
     },
     "openings": {
-      "W1": {"width_m": 1.0, "height_m": 2.0, "sill_height_m": 0.9}
+      "W1": {"width_m": 1.0, "height_m": 2.0, "sill_height_m": 0.9, "max_area_m2": 1.5},
+      "W2": {"width_m": 1.0, "height_m": 2.0, "sill_height_m": 0.9, "max_area_m2": 1.5},
+      "W3": {"width_m": 1.0, "height_m": 2.0, "sill_height_m": 0.9, "max_area_m2": 1.2},
+      "D1": {"width_m": 1.0, "height_m": 2.2, "sill_height_m": 0.0, "max_area_m2": 1.8},
+      "D2": {"width_m": 1.0, "height_m": 2.2, "sill_height_m": 0.0, "max_area_m2": 1.8}
     }
   }
 }

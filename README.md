@@ -502,3 +502,47 @@ PRJ serialization profile
 ```
 
 A boolean `engineering_validated=true` with no matching receipt now remains `SOFTWARE_VERIFIED_ONLY`. Only topology-matched, typed evidence plus an accepted engineering evidence level can reach `ENGINEERING_READY`.
+
+
+### Evidence → engineering profile compiler
+
+Typed evidence receipts are now actionable inputs rather than passive audit metadata. The profile compiler turns validated raw evidence bundles into the existing CONTAM profile contracts without manually retyping field values.
+
+```bash
+# Full metric geometry overlay, including measured room volumes
+python examples/compile_contam_profile.py metric \
+  examples/evidence/metric_geometry.bundle.example.json \
+  --out artifacts/metric-profile.json
+
+# Airflow / leakage calibration profile
+python examples/compile_contam_profile.py airflow \
+  examples/evidence/airflow_calibration.bundle.example.json \
+  --out artifacts/airflow-profile.json
+
+# Weather + outdoor/initial CO2 boundary profile
+python examples/compile_contam_profile.py boundary \
+  examples/evidence/boundary_measurement.bundle.example.json \
+  --out artifacts/boundary-profile.json
+```
+
+The compiler fails closed instead of inventing engineering assumptions:
+
+- metric evidence must exactly cover all rooms, walls, and openings in the target topology;
+- room volume is part of the metric evidence, not inherited silently from the demo layout;
+- airflow calibration must cover every opening;
+- multiple openings of the same kind must agree on the kind-level fit, because per-opening airflow rules are not yet supported;
+- boundary evidence must contain a complete initial concentration for every modeled zone;
+- the PRJ engineering review must approve the exact current profile SHA.
+
+Bind a PRJ review to a concrete serialization profile:
+
+```bash
+python examples/compile_contam_profile.py review \
+  examples/evidence/prj_engineering_review.bundle.example.json \
+  --prj-profile examples/contam_prj_profile.example.json \
+  --out artifacts/prj-profile.reviewed.json
+```
+
+The review bundle's `approved_profile_sha256` must match the current profile payload. Any later edit invalidates the old review binding.
+
+The bundled evidence files remain examples with placeholder instrument/reviewer identities. They demonstrate the executable contract but are not field evidence for a real building.
