@@ -171,14 +171,6 @@ class CONTAMEnvironment(VentilationEnvironment):
         overlap=set(self.opening_controls)&set(self.fixed_openings)
         if overlap: raise ValueError("opening cannot be both CONTAM-controlled and fixed: "+",".join(sorted(overlap)))
 
-    def _trace(self,label,payload=None):
-        if self.binding_factory is None:
-            if payload is None:
-                print(label,flush=True)
-            else:
-                import json
-                print(label,json.dumps(payload,sort_keys=True),flush=True)
-
     def _observation(self):
         co2={z:co2_mass_fraction_to_ppm(self.session.zone_mass_fraction(n,self.co2_contaminant_index)) for z,n in self.zone_numbers.items()}
         flows={oid:self.session.path_flow(n) for oid,n in self.path_numbers.items()}
@@ -192,9 +184,7 @@ class CONTAMEnvironment(VentilationEnvironment):
     def reset(self,seed=None):
         if self.session is not None: self.session.close()
         self.session=ContamXSession(self.prj_path,self.binding_factory,ambient=self.ambient,initial_input_controls=self.initial_input_controls)
-        self._trace("CONTAM_ENV_SETUP_BEGIN")
         meta=self.session.setup(); self._step=0; self.openings={k:self.initial_openings.get(k,0.0) for k in self.topology.openings}; self.openings.update(self.fixed_openings)
-        self._trace("CONTAM_ENV_SETUP_DONE",{"openings":self.openings,"input_controls":meta.get("input_control_names")})
         warm_start_steps=0
         warm_start_controls={}
         warm_start_anchor_opening_id=None
@@ -212,18 +202,14 @@ class CONTAMEnvironment(VentilationEnvironment):
             else:
                 self.session.set_input_control(anchor.control_number,anchor.open_value)
             warm_start_controls[warm_start_anchor_opening_id]=100.0
-            self._trace("CONTAM_ENV_WARM_START_BEGIN",{"anchor":warm_start_anchor_opening_id,"controls":warm_start_controls})
             self.session.step()
             warm_start_steps=1
-            self._trace("CONTAM_ENV_WARM_START_DONE")
             for index,spec in self.initial_input_controls.items():
                 self.session.set_input_control(int(index),float(spec["value"]))
-            self._trace("CONTAM_ENV_SNAPSHOT_CONTROLS_RESTORED",{"controls":{str(k):float(v["value"]) for k,v in self.initial_input_controls.items()}})
         return self._initial_observation(),{"backend":"contamxpy","physics_fidelity":"CONTAM","contam":meta,"initial_state_source":"prj-profile","warm_start_steps":warm_start_steps,"warm_start_strategy":"single-anchor-open-v1" if warm_start_steps else "disabled","warm_start_anchor_opening_id":warm_start_anchor_opening_id,"warm_start_opening_pct":warm_start_controls,"restored_opening_pct":dict(self.openings)}
 
     def step(self,actions):
         actions=list(actions); previous=dict(self.openings)
-        self._trace("CONTAM_ENV_POLICY_STEP_BEGIN",{"step":self._step,"actions":[{"opening_id":a.opening_id,"target_pct":float(a.target_pct)} for a in actions]})
         for action in actions:
             if action.opening_id not in self.topology.openings: raise KeyError(action.opening_id)
             if action.opening_id in self.fixed_openings:
@@ -241,9 +227,7 @@ class CONTAMEnvironment(VentilationEnvironment):
             else:
                 self.session.set_input_control(control.control_number,value)
             self.openings[action.opening_id]=float(action.target_pct)
-        self._trace("CONTAM_ENV_SOLVE_BEGIN",{"step":self._step})
         self.session.step(); self._step+=1
-        self._trace("CONTAM_ENV_SOLVE_DONE",{"step":self._step})
         obs=self._observation()
         iaq=-sum(max(0.0,v-800.0)/400.0 for v in obs["co2_ppm"].values())
         wear=-sum(abs(self.openings[k]-previous.get(k,0.0))/100.0 for k in self.openings)
