@@ -35,6 +35,7 @@ def _component(
     *,
     topology_id: str,
     required_evidence_type: str,
+    require_receipt_approval: bool = True,
 ) -> dict[str, Any]:
     profile = dict(payload or {})
     blockers: list[str] = []
@@ -61,6 +62,11 @@ def _component(
         if len(str(receipt.get("receipt_sha256") or "")) != 64:
             blockers.append("invalid_evidence_receipt_sha256")
             continue
+        if require_receipt_approval:
+            approval = receipt.get("approval") or {}
+            if approval.get("approved") is not True:
+                blockers.append("evidence_receipt_not_approved")
+                continue
         matching_receipts.append(receipt)
     if not matching_receipts:
         blockers.append("missing_required_evidence_receipt")
@@ -116,6 +122,7 @@ def audit_engineering_readiness(
             provenance.get("prj_serialization_profile"),
             topology_id=topology_id,
             required_evidence_type="prj_engineering_review",
+            require_receipt_approval=False,
         ),
     }
 
