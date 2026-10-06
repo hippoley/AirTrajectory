@@ -58,7 +58,9 @@ class ContamXSession:
             "zones":getattr(self.engine,"nZones",None),
             "paths":getattr(self.engine,"nPaths",None),
             "input_controls":getattr(self.engine,"nInputControls",None),
+            "input_control_names":[str(getattr(ctrl,"name","")) for ctrl in getattr(self.engine,"inputControls",[])],
             "output_controls":getattr(self.engine,"nOutputControls",None),
+            "output_control_names":[str(getattr(ctrl,"name","")) for ctrl in getattr(self.engine,"outputControls",[])],
             "time_step_s":self.engine.getSimTimeStep() if hasattr(self.engine,"getSimTimeStep") else None,
         }
 
@@ -69,8 +71,20 @@ class ContamXSession:
             if fn is not None: return fn
         raise RuntimeError("contamxpy binding missing required method: "+"/".join(names))
 
+    def input_control_index(self,name:str)->int:
+        if not self.started or self.engine is None:
+            raise RuntimeError("CONTAM session not started")
+        expected=str(name)
+        for index,ctrl in enumerate(getattr(self.engine,"inputControls",[]),start=1):
+            if str(getattr(ctrl,"name",""))==expected:
+                return index
+        raise KeyError(f"CONTAM input control not found: {expected}")
+
     def set_input_control(self,control_number:int,value:float):
         self._require("setInputControlValue")(int(control_number),float(value))
+
+    def set_named_input_control(self,name:str,value:float):
+        self.set_input_control(self.input_control_index(name),value)
 
     def zone_mass_fraction(self,zone_number:int,contaminant_number:int)->float:
         return float(self._require("getZoneMassFraction","getZoneMF")(int(zone_number),int(contaminant_number)))
