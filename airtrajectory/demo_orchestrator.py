@@ -135,7 +135,7 @@ def run_demo(
             contam_prj_path,
             zone_numbers=zone_numbers,
             opening_controls=opening_controls,
-            co2_contaminant_number=1,
+            co2_contaminant_index=0,
             path_numbers=path_numbers,
             max_steps=max_steps,
             binding_factory=contam_binding_factory,
