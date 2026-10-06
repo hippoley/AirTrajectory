@@ -12,17 +12,20 @@
     "window": {
       "model": "powerlaw-orifice-area",
       "flow_exponent": 0.5,
-      "discharge_coefficient": 0.6
+      "discharge_coefficient": 0.6,
+      "closed_leakage_multiplier": 0.01
     },
     "door": {
       "model": "powerlaw-orifice-area",
       "flow_exponent": 0.5,
-      "discharge_coefficient": 0.6
+      "discharge_coefficient": 0.6,
+      "closed_leakage_multiplier": 0.01
     },
     "vent": {
       "model": "powerlaw-orifice-area",
       "flow_exponent": 0.65,
-      "discharge_coefficient": 0.6
+      "discharge_coefficient": 0.6,
+      "closed_leakage_multiplier": 0.01
     }
   }
 }
