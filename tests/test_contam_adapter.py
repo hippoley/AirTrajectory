@@ -215,6 +215,8 @@ class ContamAdapterTests(unittest.TestCase):
             self.assertEqual(obs["co2_ppm"],{"living":1400.0,"bedroom":900.0})
             self.assertEqual(obs["path_flow_kg_s"],{})
             self.assertEqual(info["warm_start_steps"],1)
+            self.assertEqual(info["warm_start_opening_pct"],{"W1":100.0,"W2":100.0})
+            self.assertEqual(info["restored_opening_pct"],{"W1":0.0,"W2":0.0})
             self.assertEqual(env.session.engine.steps,1)
             nxt,_,_,_,_=env.step([
                 TransitionAction("W1",75),
