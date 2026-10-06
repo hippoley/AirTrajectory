@@ -5,10 +5,9 @@ This is deliberately narrow:
 - one contaminant
 - no AHS, filters, schedules, sources/sinks, occupancy or exposures
 - one power-law orifice element per opening
-- static airflow paths only (no input-control nodes yet)
+- named Set input controls for exterior windows; internal openings may remain fixed
 
-The output is intended to be validated by a real ContamX setupSimulation() call.
-It is not yet an engineering-valid general-purpose CONTAM exporter.
+The output is validated by real ContamX CI for topology loading and dynamic window control. It is still not an engineering-valid general-purpose CONTAM exporter.
 """
 from __future__ import annotations
 
