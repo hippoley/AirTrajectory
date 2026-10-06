@@ -229,6 +229,12 @@ class ContamAdapterTests(unittest.TestCase):
             env.close()
 
 
+    def test_closed_window_can_retain_airflow_leakage_floor(self):
+        control=ContamControl(closed_value=0.01,open_value=1.0)
+        self.assertAlmostEqual(control.value_for_pct(0),0.01)
+        self.assertAlmostEqual(control.value_for_pct(100),1.0)
+        self.assertAlmostEqual(control.value_for_pct(50),0.505)
+
     def test_co2_mass_fraction_conversion(self):
         self.assertGreater(co2_mass_fraction_to_ppm(.001),600)
 
