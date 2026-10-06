@@ -4,7 +4,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 from airtrajectory.contam import ContamControl
-from airtrajectory.contam_fork import ContamForkProfile, contam_fork_request
+from airtrajectory.contam_fork import ContamForkProfile, contam_fork_request, contam_strategy_fork_request
 from airtrajectory.topology import BuildingTopology, OpeningEdge, ZoneNode
 
 
@@ -100,6 +100,71 @@ class ContamForkTests(unittest.TestCase):
                         "profile_id":"home-v1",
                         "opening_id":"W1",
                         "origin":{"co2_ppm":{"living":1400},"opening_pct":{"W1":25,"W2":0}},
+                    },
+                    {"home-v1":self.profile(prj)},
+                    binding_factory=ForkCx,
+                )
+
+    def test_multi_action_strategy_fork(self):
+        with tempfile.TemporaryDirectory() as d:
+            prj=Path(d)/"home.prj"
+            prj.write_text("fixture")
+            out=contam_strategy_fork_request(
+                {
+                    "request_id":"strategy-1",
+                    "profile_id":"home-v1",
+                    "origin":self.origin(),
+                    "candidates":[
+                        {
+                            "label":"balanced",
+                            "actions":[
+                                {"opening_id":"W1","target_pct":75},
+                                {"opening_id":"W2","target_pct":25},
+                            ],
+                        },
+                        {
+                            "label":"quiet",
+                            "actions":[
+                                {"opening_id":"W1","target_pct":50},
+                                {"opening_id":"W2","target_pct":50},
+                            ],
+                        },
+                    ],
+                    "horizon_steps":2,
+                },
+                {"home-v1":self.profile(prj)},
+                binding_factory=ForkCx,
+            )
+            self.assertEqual(out["schema_version"],"0.3")
+            self.assertEqual(out["backend"],"contamxpy")
+            self.assertEqual(out["physics_fidelity"],"CONTAM")
+            self.assertTrue(out["trusted_for_promotion"])
+            self.assertEqual([x["label"] for x in out["branches"]],["balanced","quiet"])
+            self.assertEqual(
+                out["branches"][0]["actions"],
+                [
+                    {"opening_id":"W1","target_pct":75.0},
+                    {"opening_id":"W2","target_pct":25.0},
+                ],
+            )
+            self.assertTrue(all(x["trusted_for_promotion"] for x in out["branches"]))
+
+    def test_multi_action_rejects_duplicate_opening(self):
+        with tempfile.TemporaryDirectory() as d:
+            prj=Path(d)/"home.prj"
+            prj.write_text("fixture")
+            with self.assertRaisesRegex(ValueError,"duplicate opening_id"):
+                contam_strategy_fork_request(
+                    {
+                        "profile_id":"home-v1",
+                        "origin":self.origin(),
+                        "candidates":[{
+                            "label":"bad",
+                            "actions":[
+                                {"opening_id":"W1","target_pct":50},
+                                {"opening_id":"W1","target_pct":75},
+                            ],
+                        }],
                     },
                     {"home-v1":self.profile(prj)},
                     binding_factory=ForkCx,
