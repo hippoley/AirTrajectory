@@ -110,6 +110,7 @@ def main() -> int:
         "zone_numbers": manifest["zone_numbers"],
         "path_numbers": manifest["path_numbers"],
         "control_numbers": manifest["control_numbers"],
+        "initial_co2_ppm": {key.split(":",1)[1]: float(value) for key,value in manifest["contaminants"][0]["initial_zone_concentration"].items()},
         "readiness_sha256": readiness["readiness_sha256"],
         "engineering_truth": False,
         "purpose": "generated topology/load smoke",
