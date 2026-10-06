@@ -234,9 +234,23 @@ class ContamFieldValidationTests(unittest.TestCase):
                 field_bundle=bundle,
             )
 
+    def test_stale_protocol_hash_is_rejected(self):
+        runtime, bundle = self.bundle()
+        bundle["protocol_sha256"] = "0" * 64
+        with self.assertRaisesRegex(ValueError, "protocol_sha256 mismatch"):
+            validate_contam_against_field(
+                layout=self.layout,
+                runtime_receipt=runtime,
+                protocol=protocol(),
+                field_bundle=bundle,
+            )
+
     def test_tampered_runtime_prediction_series_is_rejected(self):
         runtime, bundle = self.bundle()
         runtime["prediction_series"][0]["co2_ppm"]["living"] += 500.0
+        payload = dict(runtime)
+        payload.pop("runtime_receipt_sha256")
+        runtime["runtime_receipt_sha256"] = sha(payload)
         with self.assertRaisesRegex(
             ValueError,
             "prediction_series SHA-256 integrity",
