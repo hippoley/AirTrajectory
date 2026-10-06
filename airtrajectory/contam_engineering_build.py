@@ -121,6 +121,66 @@ def build_engineering_contam_project(
         "zone_numbers": manifest["zone_numbers"],
         "path_numbers": manifest["path_numbers"],
         "control_numbers": manifest["control_numbers"],
+        "initial_co2_ppm": {
+            key.split(":", 1)[1]: float(value)
+            for key, value in manifest["contaminants"][0][
+                "initial_zone_concentration"
+            ].items()
+        },
+        "contam_ambient": {
+            "temperature_k": float(
+                manifest["weather"]["outdoor_temperature_c"]
+            ) + 273.15,
+            "pressure_pa": float(
+                manifest["weather"]["barometric_pressure_pa"]
+            ),
+            "wind_speed_m_s": float(
+                manifest["weather"]["wind_speed_m_s"]
+            ),
+            "wind_direction_deg": float(
+                manifest["weather"]["wind_direction_deg"]
+            ),
+            "mass_fractions": {
+                "0": float(
+                    manifest["contaminants"][0][
+                        "outdoor_mass_fraction"
+                    ]
+                )
+            },
+        },
+        "input_control_ranges": receipt["input_control_ranges"],
+        "input_control_names": receipt["input_control_names"],
+        "control_node_numbers": receipt["control_node_numbers"],
+        "initial_input_controls": {
+            str(receipt["control_node_numbers"][opening_id]): {
+                "opening_id": opening_id,
+                "name": receipt["input_control_names"][opening_id],
+                "value": (
+                    float(
+                        receipt["input_control_ranges"][opening_id][
+                            "closed_value"
+                        ]
+                    )
+                    + (
+                        float(
+                            receipt["input_control_ranges"][opening_id][
+                                "open_value"
+                            ]
+                        )
+                        - float(
+                            receipt["input_control_ranges"][opening_id][
+                                "closed_value"
+                            ]
+                        )
+                    )
+                    * (
+                        float(runtime.opening_states[opening_id])
+                        / 100.0
+                    )
+                ),
+            }
+            for opening_id in sorted(receipt["input_control_names"])
+        },
         "readiness_sha256": prj_readiness["readiness_sha256"],
         "runtime_verified": False,
         "engineering_truth": False,
