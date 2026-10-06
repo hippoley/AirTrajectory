@@ -86,6 +86,22 @@ def compile_field_capture_bundle(
             "import_receipt_sha256": receipt_sha,
         }
 
+    windowpilot_provenance = capture.get("windowpilot_capture_provenance")
+    normalized_windowpilot_provenance = None
+    if windowpilot_provenance is not None:
+        if not isinstance(windowpilot_provenance, dict):
+            raise ValueError("windowpilot_capture_provenance must be an object")
+        payload = dict(windowpilot_provenance)
+        receipt_sha = str(payload.pop("adapter_receipt_sha256", "") or "")
+        if receipt_sha != _sha256(payload):
+            raise ValueError(
+                "windowpilot_capture_provenance SHA-256 integrity check failed"
+            )
+        normalized_windowpilot_provenance = {
+            **payload,
+            "adapter_receipt_sha256": receipt_sha,
+        }
+
     validation_id = str(capture.get("validation_id") or "")
     if not validation_id:
         raise ValueError("field capture validation_id is required")
@@ -271,6 +287,7 @@ def compile_field_capture_bundle(
         "capture_started_at": _fmt(started_at),
         "raw_capture_sha256": _sha256(capture),
         "import_provenance": normalized_import_provenance,
+        "windowpilot_capture_provenance": normalized_windowpilot_provenance,
         "alignment_receipt": {
             **alignment_receipt,
             "alignment_sha256": _sha256(alignment_receipt),
