@@ -4,13 +4,23 @@
   "topology_id": "demo.fixed-three-room.v1",
   "min_samples": 10,
   "co2": {
-    "zones": ["living", "bedroom", "study"],
-    "rmse_ppm_max": 50.0,
-    "mae_ppm_max": 40.0
+    "zones": [
+      "living",
+      "bedroom",
+      "study"
+    ],
+    "rmse_ppm_max": 50,
+    "mae_ppm_max": 40
   },
   "opening_position": {
-    "openings": ["W1", "W2", "W3", "D1", "D2"],
-    "mae_pct_max": 2.0
+    "openings": [
+      "W1",
+      "W2",
+      "W3",
+      "D1",
+      "D2"
+    ],
+    "mae_pct_max": 2
   },
   "approval": {
     "approved": false,
@@ -18,5 +28,13 @@
     "approved_role": "replace-with-validation-role",
     "approved_at": "replace-with-ISO8601-time",
     "note": "Approve and freeze this protocol before collecting validation samples."
+  },
+  "alignment": {
+    "sampling_interval_s": 60,
+    "max_skew_s": 10,
+    "aggregation": "nearest",
+    "accepted_qualities": [
+      "measured"
+    ]
   }
 }
