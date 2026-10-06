@@ -77,6 +77,10 @@ class FieldCaptureImportTests(unittest.TestCase):
             result["import_provenance"]["records_sha256"],
             hashlib.sha256(raw).hexdigest(),
         )
+        self.assertEqual(
+            len(result["import_provenance"]["import_receipt_sha256"]),
+            64,
+        )
 
     def test_csv_import_supports_gateway_exports(self):
         with tempfile.TemporaryDirectory() as tmp:
