@@ -1,13 +1,29 @@
 import copy
+import hashlib
+import json
 from pathlib import Path
 import unittest
 
-from airtrajectory.contam_field_validation import validate_contam_against_field
+from airtrajectory.contam_field_validation import (
+    validate_contam_against_field,
+    validate_field_validation_protocol,
+)
 from airtrajectory.layout import LayoutContract
 
 
 ROOT = Path(__file__).resolve().parents[1]
 LAYOUT = ROOT / "web" / "data" / "home_topology.fixed.json"
+
+
+def sha(payload):
+    return hashlib.sha256(
+        json.dumps(
+            payload,
+            sort_keys=True,
+            separators=(",", ":"),
+            ensure_ascii=False,
+        ).encode("utf-8")
+    ).hexdigest()
 
 
 def protocol():
@@ -81,28 +97,34 @@ def runtime_receipt(layout):
             },
         },
     ]
-    return {
+    payload = {
         "schema_version": "0.1",
+        "verifier": "contam-engineering-runtime-verifier",
         "status": "ENGINEERING_RUNTIME_VERIFIED",
         "topology_id": layout.topology_id,
         "layout_contract_sha256": layout.sha256(),
         "runtime_verified": True,
         "engineering_model_verified": True,
+        "field_validation_verified": False,
         "engineering_truth": False,
         "steps": 2,
         "prediction_series": series,
-        "prediction_series_sha256": "a" * 64,
-        "runtime_receipt_sha256": "b" * 64,
+        "prediction_series_sha256": sha(series),
+    }
+    return {
+        **payload,
+        "runtime_receipt_sha256": sha(payload),
     }
 
 
-def field_bundle(*, offset=0.0):
+def field_bundle(*, protocol_sha, runtime_sha, offset=0.0):
     return {
         "schema_version": "0.1",
         "validation_id": "field-run-001",
         "protocol_id": "field-validation-v1",
+        "protocol_sha256": protocol_sha,
         "topology_id": "demo.fixed-three-room.v1",
-        "runtime_receipt_sha256": "b" * 64,
+        "runtime_receipt_sha256": runtime_sha,
         "captured_at": "2026-10-06T15:30:00+08:00",
         "source": {
             "kind": "site-sensor-system",
@@ -150,12 +172,25 @@ class ContamFieldValidationTests(unittest.TestCase):
     def setUp(self):
         self.layout = LayoutContract.from_file(LAYOUT)
 
+    def bundle(self, *, offset=0.0):
+        runtime = runtime_receipt(self.layout)
+        normalized = validate_field_validation_protocol(
+            self.layout,
+            protocol(),
+        )
+        return runtime, field_bundle(
+            protocol_sha=normalized["protocol_sha256"],
+            runtime_sha=runtime["runtime_receipt_sha256"],
+            offset=offset,
+        )
+
     def test_approved_protocol_and_matching_field_data_can_pass(self):
+        runtime, bundle = self.bundle()
         result = validate_contam_against_field(
             layout=self.layout,
-            runtime_receipt=runtime_receipt(self.layout),
+            runtime_receipt=runtime,
             protocol=protocol(),
-            field_bundle=field_bundle(),
+            field_bundle=bundle,
         )
         self.assertEqual(result["status"], "FIELD_VALIDATION_PASSED")
         self.assertTrue(result["field_validation_verified"])
@@ -165,11 +200,12 @@ class ContamFieldValidationTests(unittest.TestCase):
         self.assertEqual(len(result["field_validation_receipt_sha256"]), 64)
 
     def test_threshold_failure_returns_failed_receipt_not_fake_pass(self):
+        runtime, bundle = self.bundle(offset=200.0)
         result = validate_contam_against_field(
             layout=self.layout,
-            runtime_receipt=runtime_receipt(self.layout),
+            runtime_receipt=runtime,
             protocol=protocol(),
-            field_bundle=field_bundle(offset=200.0),
+            field_bundle=bundle,
         )
         self.assertEqual(result["status"], "FIELD_VALIDATION_FAILED")
         self.assertFalse(result["field_validation_verified"])
@@ -177,36 +213,51 @@ class ContamFieldValidationTests(unittest.TestCase):
         self.assertFalse(result["co2_metrics"]["living"]["rmse_pass"])
 
     def test_missing_runtime_step_is_rejected(self):
-        bundle = field_bundle()
+        runtime, bundle = self.bundle()
         bundle["samples"].pop()
         with self.assertRaisesRegex(ValueError, "every runtime prediction step"):
             validate_contam_against_field(
                 layout=self.layout,
-                runtime_receipt=runtime_receipt(self.layout),
+                runtime_receipt=runtime,
                 protocol=protocol(),
                 field_bundle=bundle,
             )
 
     def test_measurement_bundle_cannot_supply_post_hoc_thresholds(self):
-        bundle = field_bundle()
+        runtime, bundle = self.bundle()
         bundle["thresholds"] = {"co2_rmse_ppm_max": 9999}
         with self.assertRaisesRegex(ValueError, "must not carry thresholds"):
             validate_contam_against_field(
                 layout=self.layout,
-                runtime_receipt=runtime_receipt(self.layout),
+                runtime_receipt=runtime,
+                protocol=protocol(),
+                field_bundle=bundle,
+            )
+
+    def test_tampered_runtime_prediction_series_is_rejected(self):
+        runtime, bundle = self.bundle()
+        runtime["prediction_series"][0]["co2_ppm"]["living"] += 500.0
+        with self.assertRaisesRegex(
+            ValueError,
+            "prediction_series SHA-256 integrity",
+        ):
+            validate_contam_against_field(
+                layout=self.layout,
+                runtime_receipt=runtime,
                 protocol=protocol(),
                 field_bundle=bundle,
             )
 
     def test_unapproved_protocol_is_rejected(self):
+        runtime, bundle = self.bundle()
         spec = protocol()
         spec["approval"]["approved"] = False
         with self.assertRaisesRegex(ValueError, "approved=true"):
             validate_contam_against_field(
                 layout=self.layout,
-                runtime_receipt=runtime_receipt(self.layout),
+                runtime_receipt=runtime,
                 protocol=spec,
-                field_bundle=field_bundle(),
+                field_bundle=bundle,
             )
 
 
