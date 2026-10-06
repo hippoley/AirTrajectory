@@ -110,6 +110,26 @@ def validate_field_validation_protocol(
     min_samples = int(protocol.get("min_samples"))
     if min_samples < 2:
         raise ValueError("field validation protocol min_samples must be >=2")
+
+    alignment = protocol.get("alignment")
+    if not isinstance(alignment, dict):
+        raise ValueError("field validation protocol requires alignment section")
+    sampling_interval_s = float(alignment.get("sampling_interval_s"))
+    max_skew_s = float(alignment.get("max_skew_s"))
+    aggregation = str(alignment.get("aggregation") or "")
+    accepted_qualities = sorted(
+        {str(item) for item in (alignment.get("accepted_qualities") or [])}
+    )
+    if sampling_interval_s <= 0:
+        raise ValueError("alignment sampling_interval_s must be positive")
+    if max_skew_s < 0 or max_skew_s > sampling_interval_s:
+        raise ValueError(
+            "alignment max_skew_s must be in [0, sampling_interval_s]"
+        )
+    if aggregation != "nearest":
+        raise ValueError("alignment aggregation currently must be nearest")
+    if not accepted_qualities:
+        raise ValueError("alignment accepted_qualities is required")
     co2_rmse = float(co2.get("rmse_ppm_max"))
     co2_mae = float(co2.get("mae_ppm_max"))
     opening_mae = float(opening.get("mae_pct_max"))
@@ -129,6 +149,12 @@ def validate_field_validation_protocol(
         "opening_position": {
             "openings": expected_openings,
             "mae_pct_max": opening_mae,
+        },
+        "alignment": {
+            "sampling_interval_s": sampling_interval_s,
+            "max_skew_s": max_skew_s,
+            "aggregation": aggregation,
+            "accepted_qualities": accepted_qualities,
         },
         "approval": {
             "approved": True,
