@@ -618,3 +618,50 @@ engineering_truth = false
 ```
 
 This distinction is intentional. The build proves that approved engineering inputs can be compiled consistently into a CONTAM project. A subsequent real ContamX execution is still required before runtime verification can be claimed.
+
+
+### Engineering runtime verification
+
+An `ENGINEERING_INPUTS_READY` build is still not a runtime claim. Verify the exact PRJ and exact build receipt through the shared CONTAM trajectory path:
+
+```bash
+python examples/verify_engineering_contam_runtime.py \
+  artifacts/engineering.prj \
+  artifacts/engineering-build.json \
+  --steps 2 \
+  --out artifacts/engineering-runtime.json
+```
+
+The verifier fails closed on:
+
+- PRJ file SHA drift;
+- topology or layout-contract drift;
+- `DemoRuntimeSnapshot` drift;
+- non-ready engineering build receipts;
+- ContamX zone/path count drift;
+- missing multi-window action coverage;
+- incomplete solved CO₂ or path-flow observations.
+
+A successful runtime receipt reports:
+
+```text
+status = ENGINEERING_RUNTIME_VERIFIED
+engineering_inputs_ready = true
+runtime_verified = true
+engineering_model_verified = true
+field_validation_verified = false
+engineering_truth = false
+```
+
+The last two flags are deliberately separate. Real ContamX execution proves that the approved engineering model runs through the intended topology, controls, policy, and trajectory chain. It does **not** prove that model predictions match measured room behavior.
+
+The evidence state machine is therefore:
+
+```text
+approved field/calibration evidence
+→ ENGINEERING_INPUTS_READY
+→ real ContamX runtime verification
+→ ENGINEERING_RUNTIME_VERIFIED
+→ prediction-vs-field validation (reserved)
+→ engineering truth (not yet claimed)
+```
