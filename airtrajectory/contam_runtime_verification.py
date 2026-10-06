@@ -136,6 +136,33 @@ def verify_engineering_contam_runtime(
     trajectory_payload = trajectory.to_dict()
     build_receipt_sha = _sha256(build_receipt)
     trajectory_sha = _sha256(trajectory_payload)
+    prediction_series = [
+        {
+            "step": int(step.index),
+            "co2_ppm": {
+                str(key): float(value)
+                for key, value in sorted(
+                    (step.next_observation.get("co2_ppm") or {}).items()
+                )
+            },
+            "opening_pct": {
+                str(key): float(value)
+                for key, value in sorted(
+                    (step.next_observation.get("opening_pct") or {}).items()
+                )
+            },
+            "path_flow_kg_s": {
+                str(key): float(value)
+                for key, value in sorted(
+                    (
+                        step.next_observation.get("path_flow_kg_s")
+                        or {}
+                    ).items()
+                )
+            },
+        }
+        for step in trajectory.steps
+    ]
     receipt_payload = {
         "schema_version": "0.1",
         "verifier": "contam-engineering-runtime-verifier",
@@ -151,6 +178,8 @@ def verify_engineering_contam_runtime(
         "zone_count": expected_zone_count,
         "path_count": expected_path_count,
         "steps": int(steps),
+        "prediction_series": prediction_series,
+        "prediction_series_sha256": _sha256(prediction_series),
         "input_control_names": dict(
             build_receipt.get("input_control_names") or {}
         ),
