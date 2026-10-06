@@ -67,5 +67,5 @@ jobs:
       - name: Load generated PRJ with real ContamX
         shell: pwsh
         run: |
-          python examples/contam_generated_smoke.py artifacts/multispace-generated.prj --expected-zones 3 --expected-paths 5 | Tee-Object -FilePath generated-contam-smoke.json
+          python examples/contam_generated_smoke.py artifacts/multispace-generated.prj --expected-zones 3 --expected-paths 5 --provenance artifacts/multispace-generated.prj.json | Tee-Object -FilePath generated-contam-smoke.json
           if (-not (Select-String -Path generated-contam-smoke.json -Pattern "GENERATED_CONTAM_DYNAMIC_CONTROL_EXECUTED")) { exit 1 }
