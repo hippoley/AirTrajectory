@@ -16,10 +16,15 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 from typing import Any
 
 
 M_AIR_G_MOL = 28.96546
+CONTAM_STD_AIR_DENSITY_KG_M3 = 1.20410
+CONTAM_STD_AIR_SQRT_DENSITY = 1.097315
+CONTAM_STD_AIR_VISCOSITY_PA_S = 1.81625e-5
+CONTAM_MIN_TRANSITION_DP_PA = 1.0e-10
 
 
 def _sha256(payload: Any) -> str:
@@ -36,6 +41,55 @@ def ppmv_to_mass_fraction(ppmv: float, molecular_weight_g_mol: float) -> float:
     if mw <= 0:
         raise ValueError("molecular_weight_g_mol must be positive")
     return value * (mw / M_AIR_G_MOL) / 1_000_000.0
+
+
+
+def derive_nist_orifice_storage(
+    *,
+    flow_area_m2: float,
+    discharge_coefficient: float,
+    flow_exponent: float,
+    transition_reynolds_number: float,
+) -> dict[str, float]:
+    """Derive CONTAM PL_ORFC stored coefficients using NIST's 3.0→3.1 upgrader equations."""
+    area = float(flow_area_m2)
+    coef = float(discharge_coefficient)
+    expt = float(flow_exponent)
+    reynolds = float(transition_reynolds_number)
+    if area <= 0:
+        raise ValueError("flow_area_m2 must be positive")
+    if coef <= 0:
+        raise ValueError("discharge_coefficient must be positive")
+    if not 0 < expt <= 1:
+        raise ValueError("flow_exponent must be in (0,1]")
+    if reynolds <= 0:
+        raise ValueError("transition_reynolds_number must be positive")
+
+    diameter = math.sqrt((4.0 / math.pi) * area)
+    turbulent = coef * area * math.sqrt(2.0)
+
+    transition_mass_flow = (
+        CONTAM_STD_AIR_VISCOSITY_PA_S
+        * reynolds
+        * area
+        / diameter
+    )
+    transition_dp = (
+        transition_mass_flow
+        / (turbulent * CONTAM_STD_AIR_SQRT_DENSITY)
+    ) ** (1.0 / expt)
+    transition_dp = max(transition_dp, CONTAM_MIN_TRANSITION_DP_PA)
+    laminar = (
+        CONTAM_STD_AIR_VISCOSITY_PA_S
+        * transition_mass_flow
+        / (CONTAM_STD_AIR_DENSITY_KG_M3 * transition_dp)
+    )
+    return {
+        "hydraulic_diameter_m": diameter,
+        "laminar_flow_coefficient": laminar,
+        "turbulent_flow_coefficient": turbulent,
+        "transition_reynolds_number": reynolds,
+    }
 
 
 def validate_prj_profile(profile: dict[str, Any]) -> None:
@@ -62,6 +116,15 @@ def validate_prj_profile(profile: dict[str, Any]) -> None:
     if not isinstance(element_rules, dict) or not element_rules:
         raise ValueError("airflow_element_storage rules are required")
     for kind, rule in element_rules.items():
+        mode = str(rule.get("mode") or "explicit")
+        if mode == "nist-orifice-derived":
+            if float(rule.get("transition_reynolds_number")) <= 0:
+                raise ValueError(
+                    f"airflow storage rule {kind} transition_reynolds_number must be positive"
+                )
+            continue
+        if mode != "explicit":
+            raise ValueError(f"airflow storage rule {kind} has unsupported mode")
         if float(rule.get("hydraulic_diameter_m")) <= 0:
             raise ValueError(
                 f"airflow storage rule {kind} hydraulic_diameter_m must be positive"
@@ -159,9 +222,16 @@ def bind_prj_serialization_profile(
             raise ValueError(
                 f"PRJ profile has no airflow storage rule for opening kind {kind}"
             )
-        airflow_elements.append(
-            {
-                **element,
+        mode = str(rule.get("mode") or "explicit")
+        if mode == "nist-orifice-derived":
+            storage = derive_nist_orifice_storage(
+                flow_area_m2=element["flow_area_m2"],
+                discharge_coefficient=element["discharge_coefficient"],
+                flow_exponent=element["flow_exponent"],
+                transition_reynolds_number=rule["transition_reynolds_number"],
+            )
+        else:
+            storage = {
                 "hydraulic_diameter_m": float(rule["hydraulic_diameter_m"]),
                 "laminar_flow_coefficient": float(
                     rule["laminar_flow_coefficient"]
@@ -173,7 +243,7 @@ def bind_prj_serialization_profile(
                     rule["transition_reynolds_number"]
                 ),
             }
-        )
+        airflow_elements.append({**element, **storage})
 
     species_profile = profile["species"]
     contaminants = []
