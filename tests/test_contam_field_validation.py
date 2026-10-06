@@ -262,6 +262,34 @@ class ContamFieldValidationTests(unittest.TestCase):
                 field_bundle=bundle,
             )
 
+    def test_measurements_before_protocol_approval_are_rejected(self):
+        runtime, bundle = self.bundle()
+        bundle["captured_at"] = "2026-10-06T14:00:00+08:00"
+        with self.assertRaisesRegex(
+            ValueError,
+            "captured before protocol approval",
+        ):
+            validate_contam_against_field(
+                layout=self.layout,
+                runtime_receipt=runtime,
+                protocol=protocol(),
+                field_bundle=bundle,
+            )
+
+    def test_uncalibrated_field_source_is_rejected(self):
+        runtime, bundle = self.bundle()
+        bundle["source"]["calibration_ref"] = ""
+        with self.assertRaisesRegex(
+            ValueError,
+            "requires model, serial, and calibration_ref",
+        ):
+            validate_contam_against_field(
+                layout=self.layout,
+                runtime_receipt=runtime,
+                protocol=protocol(),
+                field_bundle=bundle,
+            )
+
     def test_unapproved_protocol_is_rejected(self):
         runtime, bundle = self.bundle()
         spec = protocol()
