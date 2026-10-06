@@ -184,6 +184,11 @@ class DemoOrchestratorTests(unittest.TestCase):
                     "W2":"W2_open",
                     "W3":"W3_open",
                 },
+                "input_control_ranges":{
+                    "W1":{"closed_value":0.01,"open_value":1.0},
+                    "W2":{"closed_value":0.01,"open_value":1.0},
+                    "W3":{"closed_value":0.01,"open_value":1.0},
+                },
                 "initial_co2_ppm":{"living":1400.0,"bedroom":1300.0,"study":1250.0},
             }
             result=run_demo(
@@ -206,6 +211,7 @@ class DemoOrchestratorTests(unittest.TestCase):
         )
         self.assertEqual(result.trajectory.steps[0].executed_actions[0].opening_id,"W1")
         self.assertEqual(result.trajectory.context["fixed_opening_ids"],["D1","D2"])
+        self.assertEqual(result.trajectory.context["contam_input_control_ranges"]["W1"]["closed_value"],0.01)
         self.assertEqual(result.trajectory.context["reset_info"]["warm_start_steps"],1)
         self.assertEqual(result.trajectory.context["reset_info"]["warm_start_strategy"],"single-anchor-open-v1")
         self.assertEqual(result.trajectory.context["reset_info"]["warm_start_anchor_opening_id"],"W1")
