@@ -218,6 +218,7 @@ class WindowPilotValidationPipelineTests(unittest.TestCase):
         self.assertEqual(len(capture["records"]), 12)
         self.assertEqual(len(aligned["samples"]), 2)
         self.assertEqual(len(receipt["pipeline_receipt_sha256"]), 64)
+        self.assertEqual(len(receipt["preflight_receipt_sha256"]), 64)
         self.assertEqual(
             receipt["windowpilot_capture_sha256"],
             aligned["windowpilot_capture_provenance"][
