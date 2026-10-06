@@ -31,7 +31,7 @@ def manifest():
         }],
         "species_definitions": [{"key":"co2","name":"CO2","contam_contaminant_number":1,"molecular_weight_g_mol":44.0095}],
         "level_records": [{"level_number":1,"name":"Ground","reference_height_m":0.0}],
-        "project_controls": {"mode":"steady"},
+        "project_controls": {"mode":"steady","start":"00:00:00","stop":"01:00:00","time_step_s":60},
         "weather": {"outdoor_temperature_c":25.0,"barometric_pressure_pa":101325.0,"wind_speed_m_s":1.5,"wind_direction_deg":180.0},
         "species_definitions": [{"key":"co2","name":"CO2","contam_contaminant_number":1,"molecular_weight_g_mol":44.0095}],
     }
@@ -57,7 +57,7 @@ def ready_manifest():
     add_path(m,"path:W3",3,"window","exterior","zone:study","ambient:OUTSIDE",3,180,3.8,5,0.9)
     add_path(m,"path:D1",4,"door","internal","zone:living","zone:bedroom",4,90,5,2.8,0.0)
     add_path(m,"path:D2",5,"door","internal","zone:living","zone:study",5,180,2.5,5,0.0)
-    m["project_controls"]={"mode":"steady"}
+    m["project_controls"]={"mode":"steady","start":"00:00:00","stop":"01:00:00","time_step_s":60}
     m["species_definitions"]=[{"key":"co2","name":"CO2","contam_contaminant_number":1,"molecular_weight_g_mol":44.0095}]
     return m
 
@@ -75,6 +75,19 @@ class ContamPrjSerializerTests(unittest.TestCase):
         self.assertIn("W2_open",text)
         self.assertIn("W3_open",text)
         self.assertIn("* end project file.",text)
+
+    def test_transient_profile_emits_transient_contaminant_mode(self):
+        m=ready_manifest()
+        m["project_controls"]={
+            "mode":"transient",
+            "start":"00:00:00",
+            "stop":"01:00:00",
+            "time_step_s":60,
+        }
+        text=render_minimal_prj(m)
+        self.assertIn("2             30",text)
+        self.assertIn("contaminant simulation: transient",text)
+        self.assertIn("Jan01 00:00:00  Jan01 00:00:00  Jan01 01:00:00  00:01:00",text)
 
     def test_exterior_and_internal_zone_numbers_are_rendered(self):
         text=render_minimal_prj(ready_manifest())
