@@ -13,6 +13,9 @@ from .windowpilot_field_capture import collect_windowpilot_field_capture
 from .windowpilot_validation_preflight import (
     preflight_windowpilot_field_validation,
 )
+from .windowpilot_contract_baseline import (
+    compare_windowpilot_contract_baseline,
+)
 
 
 def _sha256(payload: Any) -> str:
@@ -35,9 +38,31 @@ def run_windowpilot_field_validation(
     runtime_receipt: dict[str, Any],
     validation_id: str,
     sample_count: int | None = None,
+    contract_baseline: dict[str, Any] | None = None,
+    contract_probe_report: dict[str, Any] | None = None,
     sleep_fn=None,
     clock_fn=None,
 ) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
+    if (contract_baseline is None) != (contract_probe_report is None):
+        raise ValueError(
+            "contract_baseline and contract_probe_report must be supplied together"
+        )
+
+    contract_comparison = None
+    if contract_baseline is not None:
+        contract_comparison = compare_windowpilot_contract_baseline(
+            baseline=contract_baseline,
+            current_report=contract_probe_report,
+        )
+        if contract_comparison["status"] != "MATCH":
+            raise RuntimeError(
+                "WindowPilot contract baseline drift blocks field validation: "
+                + json.dumps(
+                    contract_comparison["drifts"],
+                    sort_keys=True,
+                )
+            )
+
     capture_kwargs = {}
     if sleep_fn is not None:
         capture_kwargs["sleep_fn"] = sleep_fn
@@ -88,6 +113,21 @@ def run_windowpilot_field_validation(
             "runtime_receipt_sha256"
         ],
         "protocol_sha256": validation["protocol_sha256"],
+        "contract_baseline_sha256": (
+            contract_baseline["baseline_sha256"]
+            if contract_baseline is not None
+            else None
+        ),
+        "contract_probe_receipt_sha256": (
+            contract_probe_report["config_probe_receipt_sha256"]
+            if contract_probe_report is not None
+            else None
+        ),
+        "contract_comparison_sha256": (
+            contract_comparison["comparison_sha256"]
+            if contract_comparison is not None
+            else None
+        ),
         "preflight_receipt_sha256": preflight[
             "preflight_receipt_sha256"
         ],
