@@ -1,6 +1,7 @@
 import tempfile
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 
 from airtrajectory.contam import CONTAMEnvironment, ContamControl, ContamXSession, co2_mass_fraction_to_ppm
 from airtrajectory.topology import BuildingTopology, OpeningEdge, ZoneNode
@@ -9,7 +10,8 @@ from airtrajectory.trajectory import TransitionAction
 class FakeCx:
     def __init__(self,prj_file_path,wp_mode=0,cb_option=False,*_):
         self.path=prj_file_path; self.wp_mode=wp_mode; self.cb_option=cb_option
-        self.nZones=2; self.nPaths=1; self.controls={}; self.steps=0; self.ended=False
+        self.nZones=2; self.nPaths=1; self.nInputControls=2; self.nOutputControls=0; self.controls={}; self.steps=0; self.ended=False
+        self.inputControls=[SimpleNamespace(name="W2_open"),SimpleNamespace(name="W1_open")]; self.outputControls=[]
     def setupSimulation(self,use_cosim=1): self.use_cosim=use_cosim
     def getVersion(self): return "fake-contract"
     def getSimTimeStep(self): return 60
@@ -35,7 +37,10 @@ class ContamAdapterTests(unittest.TestCase):
             self.assertEqual(s.engine.wp_mode,0)
             self.assertTrue(s.engine.cb_option)
             self.assertEqual(s.engine.use_cosim,1)
-            s.set_input_control(7,.5); s.step()
+            self.assertEqual(meta["input_control_names"],["W2_open","W1_open"])
+            self.assertEqual(s.input_control_index("W1_open"),2)
+            s.set_input_control(7,.5); s.set_named_input_control("W1_open",.25); s.step()
+            self.assertEqual(s.engine.controls[2],.25)
             self.assertAlmostEqual(s.zone_mass_fraction(1,1),.00119)
             self.assertAlmostEqual(s.path_flow(1),.26)
             engine=s.engine; s.close(); self.assertTrue(engine.ended)
