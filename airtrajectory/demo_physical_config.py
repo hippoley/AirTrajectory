@@ -6,6 +6,10 @@ from pathlib import Path
 from typing import Any
 
 from .drivers.windowpilot import WindowPilotHTTPDriver
+from .windowpilot_contract_mapping import (
+    build_windowpilot_response_adapter,
+    validate_windowpilot_contract_mapping,
+)
 
 
 def load_windowpilot_driver_config(path: str | Path) -> dict[str, Any]:
@@ -15,6 +19,24 @@ def load_windowpilot_driver_config(path: str | Path) -> dict[str, Any]:
     endpoints = payload.get("windowpilot_endpoints")
     if not isinstance(endpoints, dict) or not endpoints:
         raise ValueError("windowpilot_endpoints are required")
+    profiles = payload.get("contract_mapping_profiles") or {}
+    if not isinstance(profiles, dict):
+        raise ValueError("contract_mapping_profiles must be an object")
+    normalized_profiles = {}
+    for profile_name, profile in profiles.items():
+        normalized_profiles[str(profile_name)] = (
+            validate_windowpilot_contract_mapping(profile)
+        )
+    for opening_id, spec in endpoints.items():
+        if not isinstance(spec, dict):
+            raise ValueError(f"endpoint {opening_id} must be an object")
+        profile_name = spec.get("contract_mapping_profile")
+        if profile_name is not None and str(profile_name) not in normalized_profiles:
+            raise ValueError(
+                f"endpoint {opening_id} references unknown contract mapping profile {profile_name}"
+            )
+    payload["contract_mapping_profiles"] = normalized_profiles
+
     fixed = payload.get("fixed_openings") or {}
     if not isinstance(fixed, dict):
         raise ValueError("fixed_openings must be an object")
@@ -49,5 +71,11 @@ def build_windowpilot_drivers(
         }
         if request_json_factory is not None:
             kwargs["request_json"] = request_json_factory(opening_id, spec)
+        profile_name = spec.get("contract_mapping_profile")
+        if profile_name is not None:
+            profile = config["contract_mapping_profiles"][str(profile_name)]
+            kwargs["response_adapter"] = build_windowpilot_response_adapter(
+                profile
+            )
         drivers[opening_id] = WindowPilotHTTPDriver(**kwargs)
     return drivers
