@@ -26,8 +26,11 @@ def _sha256(payload: Any) -> str:
 
 
 def audit_prj_readiness(manifest: dict[str, Any]) -> dict[str, Any]:
-    if manifest.get("compiler") != "contam-forced-manifest":
-        raise ValueError("payload is not a forced CONTAM manifest")
+    if manifest.get("compiler") not in {
+        "contam-forced-manifest",
+        "contam-prj-profiled-manifest",
+    }:
+        raise ValueError("payload is not a forced/profiled CONTAM manifest")
 
     missing: dict[str, dict[str, list[str]]] = {
         "section_10_airflow_elements": {},
