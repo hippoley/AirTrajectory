@@ -10,6 +10,7 @@ from airtrajectory.contam_profile import (
     bind_airflow_elements,
     illustrative_opening_profile,
 )
+from airtrajectory.contam_prj_profile import bind_prj_serialization_profile
 from airtrajectory.layout import LayoutContract
 
 
@@ -95,6 +96,59 @@ class ContamPrjReadinessTests(unittest.TestCase):
         a = audit_prj_readiness(forced_manifest())
         b = audit_prj_readiness(forced_manifest())
         self.assertEqual(a["readiness_sha256"], b["readiness_sha256"])
+
+
+    def test_profile_binding_clears_sections_10_14_15_and_global_species_levels(self):
+        manifest = forced_manifest()
+        prj_profile = {
+            "schema_version": "0.1",
+            "profile_id": "readiness-test",
+            "engineering_validated": False,
+            "zone_defaults": {
+                "level_number": 1,
+                "relative_height_m": 0.0,
+                "initial_temperature_k": 298.15,
+                "initial_pressure_pa": 101325.0,
+            },
+            "airflow_element_storage": {
+                "window": {
+                    "hydraulic_diameter_m": 1.0,
+                    "laminar_flow_coefficient": 0.0,
+                    "turbulent_flow_coefficient": 0.0,
+                    "transition_reynolds_number": 30.0,
+                },
+                "door": {
+                    "hydraulic_diameter_m": 1.0,
+                    "laminar_flow_coefficient": 0.0,
+                    "turbulent_flow_coefficient": 0.0,
+                    "transition_reynolds_number": 30.0,
+                },
+            },
+            "species": {
+                "co2": {
+                    "molecular_weight_g_mol": 44.0095,
+                    "conversion": "ppmv-to-mass-fraction-mw-ratio",
+                }
+            },
+            "levels": {
+                "1": {
+                    "name": "Ground",
+                    "reference_height_m": 0.0,
+                }
+            },
+        }
+        profiled = bind_prj_serialization_profile(manifest, prj_profile)
+        result = audit_prj_readiness(profiled)
+
+        self.assertEqual(result["status"], "BLOCKED")
+        self.assertNotIn("section_10_airflow_elements", result["missing"])
+        self.assertNotIn("section_14_zones", result["missing"])
+        self.assertNotIn("section_15_initial_concentrations", result["missing"])
+        self.assertIn("section_16_airflow_paths", result["missing"])
+        self.assertEqual(
+            result["missing"]["global"]["manifest"],
+            ["section_1_project_weather_simulation_controls"],
+        )
 
 
 if __name__ == "__main__":
