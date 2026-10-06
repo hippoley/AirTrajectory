@@ -96,7 +96,7 @@ class ContamAdapterTests(unittest.TestCase):
             s.close()
 
 
-    def test_session_initializes_input_controls_before_setup_and_validates_names(self):
+    def test_session_initializes_input_controls_after_setup_and_validates_names(self):
         with tempfile.TemporaryDirectory() as d:
             prj=Path(d)/"demo.prj"; prj.write_text("fixture")
             initial={
@@ -214,6 +214,8 @@ class ContamAdapterTests(unittest.TestCase):
             self.assertEqual(obs["state_source"],"prj-profile-initial")
             self.assertEqual(obs["co2_ppm"],{"living":1400.0,"bedroom":900.0})
             self.assertEqual(obs["path_flow_kg_s"],{})
+            self.assertEqual(info["warm_start_steps"],1)
+            self.assertEqual(env.session.engine.steps,1)
             nxt,_,_,_,_=env.step([
                 TransitionAction("W1",75),
                 TransitionAction("W2",25),
