@@ -45,16 +45,19 @@ def illustrative_opening_profile() -> dict[str, Any]:
                 "model": "powerlaw-orifice-area",
                 "flow_exponent": 0.5,
                 "discharge_coefficient": 0.6,
+                "closed_leakage_multiplier": 0.01,
             },
             "door": {
                 "model": "powerlaw-orifice-area",
                 "flow_exponent": 0.5,
                 "discharge_coefficient": 0.6,
+                "closed_leakage_multiplier": 0.01,
             },
             "vent": {
                 "model": "powerlaw-orifice-area",
                 "flow_exponent": 0.65,
                 "discharge_coefficient": 0.6,
+                "closed_leakage_multiplier": 0.01,
             },
         },
     }
@@ -86,6 +89,7 @@ def validate_airflow_profile(
             raise ValueError(f"airflow rule {kind} has unsupported model")
         exponent = float(rule.get("flow_exponent"))
         coefficient = float(rule.get("discharge_coefficient"))
+        closed_leakage = float(rule.get("closed_leakage_multiplier", 0.0))
         if not 0.5 <= exponent <= 1.0:
             raise ValueError(
                 f"airflow rule {kind} flow_exponent must be in [0.5,1.0]"
@@ -93,6 +97,10 @@ def validate_airflow_profile(
         if not 0.0 < coefficient <= 1.0:
             raise ValueError(
                 f"airflow rule {kind} discharge_coefficient must be in (0,1]"
+            )
+        if not 0.0 <= closed_leakage < 1.0:
+            raise ValueError(
+                f"airflow rule {kind} closed_leakage_multiplier must be in [0,1)"
             )
 
 
@@ -143,6 +151,9 @@ def bind_airflow_elements(
             "physical_area_m2": physical_area,
             "flow_exponent": float(rule["flow_exponent"]),
             "discharge_coefficient": float(rule["discharge_coefficient"]),
+            "closed_leakage_multiplier": float(
+                rule.get("closed_leakage_multiplier", 0.0)
+            ),
             "hydraulic_diameter_m": rule.get("hydraulic_diameter_m"),
             "contam_element_number": None,
         }
@@ -153,6 +164,9 @@ def bind_airflow_elements(
                 "airflow_element": {
                     "key": element_key,
                     "model": rule["model"],
+                    "closed_leakage_multiplier": float(
+                        rule.get("closed_leakage_multiplier", 0.0)
+                    ),
                     "contam_element_number": None,
                 },
             }
