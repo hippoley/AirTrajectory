@@ -11,7 +11,7 @@ import os
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 from .api import fork_request
-from .contam_fork import contam_fork_request
+from .contam_fork import contam_fork_request, contam_strategy_fork_request
 
 MAX_BODY_BYTES = 1_048_576
 
@@ -49,7 +49,7 @@ class Handler(BaseHTTPRequestHandler):
             self._send_json(404, {"error": "not_found"})
 
     def do_POST(self):
-        if self.path not in ("/fork","/fork/contam"):
+        if self.path not in ("/fork","/fork/contam","/fork/contam-strategy"):
             self._send_json(404, {"error": "not_found"})
             return
         try:
@@ -69,11 +69,11 @@ class Handler(BaseHTTPRequestHandler):
                 if not profiles:
                     self._send_json(503, {"error":"contam_profiles_unavailable"})
                     return
-                result=contam_fork_request(
-                    payload,
-                    profiles,
-                    binding_factory=getattr(self.server,"contam_binding_factory",None),
-                )
+                factory=getattr(self.server,"contam_binding_factory",None)
+                if self.path == "/fork/contam":
+                    result=contam_fork_request(payload,profiles,binding_factory=factory)
+                else:
+                    result=contam_strategy_fork_request(payload,profiles,binding_factory=factory)
             self._send_json(200, result)
         except (ValueError, json.JSONDecodeError) as exc:
             self._send_json(400, {"error": "invalid_request", "detail": str(exc)})
