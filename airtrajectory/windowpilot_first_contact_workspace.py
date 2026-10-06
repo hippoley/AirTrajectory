@@ -98,7 +98,13 @@ def build_windowpilot_first_contact_workspace(
             "/api/physical-readiness",
             "/api/state",
         ],
-        "network_requests": network_requests,
+        "successful_network_requests": network_requests,
+        "network_requests_exact": not bool(capture_errors),
+        "network_requests": (
+            network_requests
+            if not capture_errors
+            else None
+        ),
         "actuator_writes": 0,
         "endpoints": endpoint_manifests,
         "capture_errors": capture_errors,
@@ -214,6 +220,12 @@ def build_windowpilot_first_contact_workspace(
             }
             for endpoint_id, value in sorted(evaluations.items())
         },
+        "successful_network_requests": manifest[
+            "successful_network_requests"
+        ],
+        "network_requests_exact": manifest[
+            "network_requests_exact"
+        ],
         "network_requests": manifest["network_requests"],
         "actuator_writes": 0,
     }
