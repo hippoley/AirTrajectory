@@ -56,6 +56,25 @@ def main() -> int:
                 }
             )
 
+
+        print("POLICY_CONTROL_PROBE_BEGIN", flush=True)
+        session.set_named_input_control("W1_open", 0.75)
+        session.set_named_input_control("W2_open", 0.35)
+        session.set_named_input_control("W3_open", 0.0)
+        session.step()
+        policy_flows = {
+            str(index): session.path_flow(index)
+            for index in range(1, int(meta["paths"]) + 1)
+        }
+        print("POLICY_CONTROL_PROBE_SOLVED", json.dumps(policy_flows, sort_keys=True), flush=True)
+
+        print("ZONE_MASS_FRACTION_PROBE_BEGIN", flush=True)
+        zone_mass_fractions = {
+            str(index): session.zone_mass_fraction(index, 1)
+            for index in range(1, int(meta["zones"]) + 1)
+        }
+        print("ZONE_MASS_FRACTION_PROBE_READ", json.dumps(zone_mass_fractions, sort_keys=True), flush=True)
+
         payload = {
             "marker": "GENERATED_CONTAM_DYNAMIC_CONTROL_EXECUTED",
             "prj": args.prj,
@@ -72,6 +91,8 @@ def main() -> int:
             "open_path_flow_kg_s": open_flows,
             "closed_path_flow_kg_s": closed_flows,
             "w1_close_probe": close_probe,
+            "policy_control_probe_path_flow_kg_s": policy_flows,
+            "zone_mass_fractions": zone_mass_fractions,
         }
         print(json.dumps(payload, sort_keys=True))
         if meta["zones"] != args.expected_zones:
