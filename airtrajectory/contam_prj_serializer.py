@@ -35,6 +35,25 @@ def _path_endpoint_number(manifest: dict[str, Any], key: str) -> int:
     return _zone_number(manifest, key)
 
 
+def _format_hms(total_seconds: int) -> str:
+    value = int(total_seconds)
+    if value <= 0:
+        raise ValueError("time step must be positive")
+    hours, rem = divmod(value, 3600)
+    minutes, seconds = divmod(rem, 60)
+    if hours > 23:
+        raise ValueError("time step must be less than 24 hours")
+    return f"{hours:02d}:{minutes:02d}:{seconds:02d}"
+
+
+def _contaminant_mode_code(mode: str) -> int:
+    mapping = {"steady": 1, "transient": 2}
+    try:
+        return mapping[str(mode)]
+    except KeyError as exc:
+        raise ValueError("CONTAM contaminant mode must be steady or transient") from exc
+
+
 
 def _dynamic_window_controls(manifest: dict[str, Any]) -> list[dict[str, Any]]:
     paths = [
@@ -80,6 +99,13 @@ def render_minimal_prj(manifest: dict[str, Any], *, project_name: str = "airtraj
 
     contaminant = manifest["contaminants"][0]
     species = manifest["species_definitions"][0]
+    project_controls = dict(manifest.get("project_controls") or {})
+    simulation_mode = str(project_controls.get("mode") or "")
+    sim_mf = _contaminant_mode_code(simulation_mode)
+    start_time = str(project_controls.get("start") or "00:00:00")
+    stop_time = str(project_controls.get("stop") or "01:00:00")
+    time_step_s = int(project_controls.get("time_step_s", 60))
+    time_step = _format_hms(time_step_s)
     species_name = str(species["name"]).replace(" ", "_")
     contaminant_number = int(species["contam_contaminant_number"])
     if contaminant_number != 1:
@@ -115,7 +141,7 @@ def render_minimal_prj(manifest: dict[str, Any], *, project_name: str = "airtraj
     emit("!   slae rs aflmaxi aflcnvg aflinit Tadj")
     emit("      0   1    100   1e-06      1    0")
     emit("!sim_mf slae rs maxi   relcnvg   abscnvg relax gamma ucc")
-    emit("    1             30  1.00e-04  1.00e-15 1.250         0 ! contaminant simulation: steady")
+    emit(f"    {sim_mf}             30  1.00e-04  1.00e-15 1.250         0 ! contaminant simulation: {simulation_mode}")
     emit("          0   1  100  1.00e-06  1.00e-15 1.100 1.000   0 ! (non-trace)")
     emit("          0   1  100  1.00e-06  1.00e-15 1.100 1.000   0 ! (trace)")
     emit("          0   1  100  1.00e-06  1.00e-15 1.100         0 ! (cvode)")
@@ -126,7 +152,10 @@ def render_minimal_prj(manifest: dict[str, Any], *, project_name: str = "airtraj
     emit("!tsdens relax tsmaxi cnvgSS densZP stackD dodMdt")
     emit("   0    0.75    20     1      0      0      0")
     emit("!date_st time_st  date_0 time_0   date_1 time_1    t_step   t_list   t_scrn")
-    emit("  Jan01 00:00:00  Jan01 00:00:00  Jan01 01:00:00  00:01:00 00:01:00 01:00:00")
+    emit(
+        f"  Jan01 {start_time}  Jan01 {start_time}  Jan01 {stop_time}  "
+        f"{time_step} {time_step} 01:00:00"
+    )
     emit("!restart  date  time")
     emit("    0    Jan01 00:00:00")
     emit("!list doDlg pfsave zfsave zcsave")
@@ -325,4 +354,8 @@ def write_minimal_prj(manifest: dict[str, Any], path: str | Path) -> dict[str, A
             for item in controls
         },
         "input_control_index_policy": "runtime-discovery-by-name",
+        "contaminant_simulation_mode": simulation_mode,
+        "time_step_s": time_step_s,
+        "simulation_start": start_time,
+        "simulation_stop": stop_time,
     }
