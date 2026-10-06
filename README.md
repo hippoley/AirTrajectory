@@ -665,3 +665,82 @@ approved field/calibration evidence
 → prediction-vs-field validation (reserved)
 → engineering truth (not yet claimed)
 ```
+
+
+### Prediction-vs-field validation
+
+`ENGINEERING_RUNTIME_VERIFIED` proves that the approved model executes in the real CONTAM runtime. Final field validation is a separate gate and uses a protocol that must be approved **before** validation data are captured.
+
+First freeze the validation protocol:
+
+```bash
+python examples/compile_field_validation_protocol.py \
+  path/to/field-validation-protocol.json \
+  --out artifacts/field-validation-protocol.frozen.json
+```
+
+The frozen protocol contains its deterministic `protocol_sha256`. It defines, before the field run:
+
+- required topology;
+- complete zone/opening coverage;
+- minimum number of samples;
+- per-zone CO₂ RMSE/MAE thresholds;
+- opening-position MAE threshold;
+- reviewer identity/role and approval time.
+
+Then collect field measurements that reference both the exact protocol SHA and the exact engineering runtime receipt SHA:
+
+```text
+frozen protocol SHA
+        +
+ENGINEERING_RUNTIME_VERIFIED receipt SHA
+        +
+calibrated site sensor identity
+        +
+all runtime prediction steps
+        ↓
+field measurement bundle
+```
+
+Run validation:
+
+```bash
+python examples/validate_contam_against_field.py \
+  artifacts/engineering-runtime.json \
+  artifacts/field-validation-protocol.frozen.json \
+  path/to/field-measurements.json \
+  --out artifacts/field-validation.json \
+  --require-pass
+```
+
+The validator fails closed when:
+
+- the runtime receipt or prediction series hash has been altered;
+- the field bundle references a stale protocol SHA;
+- measurements were captured before protocol approval;
+- the sensor source lacks model, serial, or calibration reference;
+- any runtime prediction step is omitted;
+- the measurement bundle tries to provide its own post-hoc thresholds;
+- zone/opening coverage is incomplete.
+
+A passing receipt reports:
+
+```text
+FIELD_VALIDATION_PASSED
+engineering_inputs_ready = true
+runtime_verified = true
+engineering_model_verified = true
+field_validation_verified = true
+engineering_truth = true
+```
+
+Here `engineering_truth=true` is intentionally scoped: it means the model met the approved validation thresholds for this topology, these measured signals, and this tested operating window. It is not a claim of universal validity outside that scope.
+
+Templates are provided at:
+
+```text
+examples/field_validation_protocol.template.json
+examples/field_measurements.template.json
+```
+
+The protocol template is deliberately unapproved by default.
