@@ -8,6 +8,7 @@ from airtrajectory.contam_ir import compile_contam_ir
 from airtrajectory.contam_profile import bind_airflow_elements, illustrative_opening_profile
 from airtrajectory.contam_prj_profile import (
     bind_prj_serialization_profile,
+    derive_nist_orifice_storage,
     ppmv_to_mass_fraction,
 )
 from airtrajectory.layout import LayoutContract
@@ -168,6 +169,18 @@ class ContamPrjProfileTests(unittest.TestCase):
                 profile(),
                 require_engineering_validated=True,
             )
+
+
+    def test_nist_orifice_derivation_matches_known_contam_values(self):
+        values = derive_nist_orifice_storage(
+            flow_area_m2=0.1,
+            discharge_coefficient=1.0,
+            flow_exponent=0.5,
+            transition_reynolds_number=30.0,
+        )
+        self.assertAlmostEqual(values["turbulent_flow_coefficient"], 0.141421356, places=6)
+        self.assertAlmostEqual(values["hydraulic_diameter_m"], 0.356824823, places=6)
+        self.assertAlmostEqual(values["laminar_flow_coefficient"], 0.00237882, places=6)
 
 
 if __name__ == "__main__":
