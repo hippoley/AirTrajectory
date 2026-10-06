@@ -1,0 +1,69 @@
+{
+  "schema_version": "0.1",
+  "profile_id": "vendor-windowpilot-v1",
+  "endpoints": {
+    "/api/capabilities": {
+      "execution.simulated": {
+        "path": "runtime.isSimulated",
+        "coerce": "bool"
+      },
+      "execution.measured_position": {
+        "path": "runtime.position.measured",
+        "coerce": "bool"
+      },
+      "execution.transport": {
+        "path": "runtime.transport",
+        "coerce": "string"
+      }
+    },
+    "/api/physical-readiness": {
+      "hardware_identity.identity_sha256": "device.identity.sha256",
+      "latest_position_feedback.measured": {
+        "path": "position.measured",
+        "coerce": "bool"
+      },
+      "latest_position_feedback.position_pct": {
+        "path": "position.positionPercent",
+        "coerce": "float"
+      },
+      "latest_position_feedback.timestamp": {
+        "path": "position.timestamp",
+        "coerce": "float"
+      },
+      "latest_position_feedback.quality": "position.quality",
+      "latest_position_feedback.source": "position.source"
+    },
+    "/api/state": {
+      "thing_model.sensors.co2_ppm": {
+        "path": "telemetry.co2.value",
+        "coerce": "float"
+      },
+      "thing_model.sensor_timestamps.co2_ppm": {
+        "path": "telemetry.co2.timestamp",
+        "coerce": "float"
+      },
+      "thing_model.sensor_evidence.co2_ppm.measured": {
+        "path": "telemetry.co2.measured",
+        "coerce": "bool"
+      },
+      "thing_model.sensor_evidence.co2_ppm.timestamp": {
+        "path": "telemetry.co2.timestamp",
+        "coerce": "float"
+      },
+      "thing_model.sensor_evidence.co2_ppm.source": "telemetry.co2.source",
+      "thing_model.sensor_evidence.co2_ppm.quality": "telemetry.co2.quality",
+      "thing_model.sensor_evidence.co2_ppm.thingmodel_binding.product_model": "telemetry.co2.binding.productModel",
+      "thing_model.sensor_evidence.co2_ppm.thingmodel_binding.product_key": "telemetry.co2.binding.productKey",
+      "thing_model.sensor_evidence.co2_ppm.thingmodel_binding.device_id": "telemetry.co2.binding.deviceId",
+      "thing_model.sensor_evidence.co2_ppm.thingmodel_binding.property": "telemetry.co2.binding.property",
+      "thing_model.sensor_evidence.co2_ppm.thingmodel_binding.source_sha256": "telemetry.co2.binding.sourceSha256",
+      "thing_model.sensor_evidence.co2_ppm.thingmodel_binding.source_bundle_sha256": "telemetry.co2.binding.sourceBundleSha256",
+      "thing_model.sensor_evidence.co2_ppm.thingmodel_binding.registry_sha256": "telemetry.co2.binding.registrySha256",
+      "thing_model.sensor_evidence.co2_ppm.thingmodel_binding.contract_sha256": "telemetry.co2.binding.contractSha256",
+      "thing_model.sensor_evidence.co2_ppm.thingmodel_binding.site_id": "telemetry.co2.binding.siteId",
+      "thing_model.sensor_evidence.co2_ppm.thingmodel_binding.site_instance_id": "telemetry.co2.binding.siteInstanceId",
+      "thing_model.sensor_evidence.co2_ppm.thingmodel_binding.site_manifest_sha256": "telemetry.co2.binding.siteManifestSha256",
+      "thing_model.sensor_evidence.co2_ppm.thingmodel_binding.site_contract_sha256": "telemetry.co2.binding.siteContractSha256"
+    }
+  }
+}
