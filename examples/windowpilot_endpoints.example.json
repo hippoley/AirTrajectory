@@ -37,6 +37,8 @@
       "living": "W1",
       "bedroom": "W2",
       "study": "W3"
-    }
+    },
+    "max_sample_age_s": 10,
+    "max_future_skew_s": 2
   }
 }
