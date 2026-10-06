@@ -125,6 +125,13 @@ class FakeRealDriver(PhysicalWindowDriver):
 
     def physical_readiness(self):
         return {
+            "hardware_identity": {
+                "identity_sha256": {
+                    "W1": "1" * 64,
+                    "W2": "2" * 64,
+                    "W3": "3" * 64,
+                }[self.opening_id],
+            },
             "latest_position_feedback": {
                 "position_pct": {
                     "W1": 75.0,
@@ -238,6 +245,43 @@ class WindowPilotFieldCaptureTests(unittest.TestCase):
                 protocol=protocol(),
                 runtime_receipt=runtime(self.layout),
                 validation_id="wp-run-003",
+                sleep_fn=self.sleep,
+                clock_fn=lambda: self.clock["now"],
+            )
+
+    def test_cross_site_co2_sources_are_rejected(self):
+        class OtherSite(FakeRealDriver):
+            def read_sensors(self):
+                rows = super().read_sensors()
+                row = rows[0]
+                return [
+                    SensorReading(
+                        sensor_id=row.sensor_id,
+                        sensor_type=row.sensor_type,
+                        value=row.value,
+                        unit=row.unit,
+                        timestamp=row.timestamp,
+                        quality=row.quality,
+                        provenance={
+                            **row.provenance,
+                            "site_id": "site-b",
+                        },
+                    )
+                ]
+
+        bad = dict(self.drivers)
+        bad["W3"] = OtherSite("W3", 805.0, self.clock)
+        with self.assertRaisesRegex(
+            RuntimeError,
+            "spans multiple physical sites",
+        ):
+            collect_windowpilot_field_capture(
+                layout=self.layout,
+                config=config(),
+                drivers=bad,
+                protocol=protocol(),
+                runtime_receipt=runtime(self.layout),
+                validation_id="wp-run-005",
                 sleep_fn=self.sleep,
                 clock_fn=lambda: self.clock["now"],
             )
