@@ -185,11 +185,15 @@ def bind_airflow_elements(
         for path in paths
     ]
 
+    canonical_elements = sorted(
+        bound_elements,
+        key=lambda item: item["key"],
+    )
     binding_payload = {
         "profile_id": profile["profile_id"],
         "profile_sha256": _sha256(profile),
         "element_numbers": element_numbers,
-        "airflow_elements": bound_elements,
+        "airflow_elements": canonical_elements,
     }
 
     writer_contract = dict(manifest.get("writer_contract") or {})
