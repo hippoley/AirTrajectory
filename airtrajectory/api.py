@@ -79,13 +79,15 @@ def _fork_request(req: ForkRequest, decision_trace) -> Dict[str, Any]:
     decision_trace.attributes["branch.count"]=len(branches)
     decision_trace.events.extend({"name":"branch.result","label":label,"target_pct":branch.actions[0].target_pct,"return":round(branch.return_value,3)} for label,branch in branches.items())
     return {
-        "schema_version":"0.1","request_id":req.request_id,"trace_id":decision_trace.trace_id,"topology_id":req.topology_id,
-        "origin_kind":"post-action-snapshot","backend":"toy-multizone-v1","horizon_minutes":req.horizon_minutes,
+        "schema_version":"0.2","request_id":req.request_id,"trace_id":decision_trace.trace_id,"topology_id":req.topology_id,
+        "origin_kind":"post-action-snapshot","backend":"toy-multizone-v1","physics_fidelity":"TOY",
+        "trusted_for_promotion":False,"horizon_minutes":req.horizon_minutes,
         "branches":[{
             "label":label,"target_pct":branch.actions[0].target_pct,
             "end_co2_ppm":round(branch.observations[-1]["co2_ppm"]["living"]),
             "series":[round(o["co2_ppm"]["living"]) for o in branch.observations],
             "return":round(branch.return_value,3),
-            "provenance":"backend-generated · toy-multizone-v1 · not engineering truth"
+            "provenance":"backend-generated · toy-multizone-v1 · not engineering truth",
+            "trusted_for_promotion":False
         } for label,branch in branches.items()]
     }
