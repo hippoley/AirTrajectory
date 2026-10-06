@@ -27,10 +27,11 @@ class ContamControl:
 
 class ContamXSession:
     """Thin lifecycle wrapper around NIST contamxpy.cxLib."""
-    def __init__(self,prj_path:str|Path,binding_factory:Optional[Callable]=None,verbosity:int=0):
+    def __init__(self,prj_path:str|Path,binding_factory:Optional[Callable]=None,verbosity:int=0,ambient:Optional[dict]=None):
         self.prj_path=Path(prj_path)
         self.binding_factory=binding_factory
         self.verbosity=verbosity
+        self.ambient=dict(ambient or {})
         self.engine=None
         self.started=False
 
@@ -50,9 +51,21 @@ class ContamXSession:
             raise FileNotFoundError(self.prj_path)
         factory=self._factory()
         # contamxpy 0.0.9 binds one cxLib instance to a specific PRJ path.
-        self.engine=factory(str(self.prj_path),0,True)
+        init_callback=None
+        if self.ambient:
+            ambient=dict(self.ambient)
+            def init_callback(cx):
+                if "pressure_pa" in ambient: cx.setAmbtPressure(float(ambient["pressure_pa"]))
+                if "wind_speed_m_s" in ambient: cx.setAmbtWindSpeed(float(ambient["wind_speed_m_s"]))
+                if "wind_direction_deg" in ambient: cx.setAmbtWindDirection(float(ambient["wind_direction_deg"]))
+                if "temperature_k" in ambient: cx.setAmbtTemperature(float(ambient["temperature_k"]))
+                for number,value in (ambient.get("mass_fractions") or {}).items():
+                    cx.setAmbtMassFraction(int(number),float(value))
+        self.engine=factory(str(self.prj_path),0,True,init_callback)
         if hasattr(self.engine,"setVerbosity"): self.engine.setVerbosity(self.verbosity)
-        self.engine.setupSimulation(1)
+        setup_status=self.engine.setupSimulation(1)
+        if setup_status not in (None,0):
+            raise RuntimeError(f"ContamX setupSimulation failed with status {setup_status}")
         self.started=True
         return {
             "version":self.engine.getVersion() if hasattr(self.engine,"getVersion") else "unknown",
@@ -119,13 +132,14 @@ class CONTAMEnvironment(VentilationEnvironment):
         co2_contaminant_number:int=1,path_numbers:Optional[Dict[str,int]]=None,max_steps:int=120,
         binding_factory:Optional[Callable]=None,fixed_openings:Optional[Dict[str,float]]=None,
         initial_openings:Optional[Dict[str,float]]=None,rain:Optional[bool]=False,
-        initial_co2_ppm:Optional[Dict[str,float]]=None,
+        initial_co2_ppm:Optional[Dict[str,float]]=None,ambient:Optional[dict]=None,
     ):
         self.topology=topology; self.prj_path=Path(prj_path); self.zone_numbers=dict(zone_numbers)
         self.opening_controls=dict(opening_controls); self.co2_contaminant_number=co2_contaminant_number
         self.path_numbers=dict(path_numbers or {}); self.max_steps=max_steps; self.binding_factory=binding_factory
         self.fixed_openings={k:float(v) for k,v in (fixed_openings or {}).items()}
         self.rain=rain
+        self.ambient=dict(ambient or {})
         self.initial_co2_ppm={k:float(v) for k,v in (initial_co2_ppm or {}).items()}
         self.initial_openings={k:float(v) for k,v in (initial_openings or {}).items()}
         self.session=None; self._step=0; self.openings={k:self.initial_openings.get(k,0.0) for k in topology.openings}
@@ -156,7 +170,7 @@ class CONTAMEnvironment(VentilationEnvironment):
 
     def reset(self,seed=None):
         if self.session is not None: self.session.close()
-        self.session=ContamXSession(self.prj_path,self.binding_factory)
+        self.session=ContamXSession(self.prj_path,self.binding_factory,ambient=self.ambient)
         meta=self.session.setup(); self._step=0; self.openings={k:self.initial_openings.get(k,0.0) for k in self.topology.openings}; self.openings.update(self.fixed_openings)
         return self._initial_observation(),{"backend":"contamxpy","physics_fidelity":"CONTAM","contam":meta,"initial_state_source":"prj-profile"}
 
