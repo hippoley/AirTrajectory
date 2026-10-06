@@ -81,6 +81,7 @@ def _stable_endpoint_contract(endpoint: dict[str, Any]) -> dict[str, Any]:
             "co2_value_present": observed.get("co2_value_present"),
             "co2_timestamp_present": observed.get("co2_timestamp_present"),
             "co2_evidence_present": observed.get("co2_evidence_present"),
+            "contract_mapping": endpoint.get("contract_mapping"),
         },
         "instance": {
             "base_url_sha256": endpoint.get("base_url_sha256"),

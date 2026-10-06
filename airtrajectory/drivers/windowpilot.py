@@ -21,6 +21,7 @@ class WindowPilotHTTPDriver(PhysicalWindowDriver):
         base_url: str="http://127.0.0.1:8000",
         timeout_s: float=2.0,
         request_json: Callable|None=None,
+        response_adapter: Callable|None=None,
         feedback_timeout_s: float=5.0,
         feedback_poll_interval_s: float=0.1,
         position_tolerance_pct: float=1.0,
@@ -34,9 +35,36 @@ class WindowPilotHTTPDriver(PhysicalWindowDriver):
         self.feedback_poll_interval_s=float(feedback_poll_interval_s)
         self.position_tolerance_pct=float(position_tolerance_pct)
         self.stop_on_feedback_timeout=bool(stop_on_feedback_timeout)
-        self._request_json=request_json or self._stdlib_request
+        self._raw_request_json=request_json or self._stdlib_request
+        self._response_adapter=response_adapter
         self._sleep=sleep_fn
         self._clock=clock_fn
+
+    def _request_json(self, method: str, path: str, payload=None):
+        raw=self._raw_request_json(method,path,payload)
+        if (
+            method == "GET"
+            and self._response_adapter is not None
+            and path in {
+                "/api/capabilities",
+                "/api/physical-readiness",
+                "/api/state",
+            }
+        ):
+            return self._response_adapter(path, raw)
+        return raw
+
+    def contract_mapping_identity(self):
+        adapter=self._response_adapter
+        if adapter is None:
+            return {
+                "profile_id": None,
+                "profile_sha256": None,
+            }
+        return {
+            "profile_id": getattr(adapter,"profile_id",None),
+            "profile_sha256": getattr(adapter,"profile_sha256",None),
+        }
 
     def _capability_payload(self):
         try:

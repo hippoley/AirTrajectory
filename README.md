@@ -1254,3 +1254,80 @@ python examples/run_windowpilot_field_validation.py \
 The pipeline does not run a second preflight merely to build the bundle. The bundle is generated from the same preflight receipt that gates the subsequent timed sampling, and the final pipeline receipt binds `startup_bundle_sha256`.
 
 Requesting a startup bundle without a contract baseline/current probe fails closed.
+
+
+### Declarative WindowPilot contract mapping
+
+If a real WindowPilot/vendor runtime exposes the right semantics under different JSON paths, adapt the response contract with a declarative mapping profile instead of changing AirTrajectory validation code.
+
+A mapping profile can normalize only these read-only endpoints:
+
+```text
+GET /api/capabilities
+GET /api/physical-readiness
+GET /api/state
+```
+
+Example profile:
+
+```text
+examples/windowpilot_contract_mapping.example.json
+```
+
+Profiles are referenced from the endpoint configuration:
+
+```json
+{
+  "contract_mapping_profiles": {
+    "vendor-v1": {
+      "...": "copy the validated mapping profile here"
+    }
+  },
+  "windowpilot_endpoints": {
+    "W1": {
+      "base_url": "http://127.0.0.1:8101",
+      "contract_mapping_profile": "vendor-v1"
+    }
+  }
+}
+```
+
+The mapping DSL supports only:
+
+```text
+source JSON path
+→ canonical JSON path
++ optional coercion: identity / string / float / int / bool
++ optional non-required/default behavior
+```
+
+There is no expression evaluation or executable transformation. Unmapped vendor fields are not copied into the canonical payload.
+
+The same normalized mapping is used by:
+
+```text
+WindowPilotHTTPDriver
+contract probe
+preflight
+field capture
+validation
+```
+
+POST actuator requests are never transformed by the response mapping layer.
+
+Every normalized profile receives a deterministic `profile_sha256`. The contract probe exposes the active `profile_id/profile_sha256`, and the frozen WindowPilot contract baseline includes that mapping identity. Changing the mapping profile therefore produces `CONTRACT_DRIFT` even when the resulting JSON shape happens to remain the same.
+
+Recommended first-hardware workflow when the raw API shape differs:
+
+```text
+raw real payload
+→ contract probe identifies mismatch
+→ write/update mapping profile
+→ probe canonicalized contract
+→ COMPATIBLE
+→ freeze baseline
+→ preflight
+→ startup bundle / timed field validation
+```
+
+A mapping profile only normalizes representation. It must not be used to manufacture missing measured evidence, hardware identity, timestamps, or site lineage.
