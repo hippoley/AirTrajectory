@@ -43,9 +43,9 @@
     "time_step_s": 60
   },
   "path_records": {
-    "path:W1": {"prj_flags": 0, "filter_number": 0, "wind_profile_number": 0, "ahs_number": 0, "schedule_number": 0, "level_number": 1, "x_m": 0.0, "y_m": 1.8, "relative_height_m": 0.9, "element_multiplier": 1.0, "constant_wind_pressure_pa": 0.0, "wind_speed_modifier": 1.0},
-    "path:W2": {"prj_flags": 0, "filter_number": 0, "wind_profile_number": 0, "ahs_number": 0, "schedule_number": 0, "level_number": 1, "x_m": 5.0, "y_m": 1.7, "relative_height_m": 0.9, "element_multiplier": 1.0, "constant_wind_pressure_pa": 0.0, "wind_speed_modifier": 1.0},
-    "path:W3": {"prj_flags": 0, "filter_number": 0, "wind_profile_number": 0, "ahs_number": 0, "schedule_number": 0, "level_number": 1, "x_m": 3.8, "y_m": 5.0, "relative_height_m": 0.9, "element_multiplier": 1.0, "constant_wind_pressure_pa": 0.0, "wind_speed_modifier": 1.0},
+    "path:W1": {"prj_flags": 0, "filter_number": 0, "wind_profile_number": 0, "ahs_number": 0, "schedule_number": 0, "level_number": 1, "x_m": 0.0, "y_m": 1.8, "relative_height_m": 0.9, "element_multiplier": 1.0, "constant_wind_pressure_pa": 5.0, "wind_speed_modifier": 1.0},
+    "path:W2": {"prj_flags": 0, "filter_number": 0, "wind_profile_number": 0, "ahs_number": 0, "schedule_number": 0, "level_number": 1, "x_m": 5.0, "y_m": 1.7, "relative_height_m": 0.9, "element_multiplier": 1.0, "constant_wind_pressure_pa": -3.0, "wind_speed_modifier": 1.0},
+    "path:W3": {"prj_flags": 0, "filter_number": 0, "wind_profile_number": 0, "ahs_number": 0, "schedule_number": 0, "level_number": 1, "x_m": 3.8, "y_m": 5.0, "relative_height_m": 0.9, "element_multiplier": 1.0, "constant_wind_pressure_pa": 2.0, "wind_speed_modifier": 1.0},
     "path:D1": {"prj_flags": 0, "filter_number": 0, "wind_profile_number": 0, "ahs_number": 0, "schedule_number": 0, "level_number": 1, "x_m": 5.0, "y_m": 2.8, "relative_height_m": 0.0, "element_multiplier": 1.0, "constant_wind_pressure_pa": 0.0, "wind_speed_modifier": 1.0},
     "path:D2": {"prj_flags": 0, "filter_number": 0, "wind_profile_number": 0, "ahs_number": 0, "schedule_number": 0, "level_number": 1, "x_m": 2.5, "y_m": 5.0, "relative_height_m": 0.0, "element_multiplier": 1.0, "constant_wind_pressure_pa": 0.0, "wind_speed_modifier": 1.0}
   }
