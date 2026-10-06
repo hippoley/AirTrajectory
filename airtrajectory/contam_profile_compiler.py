@@ -91,7 +91,7 @@ def compile_metric_overlay_from_evidence(
         "profile_id": f"metric-from-{receipt['evidence_id']}",
         "topology_id": layout.topology_id,
         "evidence_level": "measured",
-        "engineering_validated": True,
+        "engineering_validated": bool((receipt.get("approval") or {}).get("approved")),
         "source": _source_from(receipt),
         "evidence_receipts": [receipt],
         "rooms": {
@@ -161,7 +161,7 @@ def compile_airflow_profile_from_evidence(
         "schema_version": "0.1",
         "profile_id": f"airflow-from-{receipt['evidence_id']}",
         "evidence_level": "calibrated",
-        "engineering_validated": True,
+        "engineering_validated": bool((receipt.get("approval") or {}).get("approved")),
         "source": _source_from(receipt),
         "evidence_receipts": [receipt],
         "rules": rules,
@@ -221,7 +221,7 @@ def compile_boundary_profile_from_evidence(
         "schema_version": "0.1",
         "profile_id": f"boundary-from-{receipt['evidence_id']}",
         "evidence_level": "measured",
-        "engineering_validated": True,
+        "engineering_validated": bool((receipt.get("approval") or {}).get("approved")),
         "source": _source_from(receipt),
         "evidence_receipts": [receipt],
         "weather": {

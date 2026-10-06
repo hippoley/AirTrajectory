@@ -8,8 +8,8 @@ from airtrajectory.contam_engineering_readiness import (
 TOPOLOGY = "demo.fixed-three-room.v1"
 
 
-def receipt(evidence_type, marker):
-    return {
+def receipt(evidence_type, marker, *, approved=False):
+    payload = {
         "schema_version": "0.1",
         "evidence_id": marker,
         "evidence_type": evidence_type,
@@ -20,6 +20,16 @@ def receipt(evidence_type, marker):
         "summary": {"data_sha256": marker[0] * 64},
         "receipt_sha256": marker[-1] * 64,
     }
+    if approved:
+        payload["approval"] = {
+            "approved": True,
+            "approved_by": "Engineer A",
+            "approved_role": "HVAC engineer",
+            "approved_at": "2026-10-06T06:30:00Z",
+        }
+    else:
+        payload["approval"] = None
+    return payload
 
 
 def provenance():
@@ -74,7 +84,11 @@ def approve_with_receipts(payload):
         payload[key]["engineering_validated"] = True
         payload[key]["evidence_level"] = "approved"
         payload[key]["evidence_receipts"] = [
-            receipt(evidence_type, f"e{index}")
+            receipt(
+                evidence_type,
+                f"e{index}",
+                approved=evidence_type != "prj_engineering_review",
+            )
         ]
     return payload
 
@@ -115,6 +129,16 @@ class ContamEngineeringReadinessTests(unittest.TestCase):
                 "missing_required_evidence_receipt" in blockers
                 for blockers in result["blockers"].values()
             )
+        )
+
+    def test_unapproved_measurement_receipt_still_fails(self):
+        payload = approve_with_receipts(provenance())
+        payload["airflow_profile"]["evidence_receipts"][0]["approval"] = None
+        result = audit_engineering_readiness(payload)
+        self.assertFalse(result["engineering_ready"])
+        self.assertIn(
+            "evidence_receipt_not_approved",
+            result["blockers"]["airflow_calibration"],
         )
 
     def test_all_engineering_validated_profiles_with_typed_receipts_can_pass(self):
