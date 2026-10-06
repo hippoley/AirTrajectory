@@ -1331,3 +1331,64 @@ raw real payload
 ```
 
 A mapping profile only normalizes representation. It must not be used to manufacture missing measured evidence, hardware identity, timestamps, or site lineage.
+
+
+### Offline mapping fixture evaluation
+
+When the first real device payloads are available, save the three read-only GET responses and iterate on the mapping profile offline before returning to the site:
+
+```bash
+python examples/evaluate_windowpilot_mapping_fixture.py \
+  examples/windowpilot_contract_mapping.example.json \
+  captures/capabilities.json \
+  captures/physical-readiness.json \
+  captures/state.json \
+  --fixture-id site-a-w1-first-contact \
+  --report-out artifacts/windowpilot-mapping-evaluation.json \
+  --canonical-out artifacts/windowpilot-canonical-payloads.json \
+  --require-compatible
+```
+
+The evaluator performs no network requests and no actuator writes. It distinguishes:
+
+```text
+MAPPING_ERROR
+  source path/coercion/profile problem
+
+INCOMPATIBLE
+  mapping succeeded, but canonical semantics still fail the WindowPilot contract
+
+PARTIAL
+  canonical contract has warnings only
+
+COMPATIBLE
+  mapped payload satisfies the compatibility probe
+```
+
+The report binds:
+
+```text
+mapping profile id / SHA
+exact raw file SHA-256 per endpoint
+canonical payload SHA-256 per endpoint
+compatibility probe receipt SHA
+evaluation SHA
+```
+
+Raw file hashes are calculated from the exact bytes, not normalized JSON. Two files with identical JSON semantics but different bytes therefore have different raw evidence hashes while producing the same canonical payload hash.
+
+The evaluation report does not copy the raw vendor payload. Canonical payloads are written only when `--canonical-out` is requested.
+
+Recommended first-contact loop:
+
+```text
+save real GET payloads once
+→ offline mapping evaluation
+→ edit mapping profile
+→ COMPATIBLE
+→ reconnect to site
+→ live contract probe
+→ freeze baseline
+→ preflight
+→ startup bundle / field validation
+```
