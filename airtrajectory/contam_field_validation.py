@@ -100,12 +100,28 @@ def validate_field_validation_protocol(
         )
     zones = sorted(str(x) for x in (co2.get("zones") or []))
     openings = sorted(str(x) for x in (opening.get("openings") or []))
+    fixed_openings_raw = opening.get("fixed_openings") or {}
+    if not isinstance(fixed_openings_raw, dict):
+        raise ValueError("opening_position fixed_openings must be an object")
+    fixed_openings = {
+        str(key): float(value)
+        for key, value in fixed_openings_raw.items()
+    }
     if zones != expected_zones:
         raise ValueError("field validation protocol must cover all topology zones")
-    if openings != expected_openings:
+    if set(openings) & set(fixed_openings):
         raise ValueError(
-            "field validation protocol must cover all topology openings"
+            "opening_position measured and fixed openings must be disjoint"
         )
+    if sorted(set(openings) | set(fixed_openings)) != expected_openings:
+        raise ValueError(
+            "field validation protocol must account for all topology openings"
+        )
+    for opening_id, value in fixed_openings.items():
+        if not 0 <= value <= 100:
+            raise ValueError(
+                f"fixed opening {opening_id} must be in [0,100]"
+            )
 
     min_samples = int(protocol.get("min_samples"))
     if min_samples < 2:
@@ -147,7 +163,8 @@ def validate_field_validation_protocol(
             "mae_ppm_max": co2_mae,
         },
         "opening_position": {
-            "openings": expected_openings,
+            "openings": openings,
+            "fixed_openings": dict(sorted(fixed_openings.items())),
             "mae_pct_max": opening_mae,
         },
         "alignment": {
@@ -423,6 +440,9 @@ def validate_contam_against_field(
         "sample_count": len(measurements["samples"]),
         "co2_metrics": co2_metrics,
         "opening_position_metrics": opening_metrics,
+        "fixed_opening_assumptions": normalized_protocol[
+            "opening_position"
+        ]["fixed_openings"],
         "engineering_inputs_ready": True,
         "runtime_verified": True,
         "engineering_model_verified": True,
@@ -430,7 +450,8 @@ def validate_contam_against_field(
         "engineering_truth": passed,
         "engineering_truth_scope": (
             "Validated only for the approved protocol, topology, measured "
-            "signals, thresholds, and tested operating window."
+            "signals/openings, declared fixed-opening assumptions, thresholds, "
+            "and tested operating window."
         ),
         "evidence_boundary": (
             "Passing this gate demonstrates prediction-vs-field agreement "
