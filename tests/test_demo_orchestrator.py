@@ -184,6 +184,7 @@ class DemoOrchestratorTests(unittest.TestCase):
                     "W2":"W2_open",
                     "W3":"W3_open",
                 },
+                "initial_co2_ppm":{"living":1400.0,"bedroom":1300.0,"study":1250.0},
             }
             result=run_demo(
                 snap,
