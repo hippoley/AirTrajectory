@@ -68,12 +68,24 @@ class ContamPrjSerializerTests(unittest.TestCase):
         self.assertIn("3 ! zones:",text)
         self.assertIn("5 ! flow paths:",text)
         self.assertIn("1 ! species:",text)
+        self.assertIn("3 ! control nodes:",text)
+        self.assertIn("W1_open",text)
+        self.assertIn("W2_open",text)
+        self.assertIn("W3_open",text)
         self.assertIn("* end project file.",text)
 
     def test_exterior_and_internal_zone_numbers_are_rendered(self):
         text=render_minimal_prj(ready_manifest())
         self.assertIn("-1    1",text)
         self.assertIn("1    2",text)
+
+    def test_only_exterior_windows_receive_dynamic_controls(self):
+        text=render_minimal_prj(ready_manifest())
+        self.assertIn("W1_open",text)
+        self.assertIn("W2_open",text)
+        self.assertIn("W3_open",text)
+        self.assertNotIn("D1_open",text)
+        self.assertNotIn("D2_open",text)
 
     def test_not_ready_manifest_is_rejected(self):
         m=ready_manifest()
