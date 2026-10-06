@@ -1119,3 +1119,50 @@ contract probe
 → timed read-only field capture
 → prediction-vs-field validation
 ```
+
+
+### Baseline-gated WindowPilot field validation
+
+The one-command WindowPilot field-validation CLI can now enforce a frozen contract baseline before preflight and timed sampling.
+
+```bash
+python examples/run_windowpilot_field_validation.py \
+  artifacts/engineering-runtime.json \
+  artifacts/field-validation-protocol.frozen.json \
+  path/to/windowpilot-endpoints.json \
+  --validation-id site-run-001 \
+  --contract-baseline artifacts/windowpilot-contract-baseline.json \
+  --probe-out artifacts/windowpilot-contract-probe.current.json \
+  --contract-check-out artifacts/windowpilot-contract-drift.json \
+  --out artifacts/windowpilot-field-validation.json \
+  --capture-out artifacts/windowpilot-field-capture.json \
+  --aligned-out artifacts/windowpilot-field-aligned.json \
+  --require-pass
+```
+
+When `--contract-baseline` is provided, the startup sequence is mandatory:
+
+```text
+live contract probe
+→ frozen baseline comparison
+→ MATCH required
+→ WindowPilot validation preflight
+→ timed read-only sampling
+→ alignment
+→ prediction-vs-field validation
+```
+
+A contract drift exits before preflight/sampling with a dedicated non-zero exit code. The core pipeline also recomputes the baseline comparison, so bypassing the CLI-side check cannot silently skip the gate.
+
+A successful pipeline receipt binds:
+
+```text
+contract_baseline_sha256
+contract_probe_receipt_sha256
+contract_comparison_sha256
+preflight_receipt_sha256
+windowpilot_capture_sha256
+alignment_sha256
+field_validation_receipt_sha256
+pipeline_receipt_sha256
+```
