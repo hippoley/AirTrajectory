@@ -17,6 +17,12 @@ class TransitionAction:
 
 
 @dataclass(frozen=True)
+class ScalarControlAction:
+    actuator_id: str
+    target_value: float
+
+
+@dataclass(frozen=True)
 class SemanticAction:
     target_type: str
     target_id: str

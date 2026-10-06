@@ -9,7 +9,7 @@ import importlib
 from typing import Callable, Dict, Optional
 
 from .environment import VentilationEnvironment
-from .trajectory import RewardVector, TransitionAction
+from .trajectory import RewardVector, TransitionAction, ScalarControlAction
 
 def co2_mass_fraction_to_ppm(value: float) -> float:
     # ppmv ~= mass fraction * M_air / M_CO2 * 1e6
@@ -24,6 +24,27 @@ class ContamControl:
 
     def value_for_pct(self,pct:float)->float:
         return self.closed_value+(self.open_value-self.closed_value)*(float(pct)/100.0)
+
+@dataclass(frozen=True)
+class ContamScalarControl:
+    control_number: int = 0
+    control_name: str | None = None
+    command_min: float = 0.0
+    command_max: float = 1.0
+    control_min: float = 0.0
+    control_max: float = 1.0
+
+    def value_for_command(self,command:float)->float:
+        x=float(command)
+        if self.command_max<=self.command_min:
+            raise ValueError("command_max must be greater than command_min")
+        if x<self.command_min or x>self.command_max:
+            raise ValueError(
+                f"scalar command {x} outside [{self.command_min}, {self.command_max}]"
+            )
+        ratio=(x-self.command_min)/(self.command_max-self.command_min)
+        return self.control_min+(self.control_max-self.control_min)*ratio
+
 
 class ContamXSession:
     """Thin lifecycle wrapper around NIST contamxpy.cxLib."""
@@ -144,6 +165,8 @@ class CONTAMEnvironment(VentilationEnvironment):
         initial_openings:Optional[Dict[str,float]]=None,rain:Optional[bool]=False,
         initial_co2_ppm:Optional[Dict[str,float]]=None,ambient:Optional[dict]=None,
         initial_input_controls:Optional[dict]=None,warm_start:bool=True,
+        scalar_controls:Optional[Dict[str,ContamScalarControl]]=None,
+        initial_scalar_values:Optional[Dict[str,float]]=None,
     ):
         self.topology=topology; self.prj_path=Path(prj_path); self.zone_numbers=dict(zone_numbers)
         self.opening_controls=dict(opening_controls); self.co2_contaminant_index=co2_contaminant_index
@@ -152,11 +175,14 @@ class CONTAMEnvironment(VentilationEnvironment):
         self.rain=rain
         self.ambient=dict(ambient or {})
         self.initial_input_controls={int(k):dict(v) for k,v in (initial_input_controls or {}).items()}
+        self.scalar_controls=dict(scalar_controls or {})
+        self.initial_scalar_values={k:float(v) for k,v in (initial_scalar_values or {}).items()}
         self.warm_start=bool(warm_start)
         self.initial_co2_ppm={k:float(v) for k,v in (initial_co2_ppm or {}).items()}
         self.initial_openings={k:float(v) for k,v in (initial_openings or {}).items()}
         self.session=None; self._step=0; self.openings={k:self.initial_openings.get(k,0.0) for k in topology.openings}
         self.openings.update(self.fixed_openings)
+        self.scalar_values=dict(self.initial_scalar_values)
         missing=set(topology.zones)-set(self.zone_numbers)
         if missing: raise ValueError("missing CONTAM zone mappings: "+",".join(sorted(missing)))
         if self.initial_co2_ppm:
@@ -170,21 +196,34 @@ class CONTAMEnvironment(VentilationEnvironment):
         if fixed_unknown: raise ValueError("unknown fixed openings: "+",".join(sorted(fixed_unknown)))
         overlap=set(self.opening_controls)&set(self.fixed_openings)
         if overlap: raise ValueError("opening cannot be both CONTAM-controlled and fixed: "+",".join(sorted(overlap)))
+        if self.scalar_controls:
+            missing_scalar=set(self.scalar_controls)-set(self.initial_scalar_values)
+            unknown_scalar=set(self.initial_scalar_values)-set(self.scalar_controls)
+            if missing_scalar or unknown_scalar:
+                raise ValueError("initial scalar control mapping must exactly cover scalar controls")
+        def control_ref(control):
+            return ("name",str(control.control_name)) if control.control_name else ("number",int(control.control_number))
+        opening_refs={control_ref(v) for v in self.opening_controls.values()}
+        scalar_refs={control_ref(v) for v in self.scalar_controls.values()}
+        collision=opening_refs & scalar_refs
+        if collision:
+            raise ValueError("CONTAM input control cannot be shared by opening and scalar actuator")
 
     def _observation(self):
         co2={z:co2_mass_fraction_to_ppm(self.session.zone_mass_fraction(n,self.co2_contaminant_index)) for z,n in self.zone_numbers.items()}
         flows={oid:self.session.path_flow(n) for oid,n in self.path_numbers.items()}
-        return {"step":self._step,"co2_ppm":co2,"rain":self.rain,"opening_pct":dict(self.openings),"path_flow_kg_s":flows,"state_source":"contam-solved"}
+        return {"step":self._step,"co2_ppm":co2,"rain":self.rain,"opening_pct":dict(self.openings),"scalar_values":dict(self.scalar_values),"path_flow_kg_s":flows,"state_source":"contam-solved"}
 
     def _initial_observation(self):
         if not self.initial_co2_ppm:
             raise RuntimeError("CONTAM environment requires explicit initial_co2_ppm before the first solve")
-        return {"step":0,"co2_ppm":dict(self.initial_co2_ppm),"rain":self.rain,"opening_pct":dict(self.openings),"path_flow_kg_s":{},"state_source":"prj-profile-initial"}
+        return {"step":0,"co2_ppm":dict(self.initial_co2_ppm),"rain":self.rain,"opening_pct":dict(self.openings),"scalar_values":dict(self.scalar_values),"path_flow_kg_s":{},"state_source":"prj-profile-initial"}
 
     def reset(self,seed=None):
         if self.session is not None: self.session.close()
         self.session=ContamXSession(self.prj_path,self.binding_factory,ambient=self.ambient,initial_input_controls=self.initial_input_controls)
         meta=self.session.setup(); self._step=0; self.openings={k:self.initial_openings.get(k,0.0) for k in self.topology.openings}; self.openings.update(self.fixed_openings)
+        self.scalar_values=dict(self.initial_scalar_values)
         warm_start_steps=0
         warm_start_controls={}
         warm_start_anchor_opening_id=None
@@ -206,31 +245,57 @@ class CONTAMEnvironment(VentilationEnvironment):
             warm_start_steps=1
             for index,spec in self.initial_input_controls.items():
                 self.session.set_input_control(int(index),float(spec["value"]))
-        return self._initial_observation(),{"backend":"contamxpy","physics_fidelity":"CONTAM","contam":meta,"initial_state_source":"prj-profile","warm_start_steps":warm_start_steps,"warm_start_strategy":"single-anchor-open-v1" if warm_start_steps else "disabled","warm_start_anchor_opening_id":warm_start_anchor_opening_id,"warm_start_opening_pct":warm_start_controls,"restored_opening_pct":dict(self.openings)}
-
-    def step(self,actions):
-        actions=list(actions); previous=dict(self.openings)
-        for action in actions:
-            if action.opening_id not in self.topology.openings: raise KeyError(action.opening_id)
-            if action.opening_id in self.fixed_openings:
-                expected=self.fixed_openings[action.opening_id]
-                if abs(float(action.target_pct)-expected)>1e-9:
-                    raise RuntimeError(f"fixed CONTAM opening {action.opening_id} cannot move from {expected:.1f}% to {float(action.target_pct):.1f}%")
-                self.openings[action.opening_id]=expected
-                continue
-            control=self.opening_controls.get(action.opening_id)
-            if control is None:
-                raise RuntimeError(f"opening {action.opening_id} has no CONTAM input-control mapping")
-            value=control.value_for_pct(action.target_pct)
+        for actuator_id,command in self.scalar_values.items():
+            control=self.scalar_controls[actuator_id]
+            value=control.value_for_command(command)
             if control.control_name:
                 self.session.set_named_input_control(control.control_name,value)
             else:
                 self.session.set_input_control(control.control_number,value)
-            self.openings[action.opening_id]=float(action.target_pct)
+        return self._initial_observation(),{"backend":"contamxpy","physics_fidelity":"CONTAM","contam":meta,"initial_state_source":"prj-profile","warm_start_steps":warm_start_steps,"warm_start_strategy":"single-anchor-open-v1" if warm_start_steps else "disabled","warm_start_anchor_opening_id":warm_start_anchor_opening_id,"warm_start_opening_pct":warm_start_controls,"restored_opening_pct":dict(self.openings),"restored_scalar_values":dict(self.scalar_values)}
+
+    def step(self,actions):
+        actions=list(actions); previous=dict(self.openings); previous_scalar=dict(self.scalar_values)
+        for action in actions:
+            if isinstance(action,TransitionAction):
+                if action.opening_id not in self.topology.openings: raise KeyError(action.opening_id)
+                if action.opening_id in self.fixed_openings:
+                    expected=self.fixed_openings[action.opening_id]
+                    if abs(float(action.target_pct)-expected)>1e-9:
+                        raise RuntimeError(f"fixed CONTAM opening {action.opening_id} cannot move from {expected:.1f}% to {float(action.target_pct):.1f}%")
+                    self.openings[action.opening_id]=expected
+                    continue
+                control=self.opening_controls.get(action.opening_id)
+                if control is None:
+                    raise RuntimeError(f"opening {action.opening_id} has no CONTAM input-control mapping")
+                value=control.value_for_pct(action.target_pct)
+                if control.control_name:
+                    self.session.set_named_input_control(control.control_name,value)
+                else:
+                    self.session.set_input_control(control.control_number,value)
+                self.openings[action.opening_id]=float(action.target_pct)
+                continue
+            if isinstance(action,ScalarControlAction):
+                control=self.scalar_controls.get(action.actuator_id)
+                if control is None:
+                    raise RuntimeError(f"scalar actuator {action.actuator_id} has no CONTAM input-control mapping")
+                value=control.value_for_command(action.target_value)
+                if control.control_name:
+                    self.session.set_named_input_control(control.control_name,value)
+                else:
+                    self.session.set_input_control(control.control_number,value)
+                self.scalar_values[action.actuator_id]=float(action.target_value)
+                continue
+            raise TypeError("unsupported CONTAM action type: "+type(action).__name__)
         self.session.step(); self._step+=1
         obs=self._observation()
         iaq=-sum(max(0.0,v-800.0)/400.0 for v in obs["co2_ppm"].values())
         wear=-sum(abs(self.openings[k]-previous.get(k,0.0))/100.0 for k in self.openings)
+        for actuator_id,value in self.scalar_values.items():
+            control=self.scalar_controls[actuator_id]
+            span=control.command_max-control.command_min
+            if span>0:
+                wear-=abs(value-previous_scalar.get(actuator_id,value))/span
         reward=RewardVector(iaq=iaq,actuator_wear=wear)
         terminated=self._step>=self.max_steps
         return obs,reward,terminated,False,{"backend":"contamxpy","physics_fidelity":"CONTAM"}

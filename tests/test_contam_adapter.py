@@ -3,9 +3,9 @@ import unittest
 from pathlib import Path
 from types import SimpleNamespace
 
-from airtrajectory.contam import CONTAMEnvironment, ContamControl, ContamXSession, co2_mass_fraction_to_ppm
+from airtrajectory.contam import CONTAMEnvironment, ContamControl, ContamScalarControl, ContamXSession, co2_mass_fraction_to_ppm
 from airtrajectory.topology import BuildingTopology, OpeningEdge, ZoneNode
-from airtrajectory.trajectory import TransitionAction
+from airtrajectory.trajectory import TransitionAction, ScalarControlAction
 
 class FakeCx:
     def __init__(self,prj_file_path,wp_mode=0,cb_option=False,*_):
@@ -21,6 +21,17 @@ class FakeCx:
     def getPathFlow(self,p): return 0.25+self.steps*0.01
     def endSimulation(self): self.ended=True
 
+
+
+class ScalarCx(FakeCx):
+    def __init__(self,prj_file_path,wp_mode=0,cb_option=False,*_):
+        super().__init__(prj_file_path,wp_mode,cb_option)
+        self.nInputControls=3
+        self.inputControls=[
+            SimpleNamespace(name="W2_open"),
+            SimpleNamespace(name="W1_open"),
+            SimpleNamespace(name="FAN_level"),
+        ]
 
 
 class AmbientInitCx(FakeCx):
@@ -228,6 +239,86 @@ class ContamAdapterTests(unittest.TestCase):
             self.assertTrue(nxt["path_flow_kg_s"])
             env.close()
 
+
+
+    def test_scalar_actuator_maps_level_to_contam_input_control(self):
+        topology=BuildingTopology.from_parts(
+            [ZoneNode("living",45),ZoneNode("bedroom",30)],
+            [OpeningEdge("W1","living","OUTSIDE","window",1.2)],
+        )
+        with tempfile.TemporaryDirectory() as d:
+            prj=Path(d)/"demo.prj"; prj.write_text("fixture")
+            env=CONTAMEnvironment(
+                topology,
+                prj,
+                {"living":1,"bedroom":2},
+                {"W1":ContamControl(control_name="W1_open")},
+                binding_factory=ScalarCx,
+                initial_co2_ppm={"living":1200,"bedroom":900},
+                scalar_controls={
+                    "FAN1":ContamScalarControl(
+                        control_name="FAN_level",
+                        command_min=0,
+                        command_max=3,
+                        control_min=0,
+                        control_max=1,
+                    )
+                },
+                initial_scalar_values={"FAN1":1},
+            )
+            obs,info=env.reset()
+            self.assertAlmostEqual(env.session.engine.controls[3],1/3)
+            self.assertEqual(obs["scalar_values"],{"FAN1":1.0})
+            self.assertEqual(info["restored_scalar_values"],{"FAN1":1.0})
+
+            nxt,_,_,_,_=env.step([
+                TransitionAction("W1",50),
+                ScalarControlAction("FAN1",2),
+            ])
+            self.assertAlmostEqual(env.session.engine.controls[3],2/3)
+            self.assertEqual(nxt["scalar_values"]["FAN1"],2.0)
+
+            with self.assertRaisesRegex(ValueError,"outside"):
+                env.step([ScalarControlAction("FAN1",4)])
+            env.close()
+
+    def test_scalar_actuator_requires_exact_initial_snapshot(self):
+        topology=BuildingTopology.from_parts(
+            [ZoneNode("living",45),ZoneNode("bedroom",30)],
+            [OpeningEdge("W1","living","OUTSIDE","window",1.2)],
+        )
+        with tempfile.TemporaryDirectory() as d:
+            prj=Path(d)/"demo.prj"; prj.write_text("fixture")
+            with self.assertRaisesRegex(ValueError,"exactly cover scalar controls"):
+                CONTAMEnvironment(
+                    topology,
+                    prj,
+                    {"living":1,"bedroom":2},
+                    {"W1":ContamControl(control_name="W1_open")},
+                    binding_factory=ScalarCx,
+                    initial_co2_ppm={"living":1200,"bedroom":900},
+                    scalar_controls={"FAN1":ContamScalarControl(control_name="FAN_level",command_max=3)},
+                    initial_scalar_values={},
+                )
+
+    def test_opening_and_scalar_cannot_share_same_contam_control(self):
+        topology=BuildingTopology.from_parts(
+            [ZoneNode("living",45),ZoneNode("bedroom",30)],
+            [OpeningEdge("W1","living","OUTSIDE","window",1.2)],
+        )
+        with tempfile.TemporaryDirectory() as d:
+            prj=Path(d)/"demo.prj"; prj.write_text("fixture")
+            with self.assertRaisesRegex(ValueError,"cannot be shared"):
+                CONTAMEnvironment(
+                    topology,
+                    prj,
+                    {"living":1,"bedroom":2},
+                    {"W1":ContamControl(control_name="W1_open")},
+                    binding_factory=ScalarCx,
+                    initial_co2_ppm={"living":1200,"bedroom":900},
+                    scalar_controls={"FAN1":ContamScalarControl(control_name="W1_open",command_max=3)},
+                    initial_scalar_values={"FAN1":1},
+                )
 
     def test_closed_window_can_retain_airflow_leakage_floor(self):
         control=ContamControl(closed_value=0.01,open_value=1.0)

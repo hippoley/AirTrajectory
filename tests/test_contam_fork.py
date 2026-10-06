@@ -3,7 +3,7 @@ import unittest
 from pathlib import Path
 from types import SimpleNamespace
 
-from airtrajectory.contam import ContamControl
+from airtrajectory.contam import ContamControl, ContamScalarControl
 from airtrajectory.contam_fork import ContamForkProfile, contam_fork_request, contam_strategy_fork_request
 from airtrajectory.topology import BuildingTopology, OpeningEdge, ZoneNode
 
@@ -135,7 +135,7 @@ class ContamForkTests(unittest.TestCase):
                 {"home-v1":self.profile(prj)},
                 binding_factory=ForkCx,
             )
-            self.assertEqual(out["schema_version"],"0.3")
+            self.assertEqual(out["schema_version"],"0.4")
             self.assertEqual(out["backend"],"contamxpy")
             self.assertEqual(out["physics_fidelity"],"CONTAM")
             self.assertTrue(out["trusted_for_promotion"])
@@ -143,11 +143,42 @@ class ContamForkTests(unittest.TestCase):
             self.assertEqual(
                 out["branches"][0]["actions"],
                 [
-                    {"opening_id":"W1","target_pct":75.0},
-                    {"opening_id":"W2","target_pct":25.0},
+                    {"kind":"opening","opening_id":"W1","target_pct":75.0},
+                    {"kind":"opening","opening_id":"W2","target_pct":25.0},
                 ],
             )
             self.assertTrue(all(x["trusted_for_promotion"] for x in out["branches"]))
+
+    def test_strategy_supports_opening_and_scalar_actuator(self):
+        class MechanicalCx(ForkCx):
+            def __init__(self,*args,**kwargs):
+                super().__init__(*args,**kwargs)
+                self.nInputControls=3
+                self.inputControls=[SimpleNamespace(name="W1_open"),SimpleNamespace(name="W2_open"),SimpleNamespace(name="FAN_level")]
+                self.controls={1:0.0,2:0.0,3:0.0}
+        with tempfile.TemporaryDirectory() as d:
+            prj=Path(d)/"home.prj"; prj.write_text("fixture")
+            profile=self.profile(prj)
+            profile=ContamForkProfile(
+                profile.profile_id,profile.topology,profile.prj_path,profile.zone_numbers,profile.opening_controls,
+                path_numbers=profile.path_numbers,
+                scalar_controls={"FAN1":ContamScalarControl(control_name="FAN_level",command_min=0,command_max=3)}
+            )
+            origin=self.origin(); origin["scalar_values"]={"FAN1":1}
+            out=contam_strategy_fork_request({
+                "profile_id":"home-v1","origin":origin,
+                "candidates":[{"label":"quiet","actions":[
+                    {"opening_id":"W1","target_pct":55},
+                    {"actuator_id":"FAN1","target_value":2}
+                ]}],
+                "horizon_steps":2
+            },{"home-v1":profile},binding_factory=MechanicalCx)
+            self.assertEqual(out["schema_version"],"0.4")
+            self.assertEqual(out["branches"][0]["actions"],[
+                {"kind":"opening","opening_id":"W1","target_pct":55.0},
+                {"kind":"scalar","actuator_id":"FAN1","target_value":2.0},
+            ])
+            self.assertEqual(out["branches"][0]["end_scalar_values"],{"FAN1":2.0})
 
     def test_multi_action_rejects_duplicate_opening(self):
         with tempfile.TemporaryDirectory() as d:

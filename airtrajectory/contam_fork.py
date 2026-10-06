@@ -10,8 +10,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, Mapping, Optional
 
-from .contam import CONTAMEnvironment, ContamControl
-from .trajectory import TransitionAction
+from .contam import CONTAMEnvironment, ContamControl, ContamScalarControl
+from .trajectory import TransitionAction, ScalarControlAction
 
 
 @dataclass(frozen=True)
@@ -25,25 +25,34 @@ class ContamForkProfile:
     fixed_openings: Mapping[str, float] = field(default_factory=dict)
     ambient: Mapping[str, Any] = field(default_factory=dict)
     initial_input_controls: Mapping[int, dict] = field(default_factory=dict)
+    scalar_controls: Mapping[str, ContamScalarControl] = field(default_factory=dict)
     co2_contaminant_index: int = 0
     evaluation_zone: str = "living"
 
 
-def _validate_origin(profile: ContamForkProfile, origin: dict) -> tuple[dict, dict]:
+def _validate_origin(profile: ContamForkProfile, origin: dict) -> tuple[dict, dict, dict]:
     co2=origin.get("co2_ppm")
     openings=origin.get("opening_pct")
-    if not isinstance(co2,dict) or not isinstance(openings,dict):
-        raise ValueError("CONTAM fork origin requires co2_ppm and opening_pct mappings")
+    scalars=origin.get("scalar_values",{})
+    if not isinstance(co2,dict) or not isinstance(openings,dict) or not isinstance(scalars,dict):
+        raise ValueError("CONTAM fork origin requires co2_ppm/opening_pct mappings and scalar_values when configured")
     zones=set(profile.topology.zones)
     opening_ids=set(profile.topology.openings)
+    scalar_ids=set(profile.scalar_controls)
     if set(co2)!=zones:
         raise ValueError("CONTAM fork co2_ppm must exactly cover profile zones")
     if set(openings)!=opening_ids:
         raise ValueError("CONTAM fork opening_pct must exactly cover profile openings")
-    return ({k:float(v) for k,v in co2.items()},{k:float(v) for k,v in openings.items()})
+    if set(scalars)!=scalar_ids:
+        raise ValueError("CONTAM fork scalar_values must exactly cover profile scalar controls")
+    return (
+        {k:float(v) for k,v in co2.items()},
+        {k:float(v) for k,v in openings.items()},
+        {k:float(v) for k,v in scalars.items()},
+    )
 
 
-def _normalize_actions(profile: ContamForkProfile, actions) -> list[TransitionAction]:
+def _normalize_actions(profile: ContamForkProfile, actions) -> list:
     if not isinstance(actions,list) or not actions:
         raise ValueError("CONTAM strategy branch actions must be a non-empty list")
     out=[]
@@ -51,28 +60,58 @@ def _normalize_actions(profile: ContamForkProfile, actions) -> list[TransitionAc
     for raw in actions:
         if not isinstance(raw,dict):
             raise ValueError("CONTAM strategy action must be an object")
-        opening_id=str(raw.get("opening_id",""))
-        if opening_id not in profile.topology.openings:
-            raise ValueError("unknown CONTAM opening_id: "+opening_id)
-        if opening_id in profile.fixed_openings:
-            raise ValueError("CONTAM strategy cannot vary fixed opening: "+opening_id)
-        if opening_id in seen:
-            raise ValueError("CONTAM strategy contains duplicate opening_id: "+opening_id)
-        seen.add(opening_id)
+        has_opening="opening_id" in raw
+        has_scalar="actuator_id" in raw
+        if has_opening==has_scalar:
+            raise ValueError("CONTAM strategy action must specify exactly one of opening_id or actuator_id")
+        if has_opening:
+            opening_id=str(raw.get("opening_id",""))
+            if opening_id not in profile.topology.openings:
+                raise ValueError("unknown CONTAM opening_id: "+opening_id)
+            if opening_id in profile.fixed_openings:
+                raise ValueError("CONTAM strategy cannot vary fixed opening: "+opening_id)
+            key=("opening",opening_id)
+            if key in seen:
+                raise ValueError("CONTAM strategy contains duplicate opening_id: "+opening_id)
+            seen.add(key)
+            try:
+                target=float(raw["target_pct"])
+            except (KeyError,TypeError,ValueError):
+                raise ValueError("CONTAM opening action requires numeric target_pct")
+            if target<0 or target>100:
+                raise ValueError("CONTAM strategy target_pct out of range")
+            out.append(TransitionAction(opening_id,target))
+            continue
+        actuator_id=str(raw.get("actuator_id",""))
+        control=profile.scalar_controls.get(actuator_id)
+        if control is None:
+            raise ValueError("unknown CONTAM scalar actuator_id: "+actuator_id)
+        key=("scalar",actuator_id)
+        if key in seen:
+            raise ValueError("CONTAM strategy contains duplicate actuator_id: "+actuator_id)
+        seen.add(key)
         try:
-            target=float(raw["target_pct"])
+            target=float(raw["target_value"])
         except (KeyError,TypeError,ValueError):
-            raise ValueError("CONTAM strategy action requires numeric target_pct")
-        if target<0 or target>100:
-            raise ValueError("CONTAM strategy target_pct out of range")
-        out.append(TransitionAction(opening_id,target))
+            raise ValueError("CONTAM scalar action requires numeric target_value")
+        control.value_for_command(target)
+        out.append(ScalarControlAction(actuator_id,target))
     return out
+
+
+def _serialize_action(action) -> dict:
+    if isinstance(action,TransitionAction):
+        return {"kind":"opening","opening_id":action.opening_id,"target_pct":float(action.target_pct)}
+    if isinstance(action,ScalarControlAction):
+        return {"kind":"scalar","actuator_id":action.actuator_id,"target_value":float(action.target_value)}
+    raise TypeError("unsupported normalized CONTAM action type: "+type(action).__name__)
 
 
 def _run_actions_branch(
     profile: ContamForkProfile,
     origin_co2: dict,
     origin_openings: dict,
+    origin_scalars: dict,
     actions,
     horizon_steps: int,
     binding_factory=None,
@@ -91,6 +130,8 @@ def _run_actions_branch(
         initial_co2_ppm=dict(origin_co2),
         ambient=dict(profile.ambient),
         initial_input_controls=dict(profile.initial_input_controls),
+        scalar_controls=dict(profile.scalar_controls),
+        initial_scalar_values=dict(origin_scalars),
     )
     observations=[]
     total_return=0.0
@@ -129,7 +170,7 @@ def contam_fork_request(
     if opening_id in profile.fixed_openings:
         raise ValueError("CONTAM fork cannot vary fixed opening: "+opening_id)
 
-    origin_co2,origin_openings=_validate_origin(profile,payload["origin"])
+    origin_co2,origin_openings,origin_scalars=_validate_origin(profile,payload["origin"])
     levels=payload.get("levels",[0,25,50,75,100])
     if not isinstance(levels,list) or not levels:
         raise ValueError("CONTAM fork levels must be a non-empty list")
@@ -143,7 +184,7 @@ def contam_fork_request(
     for raw in levels:
         target=float(raw)
         observations,total_return,branch_meta=_run_actions_branch(
-            profile,origin_co2,origin_openings,
+            profile,origin_co2,origin_openings,origin_scalars,
             [{"opening_id":opening_id,"target_pct":target}],
             horizon_steps,binding_factory
         )
@@ -155,6 +196,7 @@ def contam_fork_request(
             "end_co2_ppm":round(float(final["co2_ppm"][evaluation_zone]),3),
             "end_co2_ppm_by_zone":{k:round(float(v),3) for k,v in final["co2_ppm"].items()},
             "path_flow_kg_s":dict(final.get("path_flow_kg_s") or {}),
+            "end_scalar_values":dict(final.get("scalar_values") or {}),
             "series":[round(float(x["co2_ppm"][evaluation_zone]),3) for x in observations],
             "return":round(float(total_return),6),
             "provenance":"backend-generated · CONTAM · engineering simulation",
@@ -190,7 +232,7 @@ def contam_strategy_fork_request(
     profile=profiles.get(profile_id)
     if profile is None:
         raise ValueError("unknown CONTAM profile_id: "+profile_id)
-    origin_co2,origin_openings=_validate_origin(profile,payload["origin"])
+    origin_co2,origin_openings,origin_scalars=_validate_origin(profile,payload["origin"])
     candidates=payload["candidates"]
     if not isinstance(candidates,list) or not candidates:
         raise ValueError("CONTAM strategy candidates must be a non-empty list")
@@ -212,16 +254,17 @@ def contam_strategy_fork_request(
         actions=candidate.get("actions")
         normalized=_normalize_actions(profile,actions)
         observations,total_return,branch_meta=_run_actions_branch(
-            profile,origin_co2,origin_openings,actions,horizon_steps,binding_factory
+            profile,origin_co2,origin_openings,origin_scalars,actions,horizon_steps,binding_factory
         )
         meta=meta or branch_meta
         final=observations[-1]
         branches.append({
             "label":label,
-            "actions":[{"opening_id":a.opening_id,"target_pct":float(a.target_pct)} for a in normalized],
+            "actions":[_serialize_action(a) for a in normalized],
             "end_co2_ppm":round(float(final["co2_ppm"][evaluation_zone]),3),
             "end_co2_ppm_by_zone":{k:round(float(v),3) for k,v in final["co2_ppm"].items()},
             "path_flow_kg_s":dict(final.get("path_flow_kg_s") or {}),
+            "end_scalar_values":dict(final.get("scalar_values") or {}),
             "series":[round(float(x["co2_ppm"][evaluation_zone]),3) for x in observations],
             "return":round(float(total_return),6),
             "provenance":"backend-generated · CONTAM · engineering simulation",
@@ -229,7 +272,7 @@ def contam_strategy_fork_request(
         })
 
     return {
-        "schema_version":"0.3",
+        "schema_version":"0.4",
         "request_id":str(payload.get("request_id","")),
         "profile_id":profile_id,
         "topology_id":str(payload.get("topology_id",profile_id)),
