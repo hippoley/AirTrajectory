@@ -72,6 +72,20 @@ def compile_field_capture_bundle(
     ):
         raise ValueError("field capture runtime_receipt_sha256 mismatch")
 
+    import_provenance = capture.get("import_provenance")
+    normalized_import_provenance = None
+    if import_provenance is not None:
+        if not isinstance(import_provenance, dict):
+            raise ValueError("import_provenance must be an object")
+        payload = dict(import_provenance)
+        receipt_sha = str(payload.pop("import_receipt_sha256", "") or "")
+        if receipt_sha != _sha256(payload):
+            raise ValueError("import_provenance SHA-256 integrity check failed")
+        normalized_import_provenance = {
+            **payload,
+            "import_receipt_sha256": receipt_sha,
+        }
+
     validation_id = str(capture.get("validation_id") or "")
     if not validation_id:
         raise ValueError("field capture validation_id is required")
@@ -256,6 +270,7 @@ def compile_field_capture_bundle(
         "samples": samples,
         "capture_started_at": _fmt(started_at),
         "raw_capture_sha256": _sha256(capture),
+        "import_provenance": normalized_import_provenance,
         "alignment_receipt": {
             **alignment_receipt,
             "alignment_sha256": _sha256(alignment_receipt),
