@@ -1166,3 +1166,67 @@ alignment_sha256
 field_validation_receipt_sha256
 pipeline_receipt_sha256
 ```
+
+
+### Replayable WindowPilot startup evidence bundle
+
+After a real site completes the read-only startup gates, preserve the exact startup lineage as a portable bundle:
+
+```text
+frozen contract baseline
++ current contract probe
++ baseline comparison MATCH
++ validation preflight PASS
+→ startup evidence bundle
+```
+
+Build it:
+
+```bash
+python examples/build_windowpilot_startup_bundle.py \
+  artifacts/windowpilot-contract-baseline.json \
+  artifacts/windowpilot-contract-probe.current.json \
+  artifacts/windowpilot-contract-drift.json \
+  artifacts/windowpilot-field-preflight.json \
+  --bundle-id site-a-startup-001 \
+  --out artifacts/windowpilot-startup-bundle.json
+```
+
+The builder independently replays the baseline comparison instead of trusting the supplied comparison artifact. It also requires:
+
+```text
+comparison status = MATCH
+preflight status = PASS
+preflight actuator_writes = 0
+same endpoint set across baseline / probe / preflight
+same hardware identity per endpoint
+same physical site lineage
+valid hashes on every source artifact
+```
+
+The resulting bundle contains only normalized identity/provenance summaries and source receipt hashes. It does not embed raw WindowPilot HTTP payloads.
+
+Later, verify the startup evidence offline without contacting hardware:
+
+```bash
+python examples/verify_windowpilot_startup_bundle.py \
+  artifacts/windowpilot-startup-bundle.json \
+  artifacts/windowpilot-contract-baseline.json \
+  artifacts/windowpilot-contract-probe.current.json \
+  artifacts/windowpilot-contract-drift.json \
+  artifacts/windowpilot-field-preflight.json \
+  --out artifacts/windowpilot-startup-replay.json
+```
+
+Offline replay rebuilds the bundle from the four source artifacts and requires exact equality with the persisted bundle. Re-signing a modified comparison or preflight artifact is not sufficient if its cross-artifact lineage no longer matches.
+
+Evidence boundary:
+
+```text
+VERIFIED_READ_ONLY_STARTUP
+≠ physical tau0
+≠ field-model accuracy
+≠ FIELD_VALIDATION_PASSED
+```
+
+The bundle exists so the first real hardware contact can be carried into development and CI as reproducible evidence, without repeatedly reconnecting to the site merely to debug adapter/contract logic.
