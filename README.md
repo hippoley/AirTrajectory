@@ -992,3 +992,69 @@ The default example config uses:
 A successful preflight emits `status=PASS`, `actuator_writes=0`, endpoint identity/source summaries, and a deterministic `preflight_receipt_sha256`.
 
 The one-command WindowPilot validation pipeline now requires this preflight to pass before it starts the timed sampling loop and binds the preflight receipt hash into the final pipeline receipt.
+
+
+### WindowPilot contract compatibility probe
+
+Before the first real hardware run, use the diagnostic probe to inspect the actual WindowPilot API contract without actuator writes:
+
+```bash
+python examples/probe_windowpilot_contract.py \
+  path/to/windowpilot-endpoints.json \
+  --out artifacts/windowpilot-contract-probe.json
+```
+
+For automation, require full compatibility:
+
+```bash
+python examples/probe_windowpilot_contract.py \
+  path/to/windowpilot-endpoints.json \
+  --out artifacts/windowpilot-contract-probe.json \
+  --require-compatible
+```
+
+The probe performs only:
+
+```text
+GET /api/capabilities
+GET /api/physical-readiness
+GET /api/state
+```
+
+and classifies each endpoint as:
+
+```text
+COMPATIBLE
+PARTIAL
+INCOMPATIBLE
+```
+
+It reports exact findings such as:
+
+```text
+EXECUTION_BLOCK_MISSING
+MEASURED_POSITION_CAPABILITY_MISSING
+HARDWARE_IDENTITY_MISSING
+POSITION_FEEDBACK_MISSING
+CO2_VALUE_MISSING
+CO2_TIMESTAMP_MISSING
+CO2_EVIDENCE_MISSING
+CO2_SITE_BINDING_MISSING
+```
+
+Each finding includes an adapter/action hint so the first real-hardware mismatch can be diagnosed instead of collapsing into one generic preflight error.
+
+For privacy and operational safety, the report does not embed full raw endpoint payloads. It stores deterministic payload SHA-256 values and structural shapes plus only the minimum observed fields needed for compatibility diagnosis.
+
+Use the stages separately:
+
+```text
+unknown real WindowPilot payload
+→ contract probe
+→ fix adapter/API contract if needed
+→ validation preflight
+→ timed field capture
+→ field validation
+```
+
+Both the probe and preflight are read-only and issue zero actuator writes.
