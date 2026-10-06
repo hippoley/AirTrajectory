@@ -119,17 +119,24 @@ class CONTAMEnvironment(VentilationEnvironment):
         co2_contaminant_number:int=1,path_numbers:Optional[Dict[str,int]]=None,max_steps:int=120,
         binding_factory:Optional[Callable]=None,fixed_openings:Optional[Dict[str,float]]=None,
         initial_openings:Optional[Dict[str,float]]=None,rain:Optional[bool]=False,
+        initial_co2_ppm:Optional[Dict[str,float]]=None,
     ):
         self.topology=topology; self.prj_path=Path(prj_path); self.zone_numbers=dict(zone_numbers)
         self.opening_controls=dict(opening_controls); self.co2_contaminant_number=co2_contaminant_number
         self.path_numbers=dict(path_numbers or {}); self.max_steps=max_steps; self.binding_factory=binding_factory
         self.fixed_openings={k:float(v) for k,v in (fixed_openings or {}).items()}
         self.rain=rain
+        self.initial_co2_ppm={k:float(v) for k,v in (initial_co2_ppm or {}).items()}
         self.initial_openings={k:float(v) for k,v in (initial_openings or {}).items()}
         self.session=None; self._step=0; self.openings={k:self.initial_openings.get(k,0.0) for k in topology.openings}
         self.openings.update(self.fixed_openings)
         missing=set(topology.zones)-set(self.zone_numbers)
         if missing: raise ValueError("missing CONTAM zone mappings: "+",".join(sorted(missing)))
+        if self.initial_co2_ppm:
+            missing_initial=set(topology.zones)-set(self.initial_co2_ppm)
+            unknown_initial=set(self.initial_co2_ppm)-set(topology.zones)
+            if missing_initial or unknown_initial:
+                raise ValueError("initial CO2 mapping must exactly cover topology zones")
         unknown=set(self.opening_controls)-set(topology.openings)
         if unknown: raise ValueError("unknown opening control mappings: "+",".join(sorted(unknown)))
         fixed_unknown=set(self.fixed_openings)-set(topology.openings)
@@ -140,13 +147,18 @@ class CONTAMEnvironment(VentilationEnvironment):
     def _observation(self):
         co2={z:co2_mass_fraction_to_ppm(self.session.zone_mass_fraction(n,self.co2_contaminant_number)) for z,n in self.zone_numbers.items()}
         flows={oid:self.session.path_flow(n) for oid,n in self.path_numbers.items()}
-        return {"step":self._step,"co2_ppm":co2,"rain":self.rain,"opening_pct":dict(self.openings),"path_flow_kg_s":flows}
+        return {"step":self._step,"co2_ppm":co2,"rain":self.rain,"opening_pct":dict(self.openings),"path_flow_kg_s":flows,"state_source":"contam-solved"}
+
+    def _initial_observation(self):
+        if not self.initial_co2_ppm:
+            raise RuntimeError("CONTAM environment requires explicit initial_co2_ppm before the first solve")
+        return {"step":0,"co2_ppm":dict(self.initial_co2_ppm),"rain":self.rain,"opening_pct":dict(self.openings),"path_flow_kg_s":{},"state_source":"prj-profile-initial"}
 
     def reset(self,seed=None):
         if self.session is not None: self.session.close()
         self.session=ContamXSession(self.prj_path,self.binding_factory)
         meta=self.session.setup(); self._step=0; self.openings={k:self.initial_openings.get(k,0.0) for k in self.topology.openings}; self.openings.update(self.fixed_openings)
-        return self._observation(),{"backend":"contamxpy","physics_fidelity":"CONTAM","contam":meta}
+        return self._initial_observation(),{"backend":"contamxpy","physics_fidelity":"CONTAM","contam":meta,"initial_state_source":"prj-profile"}
 
     def step(self,actions):
         actions=list(actions); previous=dict(self.openings)
