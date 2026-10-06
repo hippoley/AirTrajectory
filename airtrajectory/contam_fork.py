@@ -30,6 +30,8 @@ class ContamForkProfile:
     evaluation_zone: str = "living"
     evidence_level: str = "simulation"
     trusted_for_promotion: bool = False
+    prj_initial_co2_ppm: Mapping[str, float] = field(default_factory=dict)
+    origin_state_mode: str = "declared-only"
 
 
 def _validate_origin(profile: ContamForkProfile, origin: dict) -> tuple[dict, dict, dict]:
@@ -43,6 +45,19 @@ def _validate_origin(profile: ContamForkProfile, origin: dict) -> tuple[dict, di
     scalar_ids=set(profile.scalar_controls)
     if set(co2)!=zones:
         raise ValueError("CONTAM fork co2_ppm must exactly cover profile zones")
+    if profile.prj_initial_co2_ppm:
+        expected={k:float(v) for k,v in profile.prj_initial_co2_ppm.items()}
+        if set(expected)!=zones:
+            raise ValueError("CONTAM profile prj_initial_co2_ppm must exactly cover profile zones")
+        mismatched=[
+            k for k in sorted(zones)
+            if abs(float(co2[k])-expected[k])>1e-6
+        ]
+        if mismatched:
+            raise ValueError(
+                "CONTAM real-origin CO2 must match PRJ initial state until runtime state injection is verified: "
+                + ",".join(mismatched)
+            )
     if set(openings)!=opening_ids:
         raise ValueError("CONTAM fork opening_pct must exactly cover profile openings")
     if set(scalars)!=scalar_ids:
@@ -216,7 +231,11 @@ def contam_fork_request(
         "profile_id":profile_id,
         "topology_id":str(payload.get("topology_id",profile_id)),
         "opening_id":opening_id,
-        "origin_kind":"explicit-snapshot",
+        "origin_kind":(
+            "prj-initial-verified"
+            if profile.prj_initial_co2_ppm
+            else profile.origin_state_mode
+        ),
         "backend":"contamxpy",
         "physics_fidelity":"CONTAM",
         "evidence_level":profile.evidence_level,
@@ -289,7 +308,11 @@ def contam_strategy_fork_request(
         "request_id":str(payload.get("request_id","")),
         "profile_id":profile_id,
         "topology_id":str(payload.get("topology_id",profile_id)),
-        "origin_kind":"explicit-snapshot",
+        "origin_kind":(
+            "prj-initial-verified"
+            if profile.prj_initial_co2_ppm
+            else profile.origin_state_mode
+        ),
         "backend":"contamxpy",
         "physics_fidelity":"CONTAM",
         "evidence_level":profile.evidence_level,
