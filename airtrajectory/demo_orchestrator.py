@@ -14,6 +14,7 @@ from typing import Mapping
 
 from .agents import MultiWindowRuleAgent
 from .demo_runtime import DemoRuntimeSnapshot
+from .contam import CONTAMEnvironment, ContamControl
 from .multiwindow_physical import MultiWindowPhysicalEnvironment
 from .physical import PhysicalWindowDriver, SafetyResolver
 from .rollout import rollout
@@ -36,6 +37,9 @@ def run_demo(
     drivers: Mapping[str, PhysicalWindowDriver] | None = None,
     fixed_openings: Mapping[str, float] | None = None,
     safety_resolver=None,
+    contam_prj_path=None,
+    contam_provenance: dict | None = None,
+    contam_binding_factory=None,
 ) -> DemoRunResult:
     topology = snapshot.layout.to_building_topology()
     policy = MultiWindowRuleAgent(topology)
@@ -60,6 +64,68 @@ def run_demo(
             },
             environment_kind="simulation",
         )
+        return DemoRunResult(mode, snapshot.sha256(), trajectory)
+
+
+    if mode == "contam":
+        if contam_prj_path is None or not isinstance(contam_provenance, dict):
+            raise ValueError("contam mode requires PRJ path and provenance")
+
+        zone_numbers = {
+            key.split(":", 1)[1]: int(value)
+            for key, value in contam_provenance["zone_numbers"].items()
+            if key.startswith("zone:")
+        }
+        path_numbers = {
+            key.split(":", 1)[1]: int(value)
+            for key, value in contam_provenance["path_numbers"].items()
+            if key.startswith("path:")
+        }
+        input_names = dict(contam_provenance.get("input_control_names") or {})
+        opening_controls = {
+            opening_id: ContamControl(control_name=name)
+            for opening_id, name in input_names.items()
+        }
+
+        fixed = dict(fixed_openings or {})
+        for opening_id in topology.openings:
+            if opening_id not in opening_controls and opening_id not in fixed:
+                fixed[opening_id] = snapshot.opening_states[opening_id]
+
+        env = CONTAMEnvironment(
+            topology,
+            contam_prj_path,
+            zone_numbers=zone_numbers,
+            opening_controls=opening_controls,
+            co2_contaminant_number=1,
+            path_numbers=path_numbers,
+            max_steps=max_steps,
+            binding_factory=contam_binding_factory,
+            fixed_openings=fixed,
+            initial_openings=snapshot.opening_states,
+        )
+        try:
+            trajectory = rollout(
+                env,
+                policy,
+                topology_id=snapshot.layout.topology_id,
+                policy_id="multi-window-rule-v1",
+                max_steps=max_steps,
+                safety_resolver=resolver,
+                context_extra={
+                    **snapshot.trajectory_context(),
+                    "demo_backend_mode": "contam",
+                    "contam_prj_path": str(contam_prj_path),
+                    "contam_prj_sha256": contam_provenance.get("sha256"),
+                    "contam_path_numbers": path_numbers,
+                    "contam_zone_numbers": zone_numbers,
+                    "contam_input_control_names": input_names,
+                    "fixed_opening_ids": sorted(fixed),
+                },
+                environment_kind="contam",
+            )
+        finally:
+            env.close()
         return DemoRunResult(mode, snapshot.sha256(), trajectory)
 
     if mode == "physical":
@@ -111,4 +177,4 @@ def run_demo(
         )
         return DemoRunResult(mode, snapshot.sha256(), trajectory)
 
-    raise ValueError("mode must be simulation or physical")
+    raise ValueError("mode must be simulation, contam, or physical")
