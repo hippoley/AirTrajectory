@@ -31,16 +31,84 @@ def build_windowpilot_first_contact_workspace(
     dict[str, dict[str, bytes]],
     dict[str, dict[str, Any]],
 ]:
-    capture_kwargs = {
-        "config": config,
-        "environ": environ,
-    }
-    if fetch_fn is not None:
-        capture_kwargs["fetch_fn"] = fetch_fn
+    endpoints = config.get("windowpilot_endpoints")
+    if not isinstance(endpoints, Mapping) or not endpoints:
+        raise ValueError("windowpilot_endpoints are required")
 
-    manifest, captures = capture_windowpilot_first_contact(
-        **capture_kwargs
-    )
+    captures: dict[str, dict[str, bytes]] = {}
+    endpoint_manifests: dict[str, dict[str, Any]] = {}
+    capture_errors = []
+    network_requests = 0
+
+    for endpoint_id, spec in sorted(endpoints.items()):
+        single_config = dict(config)
+        single_config["windowpilot_endpoints"] = {
+            str(endpoint_id): spec
+        }
+        capture_kwargs = {
+            "config": single_config,
+            "environ": environ,
+        }
+        if fetch_fn is not None:
+            capture_kwargs["fetch_fn"] = fetch_fn
+        try:
+            single_manifest, single_captures = (
+                capture_windowpilot_first_contact(
+                    **capture_kwargs
+                )
+            )
+        except Exception as exc:
+            capture_errors.append({
+                "endpoint_id": str(endpoint_id),
+                "error_type": type(exc).__name__,
+                "error": str(exc),
+            })
+            continue
+        captures.update(single_captures)
+        endpoint_manifests[str(endpoint_id)] = (
+            single_manifest["endpoints"][str(endpoint_id)]
+        )
+        network_requests += int(
+            single_manifest.get("network_requests") or 0
+        )
+
+    if not captures:
+        details = "; ".join(
+            f"{row['endpoint_id']}: {row['error']}"
+            for row in capture_errors
+        )
+        raise RuntimeError(
+            "WindowPilot first-contact workspace captured no endpoints"
+            + (f": {details}" if details else "")
+        )
+
+    manifest_payload = {
+        "schema_version": "0.1",
+        "capture": "windowpilot-first-contact-workspace-source-v1",
+        "status": (
+            "CAPTURED"
+            if not capture_errors
+            else "PARTIAL_CAPTURE"
+        ),
+        "endpoint_count": len(endpoint_manifests),
+        "endpoint_ids": sorted(endpoint_manifests),
+        "request_method": "GET",
+        "allowed_paths": [
+            "/api/capabilities",
+            "/api/physical-readiness",
+            "/api/state",
+        ],
+        "network_requests": network_requests,
+        "actuator_writes": 0,
+        "endpoints": endpoint_manifests,
+        "capture_errors": capture_errors,
+    }
+    manifest = {
+        **manifest_payload,
+        "first_contact_capture_sha256": _sha256_json(
+            manifest_payload
+        ),
+    }
 
     evaluations: dict[str, dict[str, Any]] = {}
     if mapping_profile_bytes is not None:
@@ -92,7 +160,12 @@ def build_windowpilot_first_contact_workspace(
         for endpoint_id, value in sorted(evaluations.items())
     }
 
-    if not evaluations:
+    if capture_errors:
+        if not evaluations:
+            status = "PARTIAL_CAPTURE"
+        else:
+            status = "PARTIAL_CAPTURE_WITH_MAPPING"
+    elif not evaluations:
         status = "CAPTURED_ONLY"
     elif all(
         value == "COMPATIBLE"
@@ -116,6 +189,7 @@ def build_windowpilot_first_contact_workspace(
         ],
         "endpoint_ids": manifest["endpoint_ids"],
         "endpoint_count": manifest["endpoint_count"],
+        "capture_errors": capture_errors,
         "mapping_profile_supplied": mapping_profile_bytes is not None,
         "mapping_profile_file_sha256": (
             hashlib.sha256(mapping_profile_bytes).hexdigest()
