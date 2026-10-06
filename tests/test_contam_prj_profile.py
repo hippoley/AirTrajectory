@@ -86,6 +86,19 @@ def profile():
                 "conversion": "ppmv-to-mass-fraction-mw-ratio",
             }
         },
+        "project_controls": {
+            "mode": "steady",
+            "start": "00:00:00",
+            "stop": "01:00:00",
+            "time_step_s": 60
+        },
+        "path_records": {
+            "path:W1": {"prj_flags":0,"filter_number":0,"wind_profile_number":0,"ahs_number":0,"schedule_number":0,"level_number":1,"x_m":0.0,"y_m":1.8,"relative_height_m":0.9,"element_multiplier":1.0,"constant_wind_pressure_pa":0.0,"wind_speed_modifier":1.0},
+            "path:W2": {"prj_flags":0,"filter_number":0,"wind_profile_number":0,"ahs_number":0,"schedule_number":0,"level_number":1,"x_m":5.0,"y_m":1.7,"relative_height_m":0.9,"element_multiplier":1.0,"constant_wind_pressure_pa":0.0,"wind_speed_modifier":1.0},
+            "path:W3": {"prj_flags":0,"filter_number":0,"wind_profile_number":0,"ahs_number":0,"schedule_number":0,"level_number":1,"x_m":3.8,"y_m":5.0,"relative_height_m":0.9,"element_multiplier":1.0,"constant_wind_pressure_pa":0.0,"wind_speed_modifier":1.0},
+            "path:D1": {"prj_flags":0,"filter_number":0,"wind_profile_number":0,"ahs_number":0,"schedule_number":0,"level_number":1,"x_m":5.0,"y_m":2.8,"relative_height_m":0.0,"element_multiplier":1.0,"constant_wind_pressure_pa":0.0,"wind_speed_modifier":1.0},
+            "path:D2": {"prj_flags":0,"filter_number":0,"wind_profile_number":0,"ahs_number":0,"schedule_number":0,"level_number":1,"x_m":2.5,"y_m":5.0,"relative_height_m":0.0,"element_multiplier":1.0,"constant_wind_pressure_pa":0.0,"wind_speed_modifier":1.0}
+        },
         "levels": {
             "1": {
                 "name": "Ground",
@@ -134,6 +147,13 @@ class ContamPrjProfileTests(unittest.TestCase):
             0.0,
         )
         self.assertEqual(bound["species_definitions"][0]["key"], "co2")
+
+    def test_profile_fills_path_and_project_control_fields(self):
+        bound = bind_prj_serialization_profile(forced_manifest(), profile())
+        w1 = next(x for x in bound["flow_paths"] if x["key"] == "path:W1")
+        self.assertEqual(w1["x_m"], 0.0)
+        self.assertEqual(w1["relative_height_m"], 0.9)
+        self.assertEqual(bound["project_controls"]["time_step_s"], 60)
 
     def test_unknown_zone_override_fails_closed(self):
         p = profile()
