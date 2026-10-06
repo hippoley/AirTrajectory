@@ -40,6 +40,16 @@ class ContamAdapterTests(unittest.TestCase):
             self.assertAlmostEqual(s.path_flow(1),.26)
             engine=s.engine; s.close(); self.assertTrue(engine.ended)
 
+    def test_session_reduces_directional_path_flows_to_net_flow(self):
+        class DirectionalCx(FakeCx):
+            def getPathFlow(self,p): return [0.3,-0.1]
+        with tempfile.TemporaryDirectory() as d:
+            prj=Path(d)/"demo.prj"; prj.write_text("fixture")
+            s=ContamXSession(prj,binding_factory=DirectionalCx)
+            s.setup()
+            self.assertAlmostEqual(s.path_flow(1),0.2)
+            s.close()
+
     def test_environment_maps_window_percent_to_contam_control(self):
         with tempfile.TemporaryDirectory() as d:
             prj=Path(d)/"demo.prj"; prj.write_text("fixture")
