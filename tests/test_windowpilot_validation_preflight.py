@@ -224,6 +224,22 @@ class WindowPilotValidationPreflightTests(unittest.TestCase):
             all(driver.commands == 0 for driver in self.drivers.values())
         )
 
+    def test_tampered_runtime_receipt_is_rejected_before_sampling(self):
+        run = runtime(self.layout)
+        run["prediction_series"][0]["co2_ppm"]["living"] += 500.0
+        with self.assertRaisesRegex(
+            ValueError,
+            "runtime receipt SHA-256 integrity",
+        ):
+            preflight_windowpilot_field_validation(
+                layout=self.layout,
+                config=config(),
+                drivers=self.drivers,
+                protocol=protocol(),
+                runtime_receipt=run,
+                clock_fn=lambda: self.clock["now"],
+            )
+
     def test_stale_co2_is_rejected_before_sampling(self):
         self.drivers["W2"].sensor_offset_s = -30.0
         with self.assertRaisesRegex(RuntimeError, "CO2 reading is stale"):
