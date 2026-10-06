@@ -30,18 +30,28 @@ def main() -> int:
             )
         w1_index=session.input_control_index("W1_open")
         session.set_named_input_control("W1_open", 1.0)
-        session.step()
+        for _ in range(2):
+            session.step()
         open_flows = {
             str(index): session.path_flow(index)
             for index in range(1, int(meta["paths"]) + 1)
         }
 
         session.set_named_input_control("W1_open", 0.0)
-        session.step()
-        closed_flows = {
-            str(index): session.path_flow(index)
-            for index in range(1, int(meta["paths"]) + 1)
-        }
+        close_probe = []
+        closed_flows = None
+        for close_step in range(1, 4):
+            session.step()
+            closed_flows = {
+                str(index): session.path_flow(index)
+                for index in range(1, int(meta["paths"]) + 1)
+            }
+            close_probe.append(
+                {
+                    "step_after_close": close_step,
+                    "w1_path_flow_kg_s": closed_flows["1"],
+                }
+            )
 
         payload = {
             "marker": "GENERATED_CONTAM_DYNAMIC_CONTROL_EXECUTED",
@@ -57,6 +67,7 @@ def main() -> int:
             "w1_closed_path_flow_kg_s": closed_flows["1"],
             "open_path_flow_kg_s": open_flows,
             "closed_path_flow_kg_s": closed_flows,
+            "w1_close_probe": close_probe,
         }
         print(json.dumps(payload, sort_keys=True))
         if meta["zones"] != args.expected_zones:
