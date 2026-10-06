@@ -103,6 +103,10 @@ def main() -> int:
             raise RuntimeError(
                 f"path count mismatch: {meta['paths']} != {args.expected_paths}"
             )
+        if not any(abs(value) > 1e-12 for value in zone_mass_fractions.values()):
+            raise RuntimeError(
+                "generated CONTAM project produced zero zone mass fraction for every zone"
+            )
         if not any(abs(value) > 1e-12 for value in open_flows.values()):
             raise RuntimeError("generated CONTAM project produced zero flow on every path")
         open_w1 = abs(open_flows[str(w1_path_number)])
