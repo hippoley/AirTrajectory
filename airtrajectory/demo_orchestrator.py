@@ -138,6 +138,7 @@ def run_demo(
             initial_openings=snapshot.opening_states,
             initial_co2_ppm={key:float(value) for key,value in contam_provenance["initial_co2_ppm"].items()},
             ambient=dict(contam_provenance.get("contam_ambient") or {}),
+            initial_input_controls={int(index):dict(spec) for index,spec in (contam_provenance.get("initial_input_controls") or {}).items()},
         )
         try:
             trajectory = rollout(
