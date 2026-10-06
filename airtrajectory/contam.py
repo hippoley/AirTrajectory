@@ -118,12 +118,13 @@ class CONTAMEnvironment(VentilationEnvironment):
         self,topology,prj_path,zone_numbers:Dict[str,int],opening_controls:Dict[str,ContamControl],
         co2_contaminant_number:int=1,path_numbers:Optional[Dict[str,int]]=None,max_steps:int=120,
         binding_factory:Optional[Callable]=None,fixed_openings:Optional[Dict[str,float]]=None,
-        initial_openings:Optional[Dict[str,float]]=None,
+        initial_openings:Optional[Dict[str,float]]=None,rain:Optional[bool]=False,
     ):
         self.topology=topology; self.prj_path=Path(prj_path); self.zone_numbers=dict(zone_numbers)
         self.opening_controls=dict(opening_controls); self.co2_contaminant_number=co2_contaminant_number
         self.path_numbers=dict(path_numbers or {}); self.max_steps=max_steps; self.binding_factory=binding_factory
         self.fixed_openings={k:float(v) for k,v in (fixed_openings or {}).items()}
+        self.rain=rain
         self.initial_openings={k:float(v) for k,v in (initial_openings or {}).items()}
         self.session=None; self._step=0; self.openings={k:self.initial_openings.get(k,0.0) for k in topology.openings}
         self.openings.update(self.fixed_openings)
@@ -139,7 +140,7 @@ class CONTAMEnvironment(VentilationEnvironment):
     def _observation(self):
         co2={z:co2_mass_fraction_to_ppm(self.session.zone_mass_fraction(n,self.co2_contaminant_number)) for z,n in self.zone_numbers.items()}
         flows={oid:self.session.path_flow(n) for oid,n in self.path_numbers.items()}
-        return {"step":self._step,"co2_ppm":co2,"opening_pct":dict(self.openings),"path_flow_kg_s":flows}
+        return {"step":self._step,"co2_ppm":co2,"rain":self.rain,"opening_pct":dict(self.openings),"path_flow_kg_s":flows}
 
     def reset(self,seed=None):
         if self.session is not None: self.session.close()
