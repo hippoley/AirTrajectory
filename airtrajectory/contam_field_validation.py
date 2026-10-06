@@ -110,6 +110,26 @@ def validate_field_validation_protocol(
     min_samples = int(protocol.get("min_samples"))
     if min_samples < 2:
         raise ValueError("field validation protocol min_samples must be >=2")
+
+    alignment = protocol.get("alignment")
+    if not isinstance(alignment, dict):
+        raise ValueError("field validation protocol requires alignment section")
+    sampling_interval_s = float(alignment.get("sampling_interval_s"))
+    max_skew_s = float(alignment.get("max_skew_s"))
+    aggregation = str(alignment.get("aggregation") or "")
+    accepted_qualities = sorted(
+        {str(item) for item in (alignment.get("accepted_qualities") or [])}
+    )
+    if sampling_interval_s <= 0:
+        raise ValueError("alignment sampling_interval_s must be positive")
+    if max_skew_s < 0 or max_skew_s > sampling_interval_s:
+        raise ValueError(
+            "alignment max_skew_s must be in [0, sampling_interval_s]"
+        )
+    if aggregation != "nearest":
+        raise ValueError("alignment aggregation currently must be nearest")
+    if not accepted_qualities:
+        raise ValueError("alignment accepted_qualities is required")
     co2_rmse = float(co2.get("rmse_ppm_max"))
     co2_mae = float(co2.get("mae_ppm_max"))
     opening_mae = float(opening.get("mae_pct_max"))
@@ -129,6 +149,12 @@ def validate_field_validation_protocol(
         "opening_position": {
             "openings": expected_openings,
             "mae_pct_max": opening_mae,
+        },
+        "alignment": {
+            "sampling_interval_s": sampling_interval_s,
+            "max_skew_s": max_skew_s,
+            "aggregation": aggregation,
+            "accepted_qualities": accepted_qualities,
         },
         "approval": {
             "approved": True,
@@ -242,12 +268,30 @@ def _validate_measurements(
     if len(normalized_samples) < protocol["min_samples"]:
         raise ValueError("field validation sample count below protocol minimum")
 
+    alignment_receipt = field_bundle.get("alignment_receipt")
+    alignment_sha256 = None
+    if alignment_receipt is not None:
+        if not isinstance(alignment_receipt, dict):
+            raise ValueError("alignment_receipt must be an object")
+        alignment_payload = dict(alignment_receipt)
+        alignment_sha256 = str(
+            alignment_payload.pop("alignment_sha256", "") or ""
+        )
+        if alignment_sha256 != _sha256(alignment_payload):
+            raise ValueError("alignment_receipt SHA-256 integrity check failed")
+
+    raw_capture_sha256 = field_bundle.get("raw_capture_sha256")
+    if raw_capture_sha256 is not None and len(str(raw_capture_sha256)) != 64:
+        raise ValueError("raw_capture_sha256 is invalid")
+
     return {
         "validation_id": validation_id,
         "captured_at": captured_at,
         "source": source,
         "samples": sorted(normalized_samples, key=lambda row: row["step"]),
         "bundle_sha256": _sha256(field_bundle),
+        "raw_capture_sha256": raw_capture_sha256,
+        "alignment_sha256": alignment_sha256,
     }
 
 
@@ -356,6 +400,8 @@ def validate_contam_against_field(
         "protocol_sha256": normalized_protocol["protocol_sha256"],
         "field_validation_id": measurements["validation_id"],
         "field_bundle_sha256": measurements["bundle_sha256"],
+        "raw_capture_sha256": measurements["raw_capture_sha256"],
+        "alignment_sha256": measurements["alignment_sha256"],
         "sample_count": len(measurements["samples"]),
         "co2_metrics": co2_metrics,
         "opening_position_metrics": opening_metrics,

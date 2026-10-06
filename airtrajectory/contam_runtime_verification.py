@@ -136,9 +136,13 @@ def verify_engineering_contam_runtime(
     trajectory_payload = trajectory.to_dict()
     build_receipt_sha = _sha256(build_receipt)
     trajectory_sha = _sha256(trajectory_payload)
+    time_step_s = float(contam_meta.get("time_step_s") or 0.0)
+    if time_step_s <= 0:
+        raise RuntimeError("ContamX time_step_s must be positive")
     prediction_series = [
         {
             "step": int(step.index),
+            "simulation_time_s": float(step.index + 1) * time_step_s,
             "co2_ppm": {
                 str(key): float(value)
                 for key, value in sorted(
@@ -178,6 +182,8 @@ def verify_engineering_contam_runtime(
         "zone_count": expected_zone_count,
         "path_count": expected_path_count,
         "steps": int(steps),
+        "simulation_time_step_s": time_step_s,
+        "prediction_time_origin": "post-reset-policy-step",
         "prediction_series": prediction_series,
         "prediction_series_sha256": _sha256(prediction_series),
         "input_control_names": dict(
