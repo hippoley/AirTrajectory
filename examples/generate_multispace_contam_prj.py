@@ -13,6 +13,7 @@ from pathlib import Path
 from airtrajectory.contam_allocator import allocate_contam_ids
 from airtrajectory.contam_boundary import bind_boundary_profile
 from airtrajectory.contam_ir import compile_contam_ir
+from airtrajectory.contam_engineering_readiness import audit_engineering_readiness
 from airtrajectory.contam_metric_overlay import apply_metric_geometry_overlay
 from airtrajectory.contam_prj_profile import bind_prj_serialization_profile
 from airtrajectory.contam_prj_readiness import audit_prj_readiness
@@ -132,6 +133,9 @@ def main() -> int:
         "engineering_truth": False,
         "purpose": "generated topology/load smoke",
     }
+    provenance["engineering_readiness"] = audit_engineering_readiness(
+        provenance
+    )
 
     provenance_out = args.provenance_out or args.out.with_suffix(
         args.out.suffix + ".json"
