@@ -334,6 +334,11 @@ def probe_windowpilot_http_contract(
                 isinstance(evidence, dict)
                 and isinstance(evidence.get("co2_ppm"), dict)
             ),
+            "co2_site_id": (
+                site_id
+                if isinstance(co2_evidence, dict)
+                else None
+            ),
         },
         "findings": findings,
         "error_count": len(errors),
