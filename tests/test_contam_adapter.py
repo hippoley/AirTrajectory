@@ -61,7 +61,7 @@ class ContamAdapterTests(unittest.TestCase):
             env=CONTAMEnvironment(
                 self.topology(),prj,{"living":1,"bedroom":2},
                 {"W1":ContamControl(11),"W2":ContamControl(12)},
-                path_numbers={"W1":1},max_steps=2,binding_factory=FakeCx
+                path_numbers={"W1":1},max_steps=2,binding_factory=FakeCx,initial_co2_ppm={"living":1200,"bedroom":900}
             )
             obs,info=env.reset()
             self.assertEqual(info["physics_fidelity"],"CONTAM")
@@ -74,7 +74,7 @@ class ContamAdapterTests(unittest.TestCase):
     def test_missing_control_mapping_fails_instead_of_faking_actuation(self):
         with tempfile.TemporaryDirectory() as d:
             prj=Path(d)/"demo.prj"; prj.write_text("fixture")
-            env=CONTAMEnvironment(self.topology(),prj,{"living":1,"bedroom":2},{"W1":ContamControl(1)},binding_factory=FakeCx)
+            env=CONTAMEnvironment(self.topology(),prj,{"living":1,"bedroom":2},{"W1":ContamControl(1)},binding_factory=FakeCx,initial_co2_ppm={"living":1200,"bedroom":900})
             env.reset()
             with self.assertRaisesRegex(RuntimeError,"no CONTAM input-control mapping"):
                 env.step([TransitionAction("W2",50)])
@@ -100,6 +100,7 @@ class ContamAdapterTests(unittest.TestCase):
                 binding_factory=FakeCx,
                 fixed_openings={"D1":100},
                 initial_openings={"W1":0,"D1":100},
+                initial_co2_ppm={"living":1200,"bedroom":900},
             )
             obs,_=env.reset()
             self.assertEqual(obs["opening_pct"]["D1"],100)
