@@ -149,11 +149,20 @@ def _run_actions_branch(
         initial_input_controls=dict(profile.initial_input_controls),
         scalar_controls=dict(profile.scalar_controls),
         initial_scalar_values=dict(origin_scalars),
+        warm_start=False,
     )
     observations=[]
     total_return=0.0
     try:
         _,meta=env.reset()
+        for opening_id,control in profile.opening_controls.items():
+            value=control.value_for_pct(origin_openings[opening_id])
+            if control.control_name:
+                env.session.set_named_input_control(control.control_name,value)
+            else:
+                env.session.set_input_control(control.control_number,value)
+        meta=dict(meta)
+        meta["fork_origin_opening_controls_applied"]=True
         normalized=_normalize_actions(profile,actions)
         for _ in range(max(1,int(horizon_steps))):
             obs,reward,done,truncated,_=env.step(normalized)
