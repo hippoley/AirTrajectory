@@ -89,6 +89,8 @@ The next writer boundary is now partially implemented by `airtrajectory.contam_a
 
 Airflow-element binding is now explicit rather than implicit. `airtrajectory.contam_profile.bind_airflow_elements()` requires a named profile with per-opening-kind rules. The bundled demo profile is intentionally marked `engineering_validated=false`; production callers can set `require_engineering_validated=True` to reject it. The current supported semantic model is `powerlaw-orifice-area`, carrying flow area, flow exponent, discharge coefficient, and an optional hydraulic diameter into deterministic `element:*` identities. These parameters align with the parameterization described in the NIST CONTAM user guide, but project-specific engineering calibration remains outside the demo preset.
 
+Ambient forcing is now explicit as well. `airtrajectory.contam_boundary.bind_boundary_profile()` attaches wind speed/direction, outdoor temperature, barometric pressure, and contaminant definitions to the bound manifest. Each contaminant must provide an outdoor concentration and an initial concentration for every modeled zone; missing or unknown zones fail closed. The boundary profile carries its own SHA-256 and can also be gated by `engineering_validated=true`, so demo weather/CO₂ assumptions cannot silently become production evidence.
+
 ## Verified capability matrix
 
 | Capability | Status | Evidence boundary |
@@ -98,7 +100,8 @@ Airflow-element binding is now explicit rather than implicit. `airtrajectory.con
 | Spatial plan → CONTAM IR | ✅ verified | metric-ready layouts compile into stable symbolic zones/paths/controls/ambient boundaries |
 | CONTAM IR → deterministic writer manifest | ✅ verified | symbolic zones/paths/controls receive stable 1-based numeric IDs with mapping SHA-256 |
 | Writer manifest → airflow-element binding | ✅ verified | explicit profile binds deterministic `element:*` identities; production gate rejects illustrative profiles |
-| Bound manifest → PRJ | 🟡 reserved | weather/contaminants and serialization remain unimplemented |
+| Bound manifest → boundary forcing | ✅ verified | wind/weather + contaminant profiles are explicit, hashed, zone-complete, and production-gated |
+| Forced manifest → PRJ | 🟡 reserved | concrete CONTAM serialization remains unimplemented |
 | Multi-room / multi-window scenario simulator | ✅ verified | deterministic toy/surrogate physics; not engineering truth |
 | Agent → safety gate → executed action → reward → trajectory | ✅ verified | proposed/executed/intervention are preserved |
 | Behavior Cloning baseline | ✅ verified | topology-local discrete policy trained from behavior rows |
@@ -297,3 +300,15 @@ python examples/bind_contam_airflow.py metric-layout.json \\
 ```
 
 The example JSON demonstrates the schema only; its values still require review/calibration for the actual building before being treated as engineering evidence.
+
+### CONTAM boundary forcing gate
+
+```bash
+python examples/bind_contam_boundary.py \
+  metric-layout.json \
+  examples/contam_boundary_profile.example.json \
+  --illustrative-demo-airflow \
+  --out artifacts/contam-forced.json
+```
+
+For production-style validation, supply an engineering-reviewed airflow profile and pass `--require-engineering-validated`. The bundled boundary example demonstrates the schema only; site weather and contaminant assumptions still require actual project evidence.
