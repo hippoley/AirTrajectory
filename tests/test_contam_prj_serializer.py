@@ -25,6 +25,8 @@ def manifest():
         "flow_paths": [],
         "contaminants": [{
             "key":"co2","name":"CO2","contam_contaminant_number":1,
+            "molecular_weight_g_mol":44.0095,
+            "mass_fraction_conversion":"ppmv-to-mass-fraction-mw-ratio",
             "initial_zone_mass_fraction":{"zone:living":0.002,"zone:bedroom":0.0015,"zone:study":0.0012}
         }],
         "species_definitions": [{"key":"co2","name":"CO2","contam_contaminant_number":1,"molecular_weight_g_mol":44.0095}],
