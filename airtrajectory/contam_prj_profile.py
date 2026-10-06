@@ -1,7 +1,7 @@
 """Explicit PRJ serialization profile for concrete CONTAM stored fields.
 
 This layer fills concrete Section 10/14/15 fields only from an explicit profile.
-It does not infer engineering values from topology or UI geometry.
+It does not infer engineering values from topology or UI geometry. Note that zone `initial_pressure_pa` maps directly to CONTAM zone P0; it is not the project barometric pressure.
 
 Covered:
 - Section 10 airflow element stored coefficients
@@ -55,8 +55,8 @@ def validate_prj_profile(profile: dict[str, Any]) -> None:
         raise ValueError("zone relative_height_m must be non-negative")
     if float(zone_defaults.get("initial_temperature_k")) <= 0:
         raise ValueError("zone initial_temperature_k must be positive")
-    if float(zone_defaults.get("initial_pressure_pa")) <= 0:
-        raise ValueError("zone initial_pressure_pa must be positive")
+    if float(zone_defaults.get("initial_pressure_pa")) < 0:
+        raise ValueError("zone initial_pressure_pa (CONTAM zone P0) must be non-negative")
 
     element_rules = profile.get("airflow_element_storage")
     if not isinstance(element_rules, dict) or not element_rules:
