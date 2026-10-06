@@ -49,12 +49,19 @@ def _source(value: Any) -> dict[str, Any]:
     source_id = str(value.get("id") or "")
     if not kind or not source_id:
         raise ValueError("field measurement source kind and id are required")
+    model = str(value.get("model") or "")
+    serial = str(value.get("serial") or "")
+    calibration_ref = str(value.get("calibration_ref") or "")
+    if not model or not serial or not calibration_ref:
+        raise ValueError(
+            "field measurement source requires model, serial, and calibration_ref"
+        )
     return {
         "kind": kind,
         "id": source_id,
-        "model": value.get("model"),
-        "serial": value.get("serial"),
-        "calibration_ref": value.get("calibration_ref"),
+        "model": model,
+        "serial": serial,
+        "calibration_ref": calibration_ref,
     }
 
 
@@ -166,6 +173,12 @@ def _validate_measurements(
         raise ValueError("field bundle runtime_receipt_sha256 mismatch")
 
     captured_at = _timestamp(field_bundle.get("captured_at"), "captured_at")
+    if datetime.fromisoformat(captured_at.replace("Z", "+00:00")) < datetime.fromisoformat(
+        protocol["approval"]["approved_at"].replace("Z", "+00:00")
+    ):
+        raise ValueError(
+            "field measurements were captured before protocol approval"
+        )
     source = _source(field_bundle.get("source"))
     samples = field_bundle.get("samples")
     if not isinstance(samples, list) or not samples:
