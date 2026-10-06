@@ -158,7 +158,7 @@ class FakeRealDriver(PhysicalWindowDriver):
 class WindowPilotFieldCaptureTests(unittest.TestCase):
     def setUp(self):
         self.layout = LayoutContract.from_file(LAYOUT)
-        self.clock = {"now": 1760000000.0}
+        self.clock = {"now": 1800000000.0}
         self.drivers = {
             "W1": FakeRealDriver("W1", 1290.0, self.clock),
             "W2": FakeRealDriver("W2", 905.0, self.clock),
