@@ -190,6 +190,29 @@ class ContamFieldValidationTests(unittest.TestCase):
             offset=offset,
         )
 
+    def test_protocol_can_separate_measured_windows_from_fixed_doors(self):
+        spec = protocol()
+        spec["opening_position"]["openings"] = ["W1", "W2", "W3"]
+        spec["opening_position"]["fixed_openings"] = {
+            "D1": 100.0,
+            "D2": 100.0,
+        }
+        normalized = validate_field_validation_protocol(self.layout, spec)
+        self.assertEqual(
+            normalized["opening_position"]["openings"],
+            ["W1", "W2", "W3"],
+        )
+        self.assertEqual(
+            normalized["opening_position"]["fixed_openings"],
+            {"D1": 100.0, "D2": 100.0},
+        )
+
+    def test_measured_and_fixed_openings_cannot_overlap(self):
+        spec = protocol()
+        spec["opening_position"]["fixed_openings"] = {"W1": 100.0}
+        with self.assertRaisesRegex(ValueError, "must be disjoint"):
+            validate_field_validation_protocol(self.layout, spec)
+
     def test_approved_protocol_and_matching_field_data_can_pass(self):
         runtime, bundle = self.bundle()
         result = validate_contam_against_field(
@@ -249,6 +272,74 @@ class ContamFieldValidationTests(unittest.TestCase):
             sha(import_payload),
         )
         self.assertEqual(result["source_records_sha256"], "e" * 64)
+
+    def test_fixed_opening_assumptions_are_enforced_against_runtime(self):
+        runtime, bundle = self.bundle()
+        spec = protocol()
+        spec["opening_position"]["openings"] = ["W1", "W2", "W3"]
+        spec["opening_position"]["fixed_openings"] = {
+            "D1": 100.0,
+            "D2": 100.0,
+        }
+        normalized = validate_field_validation_protocol(self.layout, spec)
+        bundle["protocol_sha256"] = normalized["protocol_sha256"]
+        for sample in bundle["samples"]:
+            sample["opening_pct"] = {
+                key: value
+                for key, value in sample["opening_pct"].items()
+                if key in {"W1", "W2", "W3"}
+            }
+        runtime["prediction_series"][0]["opening_pct"]["D1"] = 0.0
+        runtime["prediction_series_sha256"] = sha(
+            runtime["prediction_series"]
+        )
+        payload = dict(runtime)
+        payload.pop("runtime_receipt_sha256")
+        runtime["runtime_receipt_sha256"] = sha(payload)
+        bundle["runtime_receipt_sha256"] = runtime[
+            "runtime_receipt_sha256"
+        ]
+        with self.assertRaisesRegex(
+            ValueError,
+            "violates fixed opening assumption for D1",
+        ):
+            validate_contam_against_field(
+                layout=self.layout,
+                runtime_receipt=runtime,
+                protocol=spec,
+                field_bundle=bundle,
+            )
+
+    def test_fixed_openings_do_not_require_fake_measurements(self):
+        runtime, bundle = self.bundle()
+        spec = protocol()
+        spec["opening_position"]["openings"] = ["W1", "W2", "W3"]
+        spec["opening_position"]["fixed_openings"] = {
+            "D1": 100.0,
+            "D2": 100.0,
+        }
+        normalized = validate_field_validation_protocol(self.layout, spec)
+        bundle["protocol_sha256"] = normalized["protocol_sha256"]
+        for sample in bundle["samples"]:
+            sample["opening_pct"] = {
+                key: value
+                for key, value in sample["opening_pct"].items()
+                if key in {"W1", "W2", "W3"}
+            }
+        result = validate_contam_against_field(
+            layout=self.layout,
+            runtime_receipt=runtime,
+            protocol=spec,
+            field_bundle=bundle,
+        )
+        self.assertEqual(
+            set(result["opening_position_metrics"]),
+            {"W1", "W2", "W3"},
+        )
+        self.assertEqual(
+            result["fixed_opening_assumptions"],
+            {"D1": 100.0, "D2": 100.0},
+        )
 
     def test_threshold_failure_returns_failed_receipt_not_fake_pass(self):
         runtime, bundle = self.bundle(offset=200.0)

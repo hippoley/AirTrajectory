@@ -4,25 +4,39 @@
   "windowpilot_endpoints": {
     "W1": {
       "base_url": "http://127.0.0.1:8101",
-      "timeout_s": 2.0,
-      "feedback_timeout_s": 5.0,
-      "position_tolerance_pct": 1.0
+      "timeout_s": 2,
+      "feedback_timeout_s": 5,
+      "position_tolerance_pct": 1
     },
     "W2": {
       "base_url": "http://127.0.0.1:8102",
-      "timeout_s": 2.0,
-      "feedback_timeout_s": 5.0,
-      "position_tolerance_pct": 1.0
+      "timeout_s": 2,
+      "feedback_timeout_s": 5,
+      "position_tolerance_pct": 1
     },
     "W3": {
       "base_url": "http://127.0.0.1:8103",
-      "timeout_s": 2.0,
-      "feedback_timeout_s": 5.0,
-      "position_tolerance_pct": 1.0
+      "timeout_s": 2,
+      "feedback_timeout_s": 5,
+      "position_tolerance_pct": 1
     }
   },
   "fixed_openings": {
-    "D1": 100.0,
-    "D2": 100.0
+    "D1": 100,
+    "D2": 100
+  },
+  "field_capture": {
+    "source": {
+      "kind": "site-sensor-system",
+      "id": "replace-with-site-recorder-id",
+      "model": "replace-with-installed-system-model",
+      "serial": "replace-with-system-serial",
+      "calibration_ref": "replace-with-calibration-reference"
+    },
+    "co2_zone_sources": {
+      "living": "W1",
+      "bedroom": "W2",
+      "study": "W3"
+    }
   }
 }

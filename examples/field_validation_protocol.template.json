@@ -16,11 +16,13 @@
     "openings": [
       "W1",
       "W2",
-      "W3",
-      "D1",
-      "D2"
+      "W3"
     ],
-    "mae_pct_max": 2
+    "mae_pct_max": 2,
+    "fixed_openings": {
+      "D1": 100,
+      "D2": 100
+    }
   },
   "approval": {
     "approved": false,
