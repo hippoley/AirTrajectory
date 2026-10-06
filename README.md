@@ -370,3 +370,28 @@ D1/D2 → fixed or separately actuated topology state
 ```
 
 The current physical bus is software-verified only. It does not claim a real multi-window hardware run until the configured WindowPilot instances pass their own commissioning/write-readiness gates and return measured position feedback.
+
+### Unified demo orchestration and physical endpoint mapping
+
+`run_demo()` now executes the same `MultiWindowRuleAgent` against either the simulation backend or `MultiWindowPhysicalEnvironment`, while preserving the same `DemoRuntimeSnapshot` hash and trajectory schema. Physical trajectories now carry dedicated sensor evidence, post-action sensor evidence, and actuator feedback through the generic rollout path rather than a separate recorder.
+
+The deployed UI also prefers `web/data/demo_runtime.generated.json`. GitHub Pages generates this artifact from `home_topology.fixed.json` at build time and validates its snapshot SHA against Python, avoiding a second hand-maintained UI topology source.
+
+Real-window mapping is configuration-driven:
+
+```text
+W1 → WindowPilot endpoint A
+W2 → WindowPilot endpoint B
+W3 → WindowPilot endpoint C
+D1/D2 → fixed topology state (until separately actuated)
+```
+
+Use the read-only preflight before any physical execution:
+
+```bash
+python examples/preflight_multispace_physical.py \
+  --config examples/windowpilot_endpoints.example.json \
+  --out artifacts/physical-preflight.json
+```
+
+This preflight never calls `set_position()` and therefore does not move hardware. It succeeds only when every configured physical opening reports `physical_write_ready=true`.
