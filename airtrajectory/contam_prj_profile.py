@@ -154,6 +154,22 @@ def validate_prj_profile(profile: dict[str, Any]) -> None:
     project_controls = profile.get("project_controls")
     if not isinstance(project_controls, dict) or not project_controls:
         raise ValueError("project_controls are required")
+    mode = str(project_controls.get("mode") or "")
+    if mode not in {"steady", "transient"}:
+        raise ValueError("project_controls mode must be steady or transient")
+    if int(project_controls.get("time_step_s", 0)) <= 0:
+        raise ValueError("project_controls time_step_s must be positive")
+    for field in ("start", "stop"):
+        value = str(project_controls.get(field) or "")
+        parts = value.split(":")
+        if len(parts) != 3:
+            raise ValueError(f"project_controls {field} must be HH:MM:SS")
+        try:
+            hh, mm, ss = [int(part) for part in parts]
+        except ValueError as exc:
+            raise ValueError(f"project_controls {field} must be HH:MM:SS") from exc
+        if not (0 <= hh <= 23 and 0 <= mm <= 59 and 0 <= ss <= 59):
+            raise ValueError(f"project_controls {field} must be HH:MM:SS")
 
     path_records = profile.get("path_records")
     if not isinstance(path_records, dict) or not path_records:
