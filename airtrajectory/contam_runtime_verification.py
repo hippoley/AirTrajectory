@@ -91,7 +91,7 @@ def verify_engineering_contam_runtime(
         max_steps=int(steps),
         contam_prj_path=target,
         contam_provenance=build_receipt,
-        binding_factory=binding_factory,
+        contam_binding_factory=binding_factory,
     )
     trajectory = result.trajectory
     if trajectory.environment_kind != "contam":
