@@ -1058,3 +1058,64 @@ unknown real WindowPilot payload
 ```
 
 Both the probe and preflight are read-only and issue zero actuator writes.
+
+
+### Freeze and detect WindowPilot contract drift
+
+After the first real WindowPilot configuration reaches `COMPATIBLE`, freeze that known-good contract as a baseline:
+
+```bash
+python examples/freeze_windowpilot_contract_baseline.py \
+  artifacts/windowpilot-contract-probe.json \
+  --baseline-id site-a-windowpilot-v1 \
+  --out artifacts/windowpilot-contract-baseline.json
+```
+
+On later deployments or WindowPilot upgrades, probe again and compare before field-validation preflight:
+
+```bash
+python examples/compare_windowpilot_contract_baseline.py \
+  artifacts/windowpilot-contract-baseline.json \
+  artifacts/windowpilot-contract-probe.current.json \
+  --out artifacts/windowpilot-contract-drift.json \
+  --require-match
+```
+
+The baseline deliberately ignores dynamic measurement values, timestamps, and full payload SHA values. Normal CO₂ changes therefore do not create false drift.
+
+It freezes two separate boundaries:
+
+```text
+CONTRACT
+  endpoint JSON shapes
+  simulated / measured_position semantics
+  transport
+  position-evidence field presence
+  CO2 value / timestamp / evidence presence
+
+INSTANCE
+  endpoint URL fingerprint
+  hardware identity SHA-256
+  physical CO2 site_id
+```
+
+Comparison results are:
+
+```text
+MATCH
+DRIFT
+  ├─ CONTRACT_DRIFT
+  └─ INSTANCE_DRIFT
+```
+
+A frozen baseline can only be created from a fully `COMPATIBLE` probe. Both the baseline and every compared probe are hash-verified before comparison.
+
+Recommended real-site startup sequence:
+
+```text
+contract probe
+→ baseline drift comparison
+→ WindowPilot validation preflight
+→ timed read-only field capture
+→ prediction-vs-field validation
+```
