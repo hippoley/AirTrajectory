@@ -40,5 +40,6 @@
     },
     "max_sample_age_s": 10,
     "max_future_skew_s": 2
-  }
+  },
+  "contract_mapping_profiles": {}
 }
