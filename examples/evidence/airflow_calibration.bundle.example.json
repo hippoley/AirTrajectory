@@ -4,7 +4,7 @@
   "evidence_type": "airflow_calibration",
   "topology_id": "demo.fixed-three-room.v1",
   "captured_at": "2026-10-06T13:00:00+08:00",
-  "method": "closed-window-pressure-flow-fit",
+  "method": "opening-pressure-flow-fit",
   "source": {
     "kind": "instrument",
     "id": "airflow-rig-001",
@@ -14,11 +14,11 @@
   },
   "data": {
     "opening_fits": {
-      "W1": {
-        "closed_leakage_multiplier": 0.012,
-        "sample_count": 8,
-        "rmse": 0.004
-      }
+      "W1": {"flow_exponent": 0.5, "discharge_coefficient": 0.61, "closed_leakage_multiplier": 0.012, "sample_count": 8, "rmse": 0.004},
+      "W2": {"flow_exponent": 0.5, "discharge_coefficient": 0.61, "closed_leakage_multiplier": 0.012, "sample_count": 8, "rmse": 0.004},
+      "W3": {"flow_exponent": 0.5, "discharge_coefficient": 0.61, "closed_leakage_multiplier": 0.012, "sample_count": 8, "rmse": 0.004},
+      "D1": {"flow_exponent": 0.5, "discharge_coefficient": 0.61, "closed_leakage_multiplier": 0.02, "sample_count": 8, "rmse": 0.004},
+      "D2": {"flow_exponent": 0.5, "discharge_coefficient": 0.61, "closed_leakage_multiplier": 0.02, "sample_count": 8, "rmse": 0.004}
     }
   }
 }
