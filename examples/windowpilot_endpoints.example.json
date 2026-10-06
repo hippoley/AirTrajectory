@@ -1,0 +1,28 @@
+{
+  "schema_version": "0.1",
+  "topology_id": "demo.fixed-three-room.v1",
+  "windowpilot_endpoints": {
+    "W1": {
+      "base_url": "http://127.0.0.1:8101",
+      "timeout_s": 2.0,
+      "feedback_timeout_s": 5.0,
+      "position_tolerance_pct": 1.0
+    },
+    "W2": {
+      "base_url": "http://127.0.0.1:8102",
+      "timeout_s": 2.0,
+      "feedback_timeout_s": 5.0,
+      "position_tolerance_pct": 1.0
+    },
+    "W3": {
+      "base_url": "http://127.0.0.1:8103",
+      "timeout_s": 2.0,
+      "feedback_timeout_s": 5.0,
+      "position_tolerance_pct": 1.0
+    }
+  },
+  "fixed_openings": {
+    "D1": 100.0,
+    "D2": 100.0
+  }
+}

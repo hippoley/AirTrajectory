@@ -1,0 +1,31 @@
+{
+  "schema_version": "0.1",
+  "profile_id": "example-boundary-profile",
+  "evidence_level": "illustrative-schema",
+  "engineering_validated": false,
+  "source": {
+    "title": "Replace with measured weather/site data and contaminant assumptions",
+    "publisher": "project-owner",
+    "note": "Example schema only. Values must be reviewed for the actual site."
+  },
+  "weather": {
+    "wind_speed_m_s": 1.5,
+    "wind_direction_deg": 180.0,
+    "outdoor_temperature_c": 25.0,
+    "barometric_pressure_pa": 101325.0,
+    "wind_pressure_model": "facade-azimuth-placeholder"
+  },
+  "contaminants": [
+    {
+      "key": "co2",
+      "name": "CO2",
+      "unit": "ppm",
+      "outdoor_concentration": 430.0,
+      "initial_zone_concentration": {
+        "zone:living": 1400.0,
+        "zone:bedroom": 900.0,
+        "zone:study": 800.0
+      }
+    }
+  ]
+}

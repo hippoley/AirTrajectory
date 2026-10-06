@@ -8,6 +8,7 @@ on:
       - "airtrajectory/**"
       - "examples/export_web_scenarios.py"
       - "examples/export_experiment_lab.py"
+      - "examples/export_demo_runtime_snapshot.py"
       - ".github/workflows/pages.yml"
   workflow_dispatch:
 
@@ -33,6 +34,7 @@ jobs:
         run: |
           python examples/export_web_scenarios.py
           python examples/export_experiment_lab.py
+          python examples/export_demo_runtime_snapshot.py
       - name: Validate generated artifact
         run: |
           python - <<'PY'
@@ -89,6 +91,24 @@ jobs:
           assert all(o.position_editable for o in contract.openings)
           print("validated fixed layout contract")
           PY
+      - name: Validate unified demo runtime artifact
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          from airtrajectory.demo_runtime import DemoRuntimeSnapshot
+          from airtrajectory.layout import LayoutContract
+          path=Path("web/data/demo_runtime.generated.json")
+          assert path.exists()
+          payload=json.loads(path.read_text())
+          layout=LayoutContract.from_file("web/data/home_topology.fixed.json")
+          expected=DemoRuntimeSnapshot.resolve(layout)
+          assert payload["runtime"]["source"] == "DemoRuntimeSnapshot"
+          assert payload["runtime"]["snapshot_sha256"] == expected.sha256()
+          assert payload["runtime"]["topology_revision"] == expected.topology_revision
+          assert {x["id"] for x in payload["openings"]} == {"W1","W2","W3","D1","D2"}
+          print("validated unified demo runtime", expected.sha256()[:12])
+          PY
       - name: Validate mock physical fallback artifact
         run: |
           python - <<'PY'
@@ -139,6 +159,8 @@ jobs:
           grep -q 'pointerup' web/lab.js
           grep -q 'moved along "+edited.wallId' web/lab.js
           grep -q 'function loadTopologyContract' web/lab.js
+          grep -q 'demo_runtime.generated.json' web/lab.js
+          test -f web/data/demo_runtime.generated.json
           grep -q 'function currentTopologySnapshot' web/lab.js
           grep -q 'function wallSegment' web/lab.js
           grep -q 'function syncOpeningGeometry' web/lab.js

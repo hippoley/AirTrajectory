@@ -25,9 +25,14 @@ function validateTopologyPayload(p){
   }
 }
 async function loadTopologyContract(){
-  const r=await fetch("./data/home_topology.fixed.json",{cache:"no-store"});
+  let r=await fetch("./data/demo_runtime.generated.json",{cache:"no-store"});
+  if(!r.ok)r=await fetch("./data/home_topology.fixed.json",{cache:"no-store"});
   if(!r.ok)throw new Error("topology artifact "+r.status);
   const p=await r.json();validateTopologyPayload(p);topologyContract=p;topologyCapabilities={...topologyCapabilities,...p.capabilities};
+  if(p.runtime){
+    topologyRevision=Number(p.runtime.topology_revision)||0;
+    trajectoryRevision=topologyRevision;
+  }
   rooms=p.rooms.map(r=>({...r}));
   walls=p.walls.map(w=>({...w}));
   openings=p.openings.map(o=>({
@@ -40,7 +45,7 @@ async function loadTopologyContract(){
   if(p.canvas){canvas.width=Number(p.canvas.width)||canvas.width;canvas.height=Number(p.canvas.height)||canvas.height}
   syncAllOpeningGeometry();
   const source=document.querySelector("#topologySource"),mode=document.querySelector("#topologyEditMode");
-  if(source)source.textContent=(p.topology_id||"FIXED FLOORPLAN").toUpperCase();
+  if(source)source.textContent=((p.topology_id||"FIXED FLOORPLAN")+(p.runtime?.snapshot_sha256?" · SNAPSHOT "+p.runtime.snapshot_sha256.slice(0,8):"")).toUpperCase();
   if(mode)mode.textContent="ROOMS LOCKED · WINDOWS + DOORS MOVABLE";
 }
 function currentTopologySnapshot(){

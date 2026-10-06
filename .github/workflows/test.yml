@@ -5,6 +5,10 @@ on:
     branches: ["main"]
   pull_request:
 
+concurrency:
+  group: test-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   core:
     runs-on: ubuntu-latest
@@ -33,8 +37,21 @@ jobs:
         run: |
           python -c "import inspect,contamxpy; print('cxLib', inspect.signature(contamxpy.cxLib)); print('setupSimulation', inspect.signature(contamxpy.cxLib.setupSimulation)); print('doSimStep', inspect.signature(contamxpy.cxLib.doSimStep)); print('endSimulation', inspect.signature(contamxpy.cxLib.endSimulation))"
       - name: Download official contamxpy source demo
+        shell: pwsh
         run: |
-          python -m pip download --no-deps "--no-binary=:all:" contamxpy==0.0.9 -d _contam_sdist
+          @'
+          import json
+          from pathlib import Path
+          import urllib.request
+
+          Path("_contam_sdist").mkdir(exist_ok=True)
+          with urllib.request.urlopen("https://pypi.org/pypi/contamxpy/0.0.9/json") as response:
+              metadata=json.load(response)
+          sdist=next(item for item in metadata["urls"] if item["packagetype"]=="sdist")
+          target=Path("_contam_sdist/contamxpy-0.0.9.tar.gz")
+          urllib.request.urlretrieve(sdist["url"], target)
+          print("downloaded", target, "from", sdist["url"])
+          '@ | python -
       - name: Extract a real NIST demo PRJ
         shell: pwsh
         run: |
@@ -57,3 +74,25 @@ jobs:
           $prj = (Get-Content _contam_prj.txt -Raw).Trim()
           python examples/contam_smoke.py "$prj" --zone 1 --contaminant 1 --steps 2 | Tee-Object -FilePath contam-smoke.json
           if (-not (Select-String -Path contam-smoke.json -Pattern "CONTAM_EXECUTED")) { exit 1 }
+      - name: Generate AirTrajectory multi-space PRJ
+        shell: pwsh
+        run: |
+          python examples/generate_multispace_contam_prj.py --out artifacts/multispace-generated.prj --provenance-out artifacts/multispace-generated.prj.json
+          if (-not (Test-Path artifacts/multispace-generated.prj)) { exit 1 }
+          if (-not (Select-String -Path artifacts/multispace-generated.prj -Pattern "3 ! zones:")) { exit 1 }
+          if (-not (Select-String -Path artifacts/multispace-generated.prj -Pattern "5 ! flow paths:")) { exit 1 }
+      - name: Load generated PRJ with real ContamX
+        shell: pwsh
+        run: |
+          python examples/contam_generated_smoke.py artifacts/multispace-generated.prj --expected-zones 3 --expected-paths 5 --provenance artifacts/multispace-generated.prj.json | Tee-Object -FilePath generated-contam-smoke.json
+          if (-not (Select-String -Path generated-contam-smoke.json -Pattern "GENERATED_CONTAM_DYNAMIC_CONTROL_EXECUTED")) { exit 1 }
+      - name: Generate PRJ for unified trajectory
+        shell: pwsh
+        run: |
+          python examples/generate_multispace_contam_prj.py --out artifacts/multispace-trajectory.prj --provenance-out artifacts/multispace-trajectory.prj.json
+      - name: Run unified multi-window trajectory on real ContamX
+        timeout-minutes: 3
+        shell: pwsh
+        run: |
+          python examples/run_multispace_contam_demo.py artifacts/multispace-trajectory.prj artifacts/multispace-trajectory.prj.json --steps 2 --out artifacts/multispace-contam-trajectory.json | Tee-Object -FilePath generated-contam-trajectory.log
+          if (-not (Select-String -Path generated-contam-trajectory.log -Pattern "GENERATED_CONTAM_TRAJECTORY_EXECUTED")) { exit 1 }

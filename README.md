@@ -66,14 +66,46 @@ layout.contam_compile_contract(
 )
 ```
 
-Both receive the same normalized opening positions. Moving an opening changes its wall position but not its room connectivity. The CONTAM method currently returns `status=RESERVED` with zone/wall/opening inputs and empty PRJ/control/path outputs; it is a real compiler seam, not a claim that arbitrary topology → CONTAM compilation is finished.
+Both receive the same normalized opening positions. Moving an opening changes its wall position but not its room connectivity. The current fixed-layout path now continues through metric overlay → CONTAM IR → deterministic writer manifest → airflow/boundary/PRJ profiles → generated `.prj`; arbitrary topology import is still reserved.
+
+A backend-neutral spatial compile plan now sits between that contract and future physics compilers:
+
+```python
+from airtrajectory.spatial_compile import compile_spatial_plan
+
+plan = compile_spatial_plan(
+    layout,
+    opening_positions={"W1": 0.72, "D1": 0.25},
+)
+```
+
+It resolves each normalized `position_t` to a deterministic anchor on its declared wall and assigns stable symbolic `zone:*`, `path:*`, and `control:*` identities. Moving a window changes its placement anchor while preserving connectivity identity. The current fixed floor plan uses browser/canvas coordinates, so the plan does **not** pretend that UI coordinates are metres.
+
+The layout schema now also accepts optional physical geometry without fabricating it: walls may provide `length_m` + `azimuth_deg`, and openings may provide `width_m` + `height_m` + `sill_height_m`. The spatial compiler reports missing fields per wall/opening, flips `metric_geometry_ready=true` only when the whole layout is physically specified, and derives `distance_along_wall_m = position_t × length_m`. Invalid azimuths, non-positive dimensions, openings wider than their wall, or `max_area_m2` larger than the physical opening area fail closed. Complete metric inputs can now proceed into the real generated-PRJ path; illustrative geometry remains explicitly non-engineering evidence.
+
+Once metric inputs are complete, `airtrajectory.contam_ir.compile_contam_ir()` turns the spatial plan into a CONTAM-oriented symbolic IR. It creates stable `zone:*`, `wall:*`, `path:*`, `control:*`, and `ambient:OUTSIDE` identities, distinguishes exterior ambient paths from internal zone-to-zone paths, and carries metric opening placement into the physics boundary. Numeric CONTAM zone/path/control IDs, airflow-element selection, wind/weather profiles, contaminant definitions, and PRJ serialization are now implemented for the current fixed-layout demo path. General arbitrary-topology PRJ coverage remains a later expansion gate.
+
+The writer path uses `airtrajectory.contam_allocator.allocate_contam_ids()` to assign deterministic 1-based numeric IDs by lexicographically sorting symbolic keys, so source JSON ordering does not affect the generated mapping. The allocator emits a `mapping_sha256` for replay/audit, and moving a door or window preserves its numeric path/control identity as long as the symbolic topology identity is unchanged. The current fixed-layout pipeline then binds airflow elements, weather/contaminants, explicit PRJ fields, and serializes a real ContamX-loadable project.
+
+Airflow-element binding is now explicit rather than implicit. `airtrajectory.contam_profile.bind_airflow_elements()` requires a named profile with per-opening-kind rules. The bundled demo profile is intentionally marked `engineering_validated=false`; production callers can set `require_engineering_validated=True` to reject it. The current supported semantic model is `powerlaw-orifice-area`, carrying flow area, flow exponent, discharge coefficient, and an optional hydraulic diameter into deterministic `element:*` identities. These parameters align with the parameterization described in the NIST CONTAM user guide, but project-specific engineering calibration remains outside the demo preset.
+
+Ambient forcing is now explicit as well. `airtrajectory.contam_boundary.bind_boundary_profile()` attaches wind speed/direction, outdoor temperature, barometric pressure, and contaminant definitions to the bound manifest. Each contaminant must provide an outdoor concentration and an initial concentration for every modeled zone; missing or unknown zones fail closed. The boundary profile carries its own SHA-256 and can also be gated by `engineering_validated=true`, so demo weather/CO₂ assumptions cannot silently become production evidence.
 
 ## Verified capability matrix
 
 | Capability | Status | Evidence boundary |
 | --- | --- | --- |
-| Fixed layout → UI / trajectory contract | ✅ verified | one `home_topology.fixed.json`; room/wall geometry locked, window/door wall position editable |
-| Layout → CONTAM compiler seam | 🟡 reserved | same opening positions flow into `contam_compile_contract()`; PRJ/control/path generation remains intentionally unimplemented |
+| Fixed layout → unified demo runtime snapshot | ✅ verified | one topology revision + opening state/position snapshot drives UI payload, physics input, and trajectory provenance |
+| Layout → spatial compile plan | ✅ verified | `position_t` resolves to deterministic wall anchors; path/control identities remain stable across moves |
+| Spatial plan → CONTAM IR | ✅ verified | metric-ready layouts compile into stable symbolic zones/paths/controls/ambient boundaries |
+| CONTAM IR → deterministic writer manifest | ✅ verified | symbolic zones/paths/controls receive stable 1-based numeric IDs with mapping SHA-256 |
+| Writer manifest → airflow-element binding | ✅ verified | explicit profile binds deterministic `element:*` identities; production gate rejects illustrative profiles |
+| Bound manifest → boundary forcing | ✅ verified | wind/weather + contaminant profiles are explicit, hashed, zone-complete, and production-gated |
+| Forced manifest → PRJ readiness audit | ✅ verified | section/entity-level blockers are explicit and hashed; no file is emitted while incomplete |
+| Explicit PRJ profile → serialization readiness | ✅ verified | Section 10/14/15/16 + project/species/levels can be made complete without hidden defaults |
+| Serialization-ready manifest → generated PRJ | ✅ verified | deterministic 3-zone/5-path PRJ generated from the shared topology pipeline |
+| Generated PRJ → real ContamX airflow | ✅ verified | Windows CI loads 3 zones/5 paths, advances solver, and requires non-zero net path flow |
+| Dynamic opening % → ContamX input controls | ✅ verified | W1/W2/W3 named input controls execute in real ContamX; 0% mechanical close maps to an explicit leakage floor instead of deleting the exterior path |
 | Multi-room / multi-window scenario simulator | ✅ verified | deterministic toy/surrogate physics; not engineering truth |
 | Agent → safety gate → executed action → reward → trajectory | ✅ verified | proposed/executed/intervention are preserved |
 | Behavior Cloning baseline | ✅ verified | topology-local discrete policy trained from behavior rows |
@@ -82,7 +114,9 @@ Both receive the same normalized opening positions. Moving an opening changes it
 | Spatial Episode Lab | ✅ verified | generated from the Python benchmark artifact |
 | Counterfactual fork runtime | ✅ verified | strict full-state HTTP origin; no hidden state invention |
 | CONTAM adapter | ✅ verified | official `contamxpy==0.0.9` + real NIST PRJ executes in Windows CI |
+| Unified rule policy → real CONTAM trajectory | ✅ verified | the same `DemoRuntimeSnapshot` + `MultiWindowRuleAgent` executes multi-step W1/W2/W3 actions against generated ContamX PRJ and emits the shared trajectory schema |
 | WindowPilot runtime bridge | ✅ verified | runtime capabilities/readiness are discovered over HTTP and fail closed when provenance is incomplete |
+| Multi-window physical execution bus | ✅ software-verified | per-opening drivers/readiness/measured feedback; any unready commanded window blocks the dispatch |
 | WindowPilot hardware integration path | ✅ software-verified | CWDS-CA01 driver lives in WindowPilot; AirTrajectory requires matching commissioning/runtime identity |
 | Real device commissioning | ❌ not captured | reserved real-hardware gate; requires real gateway endpoint/auth/device ID and a physical READ → OPEN 5% → STOP → CLOSE pass |
 | Physical τ₀ zero-motion preflight | ✅ software-verified | one shared gate revalidates commissioning behavior, write readiness, identity/site/ThingModel continuity, and live CO₂/rain lineage before any motion |
@@ -292,3 +326,122 @@ A UI or device session can send an immutable post-action origin into `airtraject
 ### Decision telemetry
 
 Every backend counterfactual request writes a local JSONL decision trace even when no observability backend is installed. Install `.[telemetry]` and call `configure_otlp()` to export the same spans over OTLP; this keeps Phoenix, an OpenTelemetry Collector, or another OTLP-compatible backend replaceable. Telemetry is observational and must not block the control path.
+
+### CONTAM airflow profile gate
+
+Demo-only binding:
+
+```bash
+python examples/bind_contam_airflow.py metric-layout.json \\
+  --illustrative-demo-profile \\
+  --out artifacts/contam-bound.json
+```
+
+Production-style gate:
+
+```bash
+python examples/bind_contam_airflow.py metric-layout.json \\
+  --profile examples/contam_airflow_profile.example.json \\
+  --require-engineering-validated \\
+  --out artifacts/contam-bound.json
+```
+
+The example JSON demonstrates the schema only; its values still require review/calibration for the actual building before being treated as engineering evidence.
+
+### CONTAM boundary forcing gate
+
+```bash
+python examples/bind_contam_boundary.py \
+  metric-layout.json \
+  examples/contam_boundary_profile.example.json \
+  --illustrative-demo-airflow \
+  --out artifacts/contam-forced.json
+```
+
+For production-style validation, supply an engineering-reviewed airflow profile and pass `--require-engineering-validated`. The bundled boundary example demonstrates the schema only; site weather and contaminant assumptions still require actual project evidence.
+
+### CONTAM PRJ serialization readiness
+
+Before writing a concrete `.prj`, AirTrajectory now performs a section-level readiness audit against the fields required by the NIST CONTAM 3.4 project format. The first-pass audit covers Section 10 (Airflow Elements), Section 14 (Zones), Section 15 (Initial Zone Concentrations), and Section 16 (Airflow Paths), plus the global project/species/level sections.
+
+```bash
+python examples/inspect_contam_prj_readiness.py \
+  artifacts/contam-forced.json \
+  --require-ready \
+  --out artifacts/contam-prj-readiness.json
+```
+
+Incomplete manifests remain `BLOCKED` and report missing PRJ fields per section/entity rather than silently guessing them. The bundled fixed-layout demo supplies an explicit serialization profile that reaches `READY_FOR_PRJ_SERIALIZATION`; production use still requires engineering-validated metric, airflow, boundary, and PRJ profiles.
+
+### CONTAM explicit PRJ profile
+
+A concrete PRJ serialization profile can now fill the previously blocked Section 10/14/15/16 fields plus project controls, species definitions, and level records. The profile is explicit rather than inferred from UI geometry: every `path:*` record supplies its stored PRJ fields, zone state comes from declared defaults/overrides, and contaminant ppm values are converted to mass fraction using an explicit molecular-weight policy.
+
+```bash
+python examples/bind_contam_prj_profile.py \
+  artifacts/contam-forced.json \
+  examples/contam_prj_profile.example.json \
+  --out artifacts/contam-prj-profiled.json \
+  --readiness-out artifacts/contam-prj-readiness.json
+```
+
+With a complete profile, the readiness audit can now reach `READY_FOR_PRJ_SERIALIZATION`. The bundled example remains `engineering_validated=false`; it proves schema completeness and compiler behavior, not building-specific engineering truth.
+
+### Multi-space / multi-window demo runtime
+
+The demo now has one resolved runtime snapshot as the shared provenance boundary for UI, physics inputs, and trajectories. `DemoRuntimeSnapshot` carries the topology revision, opening positions, opening states, and a deterministic snapshot SHA-256. The same snapshot can render the browser payload, feed the physics compiler seam, and be embedded in trajectory context.
+
+```bash
+python examples/run_multispace_demo.py \
+  --steps 10 \
+  --topology-revision 1 \
+  --out artifacts/multispace-demo.json
+```
+
+For real hardware, `MultiWindowPhysicalEnvironment` maps each physical opening to its own `PhysicalWindowDriver` / WindowPilot endpoint. Internal doors or other non-actuated openings can remain fixed topology state. Before any real movement, every commanded physical opening must report `physical_write_ready=true`; one blocked window blocks the entire dispatch. Measured position feedback is preserved per opening.
+
+```text
+one topology/config
+→ DemoRuntimeSnapshot
+├─ browser/UI payload
+├─ physics/compiler input
+└─ trajectory context
+
+W1 → WindowPilot A ┐
+W2 → WindowPilot B ├→ MultiWindowPhysicalEnvironment → one multi-window observation/step
+W3 → WindowPilot C ┘
+D1/D2 → fixed or separately actuated topology state
+```
+
+The current physical bus is software-verified only. It does not claim a real multi-window hardware run until the configured WindowPilot instances pass their own commissioning/write-readiness gates and return measured position feedback.
+
+### Unified demo orchestration and physical endpoint mapping
+
+`run_demo()` now executes the same `MultiWindowRuleAgent` against simulation, real CONTAM, or `MultiWindowPhysicalEnvironment`, while preserving the same `DemoRuntimeSnapshot` hash and trajectory schema. Physical trajectories now carry dedicated sensor evidence, post-action sensor evidence, and actuator feedback through the generic rollout path rather than a separate recorder.
+
+The deployed UI also prefers `web/data/demo_runtime.generated.json`. GitHub Pages generates this artifact from `home_topology.fixed.json` at build time and validates its snapshot SHA against Python, avoiding a second hand-maintained UI topology source.
+
+Real-window mapping is configuration-driven:
+
+```text
+W1 → WindowPilot endpoint A
+W2 → WindowPilot endpoint B
+W3 → WindowPilot endpoint C
+D1/D2 → fixed topology state (until separately actuated)
+```
+
+Use the read-only preflight before any physical execution:
+
+```bash
+python examples/preflight_multispace_physical.py \
+  --config examples/windowpilot_endpoints.example.json \
+  --out artifacts/physical-preflight.json
+```
+
+This preflight never calls `set_position()` and therefore does not move hardware. It succeeds only when every configured physical opening reports `physical_write_ready=true`.
+
+### Real generated CONTAM airflow smoke
+
+The generated fixed-three-room project is exercised by the real `contamxpy==0.0.9` / ContamX 3.4.1.7 runtime in Windows CI. The gate requires the generated PRJ to load as exactly 3 zones / 5 paths, execute named W1/W2/W3 controls, and run a multi-step unified trajectory with the same rule policy used by the other demo backends. Mechanical 0% window state uses an explicit `closed_leakage_multiplier` (demo value 0.01) so a closed window retains modeled infiltration instead of mathematically disconnecting every exterior path.
+
+This remains `engineering_truth=false`: the bundled metric geometry, boundary forcing, and serialization profiles are illustrative. The verified claim is software/physics-chain execution, not calibrated building performance.

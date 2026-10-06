@@ -1,0 +1,24 @@
+{
+  "schema_version": "0.1",
+  "profile_id": "demo-fixed-three-room-metric-v1",
+  "topology_id": "demo.fixed-three-room.v1",
+  "evidence_level": "illustrative-schema",
+  "engineering_validated": false,
+  "source": {
+    "note": "Demo-only metric overlay for CONTAM pipeline verification. Replace with measured/imported geometry for engineering use."
+  },
+  "walls": {
+    "living-west": {"length_m": 5.0, "azimuth_deg": 270.0},
+    "bedroom-east": {"length_m": 5.0, "azimuth_deg": 90.0},
+    "study-south": {"length_m": 8.0, "azimuth_deg": 180.0},
+    "living-bedroom": {"length_m": 5.0, "azimuth_deg": 90.0},
+    "living-study": {"length_m": 4.0, "azimuth_deg": 180.0}
+  },
+  "openings": {
+    "W1": {"width_m": 1.0, "height_m": 2.0, "sill_height_m": 0.9, "max_area_m2": 1.5},
+    "W2": {"width_m": 1.0, "height_m": 2.0, "sill_height_m": 0.9, "max_area_m2": 1.5},
+    "W3": {"width_m": 1.0, "height_m": 2.0, "sill_height_m": 0.9, "max_area_m2": 1.2},
+    "D1": {"width_m": 1.0, "height_m": 2.2, "sill_height_m": 0.0, "max_area_m2": 1.8},
+    "D2": {"width_m": 1.0, "height_m": 2.2, "sill_height_m": 0.0, "max_area_m2": 1.8}
+  }
+}
