@@ -10,6 +10,9 @@ from .contam_field_validation import validate_contam_against_field
 from .layout import LayoutContract
 from .physical import PhysicalWindowDriver
 from .windowpilot_field_capture import collect_windowpilot_field_capture
+from .windowpilot_validation_preflight import (
+    preflight_windowpilot_field_validation,
+)
 
 
 def _sha256(payload: Any) -> str:
@@ -40,6 +43,18 @@ def run_windowpilot_field_validation(
         capture_kwargs["sleep_fn"] = sleep_fn
     if clock_fn is not None:
         capture_kwargs["clock_fn"] = clock_fn
+
+    preflight_kwargs = {}
+    if clock_fn is not None:
+        preflight_kwargs["clock_fn"] = clock_fn
+    preflight = preflight_windowpilot_field_validation(
+        layout=layout,
+        config=config,
+        drivers=drivers,
+        protocol=protocol,
+        runtime_receipt=runtime_receipt,
+        **preflight_kwargs,
+    )
 
     capture = collect_windowpilot_field_capture(
         layout=layout,
@@ -73,6 +88,9 @@ def run_windowpilot_field_validation(
             "runtime_receipt_sha256"
         ],
         "protocol_sha256": validation["protocol_sha256"],
+        "preflight_receipt_sha256": preflight[
+            "preflight_receipt_sha256"
+        ],
         "windowpilot_capture_sha256": validation[
             "windowpilot_capture_sha256"
         ],
