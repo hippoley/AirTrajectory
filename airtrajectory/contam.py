@@ -33,7 +33,6 @@ class ContamXSession:
         self.verbosity=verbosity
         self.ambient=dict(ambient or {})
         self.initial_input_controls={int(k):dict(v) for k,v in (initial_input_controls or {}).items()}
-        self.warm_start=bool(warm_start)
         self.engine=None
         self.started=False
 
@@ -153,6 +152,7 @@ class CONTAMEnvironment(VentilationEnvironment):
         self.rain=rain
         self.ambient=dict(ambient or {})
         self.initial_input_controls={int(k):dict(v) for k,v in (initial_input_controls or {}).items()}
+        self.warm_start=bool(warm_start)
         self.initial_co2_ppm={k:float(v) for k,v in (initial_co2_ppm or {}).items()}
         self.initial_openings={k:float(v) for k,v in (initial_openings or {}).items()}
         self.session=None; self._step=0; self.openings={k:self.initial_openings.get(k,0.0) for k in topology.openings}
