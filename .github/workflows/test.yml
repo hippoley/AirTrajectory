@@ -96,3 +96,14 @@ jobs:
         run: |
           python examples/run_multispace_contam_demo.py artifacts/multispace-trajectory.prj artifacts/multispace-trajectory.prj.json --steps 2 --out artifacts/multispace-contam-trajectory.json | Tee-Object -FilePath generated-contam-trajectory.log
           if (-not (Select-String -Path generated-contam-trajectory.log -Pattern "GENERATED_CONTAM_TRAJECTORY_EXECUTED")) { exit 1 }
+      - name: Generate transient PRJ for counterfactual dynamics
+        shell: pwsh
+        run: |
+          python examples/generate_multispace_contam_prj.py --prj-profile examples/contam_prj_profile.transient.example.json --out artifacts/multispace-transient.prj --provenance-out artifacts/multispace-transient.prj.json
+          if (-not (Select-String -Path artifacts/multispace-transient.prj -Pattern "contaminant simulation: transient")) { exit 1 }
+      - name: Run transient counterfactual on real ContamX
+        timeout-minutes: 3
+        shell: pwsh
+        run: |
+          python examples/contam_transient_fork_smoke.py artifacts/multispace-transient.prj artifacts/multispace-transient.prj.json | Tee-Object -FilePath transient-contam-counterfactual.log
+          if (-not (Select-String -Path transient-contam-counterfactual.log -Pattern "TRANSIENT_CONTAM_COUNTERFACTUAL_EXECUTED")) { exit 1 }
