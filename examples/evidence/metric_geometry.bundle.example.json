@@ -1,0 +1,23 @@
+{
+  "schema_version": "0.1",
+  "evidence_id": "geometry-field-survey-001",
+  "evidence_type": "metric_geometry_measurement",
+  "topology_id": "demo.fixed-three-room.v1",
+  "captured_at": "2026-10-06T12:30:00+08:00",
+  "method": "laser-distance-and-compass-survey",
+  "source": {
+    "kind": "instrument",
+    "id": "survey-kit-001",
+    "model": "replace-with-real-model",
+    "serial": "replace-with-real-serial",
+    "calibration_ref": "replace-with-calibration-certificate"
+  },
+  "data": {
+    "walls": {
+      "living-west": {"length_m": 5.0, "azimuth_deg": 270.0}
+    },
+    "openings": {
+      "W1": {"width_m": 1.0, "height_m": 2.0, "sill_height_m": 0.9}
+    }
+  }
+}

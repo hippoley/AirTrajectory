@@ -72,5 +72,6 @@ def apply_metric_geometry_overlay(
         "metric_geometry_profile_sha256": _sha256(overlay),
         "engineering_validated": overlay.get("engineering_validated") is True,
         "evidence_level": overlay.get("evidence_level"),
+        "evidence_receipts": list(overlay.get("evidence_receipts") or []),
     }
     return resolved, meta

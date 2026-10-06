@@ -225,6 +225,7 @@ def bind_airflow_elements(
             "evidence_level": profile.get("evidence_level"),
             "engineering_validated": profile.get("engineering_validated") is True,
             "source": profile.get("source"),
+            "evidence_receipts": list(profile.get("evidence_receipts") or []),
             "closed_leakage_multiplier_by_kind": {
                 str(kind): float(rule.get("closed_leakage_multiplier", 0.0))
                 for kind, rule in sorted(rules.items())

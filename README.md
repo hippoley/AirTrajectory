@@ -445,3 +445,60 @@ This preflight never calls `set_position()` and therefore does not move hardware
 The generated fixed-three-room project is exercised by the real `contamxpy==0.0.9` / ContamX 3.4.1.7 runtime in Windows CI. The gate requires the generated PRJ to load as exactly 3 zones / 5 paths, execute named W1/W2/W3 controls, and run a multi-step unified trajectory with the same rule policy used by the other demo backends. Mechanical 0% window state uses an explicit `closed_leakage_multiplier` (demo value 0.01) so a closed window retains modeled infiltration instead of mathematically disconnecting every exterior path.
 
 This remains `engineering_truth=false`: the bundled metric geometry, boundary forcing, and serialization profiles are illustrative. The verified claim is software/physics-chain execution, not calibrated building performance.
+
+
+### Engineering evidence receipts
+
+Real ContamX execution is a software/physics-chain proof, not by itself engineering truth. Engineering readiness now requires typed, topology-bound evidence receipts in addition to `engineering_validated=true`.
+
+The supported evidence types are:
+
+```text
+metric_geometry_measurement
+airflow_calibration
+boundary_measurement
+prj_engineering_review
+```
+
+Issue a receipt from a raw field/calibration bundle:
+
+```bash
+python examples/issue_contam_evidence_receipt.py \
+  examples/evidence/metric_geometry.bundle.example.json \
+  --out artifacts/metric-geometry.receipt.json
+```
+
+The same pattern applies to the airflow, boundary, and PRJ-review examples under `examples/evidence/`.
+
+Each receipt binds:
+
+```text
+evidence_id
+evidence_type
+topology_id
+captured_at
+method
+source / instrument identity
+typed summary
+data SHA-256
+receipt SHA-256
+```
+
+Profiles may carry these receipts in `evidence_receipts`. The engineering-readiness audit then requires the correct receipt type for each profile component and rejects receipts from a different topology.
+
+```text
+metric profile
+  → metric_geometry_measurement receipt
+
+airflow profile
+  → airflow_calibration receipt
+  → closed-window leakage calibration remains explicit
+
+boundary profile
+  → boundary_measurement receipt
+
+PRJ serialization profile
+  → prj_engineering_review receipt
+```
+
+A boolean `engineering_validated=true` with no matching receipt now remains `SOFTWARE_VERIFIED_ONLY`. Only topology-matched, typed evidence plus an accepted engineering evidence level can reach `ENGINEERING_READY`.

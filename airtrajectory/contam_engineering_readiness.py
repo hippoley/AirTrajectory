@@ -32,6 +32,9 @@ def _sha256(payload: Any) -> str:
 def _component(
     name: str,
     payload: dict[str, Any] | None,
+    *,
+    topology_id: str,
+    required_evidence_type: str,
 ) -> dict[str, Any]:
     profile = dict(payload or {})
     blockers: list[str] = []
@@ -44,6 +47,23 @@ def _component(
         blockers.append("evidence_level_not_engineering")
     if not str(profile.get("profile_sha256") or profile.get("metric_geometry_profile_sha256") or ""):
         blockers.append("missing_profile_sha256")
+
+    receipts = list(profile.get("evidence_receipts") or [])
+    matching_receipts = []
+    for receipt in receipts:
+        if not isinstance(receipt, dict):
+            continue
+        if receipt.get("evidence_type") != required_evidence_type:
+            continue
+        if receipt.get("topology_id") != topology_id:
+            blockers.append("evidence_topology_mismatch")
+            continue
+        if len(str(receipt.get("receipt_sha256") or "")) != 64:
+            blockers.append("invalid_evidence_receipt_sha256")
+            continue
+        matching_receipts.append(receipt)
+    if not matching_receipts:
+        blockers.append("missing_required_evidence_receipt")
 
     return {
         "name": name,
@@ -59,6 +79,8 @@ def _component(
         "evidence_level": profile.get("evidence_level"),
         "engineering_validated": profile.get("engineering_validated") is True,
         "source": profile.get("source"),
+        "required_evidence_type": required_evidence_type,
+        "evidence_receipts": matching_receipts,
         "blockers": blockers,
     }
 
@@ -69,22 +91,31 @@ def audit_engineering_readiness(
     if not isinstance(provenance, dict):
         raise ValueError("CONTAM provenance must be an object")
 
+    topology_id = str(provenance.get("topology_id") or "")
     components = {
         "metric_geometry": _component(
             "metric_geometry",
             provenance.get("metric_geometry_provenance"),
+            topology_id=topology_id,
+            required_evidence_type="metric_geometry_measurement",
         ),
         "airflow_calibration": _component(
             "airflow_calibration",
             provenance.get("airflow_profile"),
+            topology_id=topology_id,
+            required_evidence_type="airflow_calibration",
         ),
         "boundary_weather_co2": _component(
             "boundary_weather_co2",
             provenance.get("boundary_profile"),
+            topology_id=topology_id,
+            required_evidence_type="boundary_measurement",
         ),
         "prj_serialization": _component(
             "prj_serialization",
             provenance.get("prj_serialization_profile"),
+            topology_id=topology_id,
+            required_evidence_type="prj_engineering_review",
         ),
     }
 
@@ -138,6 +169,6 @@ def audit_engineering_readiness(
         "evidence_sha256": _sha256(evidence_payload),
         "evidence_boundary": (
             "This audit does not validate measurements/calibration itself; "
-            "it only requires explicit engineering-validated profile evidence."
+            "it requires explicit engineering-validated profiles plus typed, topology-bound evidence receipts."
         ),
     }

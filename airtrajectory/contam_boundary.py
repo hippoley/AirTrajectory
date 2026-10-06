@@ -182,6 +182,7 @@ def bind_boundary_profile(
             "evidence_level": profile.get("evidence_level"),
             "engineering_validated": profile.get("engineering_validated") is True,
             "source": profile.get("source"),
+            "evidence_receipts": list(profile.get("evidence_receipts") or []),
         },
         "weather": weather,
         "contaminants": contaminants,

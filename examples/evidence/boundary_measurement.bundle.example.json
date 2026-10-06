@@ -1,0 +1,25 @@
+{
+  "schema_version": "0.1",
+  "evidence_id": "site-boundary-observation-001",
+  "evidence_type": "boundary_measurement",
+  "topology_id": "demo.fixed-three-room.v1",
+  "captured_at": "2026-10-06T13:10:00+08:00",
+  "method": "synchronized-site-observation",
+  "source": {
+    "kind": "sensor-station",
+    "id": "site-weather-co2-001",
+    "model": "replace-with-real-model",
+    "serial": "replace-with-real-serial",
+    "calibration_ref": "replace-with-calibration-certificate"
+  },
+  "data": {
+    "weather": {
+      "wind_speed_m_s": 1.8,
+      "wind_direction_deg": 190.0,
+      "barometric_pressure_pa": 100800.0
+    },
+    "contaminants": {
+      "co2_ppm": 428.0
+    }
+  }
+}

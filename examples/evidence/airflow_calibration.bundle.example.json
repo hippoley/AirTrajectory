@@ -1,0 +1,24 @@
+{
+  "schema_version": "0.1",
+  "evidence_id": "window-leakage-fit-001",
+  "evidence_type": "airflow_calibration",
+  "topology_id": "demo.fixed-three-room.v1",
+  "captured_at": "2026-10-06T13:00:00+08:00",
+  "method": "closed-window-pressure-flow-fit",
+  "source": {
+    "kind": "instrument",
+    "id": "airflow-rig-001",
+    "model": "replace-with-real-model",
+    "serial": "replace-with-real-serial",
+    "calibration_ref": "replace-with-calibration-certificate"
+  },
+  "data": {
+    "opening_fits": {
+      "W1": {
+        "closed_leakage_multiplier": 0.012,
+        "sample_count": 8,
+        "rmse": 0.004
+      }
+    }
+  }
+}

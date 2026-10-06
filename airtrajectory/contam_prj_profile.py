@@ -367,6 +367,7 @@ def bind_prj_serialization_profile(
             "evidence_level": profile.get("evidence_level"),
             "engineering_validated": profile.get("engineering_validated") is True,
             "source": profile.get("source"),
+            "evidence_receipts": list(profile.get("evidence_receipts") or []),
         },
         "zones": zones,
         "airflow_elements": airflow_elements,
