@@ -115,10 +115,15 @@ def run_demo(
             if key.startswith("path:")
         }
         input_names = dict(contam_provenance.get("input_control_names") or {})
-        opening_controls = {
-            opening_id: ContamControl(control_name=name)
-            for opening_id, name in input_names.items()
-        }
+        input_ranges = dict(contam_provenance.get("input_control_ranges") or {})
+        opening_controls = {}
+        for opening_id,name in input_names.items():
+            bounds = dict(input_ranges.get(opening_id) or {})
+            opening_controls[opening_id] = ContamControl(
+                control_name=name,
+                closed_value=float(bounds.get("closed_value", 0.0)),
+                open_value=float(bounds.get("open_value", 1.0)),
+            )
 
         fixed = dict(fixed_openings or {})
         for opening_id in topology.openings:
@@ -156,6 +161,7 @@ def run_demo(
                     "contam_path_numbers": path_numbers,
                     "contam_zone_numbers": zone_numbers,
                     "contam_input_control_names": input_names,
+                    "contam_input_control_ranges": input_ranges,
                     "fixed_opening_ids": sorted(fixed),
                 },
                 environment_kind="contam",
