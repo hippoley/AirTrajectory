@@ -57,3 +57,15 @@ jobs:
           $prj = (Get-Content _contam_prj.txt -Raw).Trim()
           python examples/contam_smoke.py "$prj" --zone 1 --contaminant 1 --steps 2 | Tee-Object -FilePath contam-smoke.json
           if (-not (Select-String -Path contam-smoke.json -Pattern "CONTAM_EXECUTED")) { exit 1 }
+      - name: Generate AirTrajectory multi-space PRJ
+        shell: pwsh
+        run: |
+          python examples/generate_multispace_contam_prj.py --out artifacts/multispace-generated.prj --provenance-out artifacts/multispace-generated.prj.json
+          if (-not (Test-Path artifacts/multispace-generated.prj)) { exit 1 }
+          if (-not (Select-String -Path artifacts/multispace-generated.prj -Pattern "3 ! zones:")) { exit 1 }
+          if (-not (Select-String -Path artifacts/multispace-generated.prj -Pattern "5 ! flow paths:")) { exit 1 }
+      - name: Load generated PRJ with real ContamX
+        shell: pwsh
+        run: |
+          python examples/contam_generated_smoke.py artifacts/multispace-generated.prj --expected-zones 3 --expected-paths 5 | Tee-Object -FilePath generated-contam-smoke.json
+          if (-not (Select-String -Path generated-contam-smoke.json -Pattern "GENERATED_CONTAM_PRJ_LOADED")) { exit 1 }
