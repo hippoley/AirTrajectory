@@ -220,6 +220,19 @@ class ContamFieldValidationTests(unittest.TestCase):
             **alignment_payload,
             "alignment_sha256": sha(alignment_payload),
         }
+        import_payload = {
+            "adapter": "field-capture-importer-v1",
+            "records_format": "csv",
+            "manifest_filename": "capture.manifest.json",
+            "manifest_sha256": "d" * 64,
+            "records_filename": "gateway.csv",
+            "records_sha256": "e" * 64,
+            "record_count": 16,
+        }
+        bundle["import_provenance"] = {
+            **import_payload,
+            "import_receipt_sha256": sha(import_payload),
+        }
         result = validate_contam_against_field(
             layout=self.layout,
             runtime_receipt=runtime,
@@ -231,6 +244,11 @@ class ContamFieldValidationTests(unittest.TestCase):
             result["alignment_sha256"],
             sha(alignment_payload),
         )
+        self.assertEqual(
+            result["import_receipt_sha256"],
+            sha(import_payload),
+        )
+        self.assertEqual(result["source_records_sha256"], "e" * 64)
 
     def test_threshold_failure_returns_failed_receipt_not_fake_pass(self):
         runtime, bundle = self.bundle(offset=200.0)
