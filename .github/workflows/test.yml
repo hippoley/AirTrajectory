@@ -86,11 +86,12 @@ jobs:
         run: |
           python examples/contam_generated_smoke.py artifacts/multispace-generated.prj --expected-zones 3 --expected-paths 5 --provenance artifacts/multispace-generated.prj.json | Tee-Object -FilePath generated-contam-smoke.json
           if (-not (Select-String -Path generated-contam-smoke.json -Pattern "GENERATED_CONTAM_DYNAMIC_CONTROL_EXECUTED")) { exit 1 }
-      - name: Generate isolated PRJ for unified trajectory
+      - name: Generate PRJ for unified trajectory
         shell: pwsh
         run: |
           python examples/generate_multispace_contam_prj.py --out artifacts/multispace-trajectory.prj --provenance-out artifacts/multispace-trajectory.prj.json
       - name: Run unified multi-window trajectory on real ContamX
+        timeout-minutes: 3
         shell: pwsh
         run: |
           python examples/run_multispace_contam_demo.py artifacts/multispace-trajectory.prj artifacts/multispace-trajectory.prj.json --steps 2 --out artifacts/multispace-contam-trajectory.json | Tee-Object -FilePath generated-contam-trajectory.log
