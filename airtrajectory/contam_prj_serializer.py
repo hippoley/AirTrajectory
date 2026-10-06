@@ -223,7 +223,6 @@ def render_minimal_prj(manifest: dict[str, Any], *, project_name: str = "airtraj
         n = _path_endpoint_number(manifest, path["from"])
         m = _path_endpoint_number(manifest, path["to"])
         element_number = int(path["airflow_element"]["contam_element_number"])
-        name = str(path["key"]).replace(":", "_")
         emit(
             f"{nr:4d} {flags:4d} {n:4d} {m:4d} {element_number:4d} "
             f"{int(path['filter_number']):3d} {int(path['wind_profile_number']):3d} "
@@ -235,7 +234,7 @@ def render_minimal_prj(manifest: dict[str, Any], *, project_name: str = "airtraj
             f"{float(path['constant_wind_pressure_pa']):.6g} "
             f"{float(path['wind_speed_modifier']):.6g} "
             f"{float(path['wall_azimuth_deg']):.6g} "
-            f"0 0 0 23 2 -1 0 0 0 0 0 {name} 0"
+            f"0 0 0 23 2 -1 0 0 0 0 0 0"
         )
     emit("-999")
 
