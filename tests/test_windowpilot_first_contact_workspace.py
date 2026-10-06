@@ -247,6 +247,49 @@ class WindowPilotFirstContactWorkspaceTests(unittest.TestCase):
         )
         self.assertTrue(captures["W1"]["capabilities.json"])
 
+    def test_partial_capture_preserves_successful_endpoint_files(self):
+        cfg = config()
+        cfg["windowpilot_endpoints"]["W2"] = {
+            "base_url": "https://w2.example",
+            "headers_env": {
+                "Authorization": "WINDOWPILOT_AUTH",
+            },
+        }
+        good = payloads()
+
+        def fetch(*, url, headers, timeout_s):
+            if url.startswith("https://w2.example"):
+                raise RuntimeError("W2 offline")
+            path = url.replace("https://w1.example", "")
+            return (
+                200,
+                {"Content-Type": "application/json"},
+                json.dumps(good[path]).encode("utf-8"),
+            )
+
+        workspace, captures, evaluations = (
+            build_windowpilot_first_contact_workspace(
+                config=cfg,
+                environ={"WINDOWPILOT_AUTH": "Bearer secret"},
+                fetch_fn=fetch,
+            )
+        )
+        self.assertEqual(workspace["status"], "PARTIAL_CAPTURE")
+        self.assertEqual(workspace["endpoint_ids"], ["W1"])
+        self.assertEqual(workspace["endpoint_count"], 1)
+        self.assertEqual(
+            workspace["capture_errors"][0]["endpoint_id"],
+            "W2",
+        )
+        self.assertIn("W1", captures)
+        self.assertNotIn("W2", captures)
+        self.assertEqual(evaluations, {})
+        self.assertFalse(workspace["network_requests_exact"])
+        self.assertIsNone(workspace["network_requests"])
+        self.assertEqual(workspace["successful_network_requests"], 3)
+        self.assertEqual(workspace["actuator_writes"], 0)
+
+
 
 if __name__ == "__main__":
     unittest.main()
