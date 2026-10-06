@@ -205,6 +205,33 @@ class ContamFieldValidationTests(unittest.TestCase):
         self.assertEqual(result["sample_count"], 2)
         self.assertEqual(len(result["field_validation_receipt_sha256"]), 64)
 
+    def test_alignment_provenance_is_bound_into_final_receipt(self):
+        runtime, bundle = self.bundle()
+        alignment_payload = {
+            "aggregation": "nearest",
+            "max_skew_s": 10.0,
+            "accepted_qualities": ["measured"],
+            "selected_record_count": 16,
+            "input_record_count": 16,
+            "alignments": [],
+        }
+        bundle["raw_capture_sha256"] = "c" * 64
+        bundle["alignment_receipt"] = {
+            **alignment_payload,
+            "alignment_sha256": sha(alignment_payload),
+        }
+        result = validate_contam_against_field(
+            layout=self.layout,
+            runtime_receipt=runtime,
+            protocol=protocol(),
+            field_bundle=bundle,
+        )
+        self.assertEqual(result["raw_capture_sha256"], "c" * 64)
+        self.assertEqual(
+            result["alignment_sha256"],
+            sha(alignment_payload),
+        )
+
     def test_threshold_failure_returns_failed_receipt_not_fake_pass(self):
         runtime, bundle = self.bundle(offset=200.0)
         result = validate_contam_against_field(
