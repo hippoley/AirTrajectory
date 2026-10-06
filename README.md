@@ -1230,3 +1230,27 @@ VERIFIED_READ_ONLY_STARTUP
 ```
 
 The bundle exists so the first real hardware contact can be carried into development and CI as reproducible evidence, without repeatedly reconnecting to the site merely to debug adapter/contract logic.
+
+
+### Emit startup evidence during one-command validation
+
+When a frozen contract baseline is already available, the one-command WindowPilot validation flow can now persist the startup evidence bundle from the exact preflight instance used before timed sampling:
+
+```bash
+python examples/run_windowpilot_field_validation.py \
+  artifacts/engineering-runtime.json \
+  artifacts/field-validation-protocol.frozen.json \
+  path/to/windowpilot-endpoints.json \
+  --validation-id site-run-001 \
+  --contract-baseline artifacts/windowpilot-contract-baseline.json \
+  --probe-out artifacts/windowpilot-contract-probe.current.json \
+  --contract-check-out artifacts/windowpilot-contract-drift.json \
+  --startup-bundle-id site-a-startup-001 \
+  --startup-bundle-out artifacts/windowpilot-startup-bundle.json \
+  --out artifacts/windowpilot-field-validation.json \
+  --require-pass
+```
+
+The pipeline does not run a second preflight merely to build the bundle. The bundle is generated from the same preflight receipt that gates the subsequent timed sampling, and the final pipeline receipt binds `startup_bundle_sha256`.
+
+Requesting a startup bundle without a contract baseline/current probe fails closed.
