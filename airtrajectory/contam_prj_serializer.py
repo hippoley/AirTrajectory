@@ -50,6 +50,13 @@ def _dynamic_window_controls(manifest: dict[str, Any]) -> list[dict[str, Any]]:
             "path_number": int(path["contam_path_number"]),
             "control_node_number": index,
             "name": str(path["layout_opening_id"]) + "_open",
+            "closed_value": float(
+                (path.get("airflow_element") or {}).get(
+                    "closed_leakage_multiplier",
+                    0.0,
+                )
+            ),
+            "open_value": 1.0,
         }
         for index, path in enumerate(paths, start=1)
     ]
@@ -202,7 +209,9 @@ def render_minimal_prj(manifest: dict[str, Any], *, project_name: str = "airtraj
         nr = int(control["control_node_number"])
         name = control["name"]
         emit(f"{nr:4d} set {nr:3d} 0 0 0 0 {name}")
-        emit("AirTrajectory external opening multiplier 0..1")
+        emit(
+            "AirTrajectory external opening multiplier; mechanical 0% may retain leakage floor"
+        )
         emit(" 1")
     emit("-999")
     emit("0 ! simple AHS:")
@@ -306,6 +315,13 @@ def write_minimal_prj(manifest: dict[str, Any], path: str | Path) -> dict[str, A
         },
         "input_control_names": {
             item["opening_id"]: item["name"]
+            for item in controls
+        },
+        "input_control_ranges": {
+            item["opening_id"]: {
+                "closed_value": item["closed_value"],
+                "open_value": item["open_value"],
+            }
             for item in controls
         },
         "input_control_index_policy": "runtime-discovery-by-name",
