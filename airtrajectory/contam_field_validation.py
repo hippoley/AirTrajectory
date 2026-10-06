@@ -155,6 +155,8 @@ def _validate_measurements(
         raise ValueError("field validation_id is required")
     if field_bundle.get("protocol_id") != protocol["protocol_id"]:
         raise ValueError("field bundle protocol_id mismatch")
+    if field_bundle.get("protocol_sha256") != protocol["protocol_sha256"]:
+        raise ValueError("field bundle protocol_sha256 mismatch")
     if field_bundle.get("topology_id") != layout.topology_id:
         raise ValueError("field bundle topology_id mismatch")
     if (
@@ -245,6 +247,19 @@ def validate_contam_against_field(
 ) -> dict[str, Any]:
     if runtime_receipt.get("status") != "ENGINEERING_RUNTIME_VERIFIED":
         raise ValueError("runtime receipt is not ENGINEERING_RUNTIME_VERIFIED")
+    provided_runtime_sha = str(
+        runtime_receipt.get("runtime_receipt_sha256") or ""
+    )
+    runtime_payload = dict(runtime_receipt)
+    runtime_payload.pop("runtime_receipt_sha256", None)
+    if provided_runtime_sha != _sha256(runtime_payload):
+        raise ValueError("runtime receipt SHA-256 integrity check failed")
+    prediction_series = runtime_receipt.get("prediction_series") or []
+    if (
+        runtime_receipt.get("prediction_series_sha256")
+        != _sha256(prediction_series)
+    ):
+        raise ValueError("runtime prediction_series SHA-256 integrity check failed")
     if runtime_receipt.get("runtime_verified") is not True:
         raise ValueError("runtime receipt is not verified")
     if runtime_receipt.get("engineering_model_verified") is not True:
