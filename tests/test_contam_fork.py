@@ -152,7 +152,7 @@ class ContamForkTests(unittest.TestCase):
                 {"home-v1":self.profile(prj)},
                 binding_factory=ForkCx,
             )
-            self.assertTrue(out["contam"]["fork_origin_opening_controls_applied"])
+            self.assertTrue(out["origin_opening_controls_applied"])
 
     def test_origin_must_exactly_cover_profile(self):
         with tempfile.TemporaryDirectory() as d:
