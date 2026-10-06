@@ -45,15 +45,43 @@ def build_windowpilot_first_contact_workspace(
     evaluations: dict[str, dict[str, Any]] = {}
     if mapping_profile_bytes is not None:
         for endpoint_id, files in sorted(captures.items()):
-            report, canonical = evaluate_windowpilot_mapping_files(
-                profile_bytes=mapping_profile_bytes,
-                capabilities_bytes=files["capabilities.json"],
-                physical_readiness_bytes=files[
-                    "physical_readiness.json"
-                ],
-                state_bytes=files["state.json"],
-                fixture_id=f"{endpoint_id}-first-contact",
-            )
+            try:
+                report, canonical = evaluate_windowpilot_mapping_files(
+                    profile_bytes=mapping_profile_bytes,
+                    capabilities_bytes=files["capabilities.json"],
+                    physical_readiness_bytes=files[
+                        "physical_readiness.json"
+                    ],
+                    state_bytes=files["state.json"],
+                    fixture_id=f"{endpoint_id}-first-contact",
+                )
+            except Exception as exc:
+                report = {
+                    "schema_version": "0.1",
+                    "evaluation": "windowpilot-offline-mapping-fixture-v1",
+                    "fixture_id": f"{endpoint_id}-first-contact",
+                    "status": "MAPPING_ERROR",
+                    "mapping_profile_id": None,
+                    "mapping_profile_sha256": None,
+                    "endpoint_receipts": {},
+                    "mapping_errors": [{
+                        "endpoint": "profile-or-fixture",
+                        "error_type": type(exc).__name__,
+                        "error": str(exc),
+                    }],
+                    "compatibility_probe_receipt_sha256": None,
+                    "actuator_writes": 0,
+                    "network_requests": 0,
+                }
+                report["evaluation_sha256"] = _sha256_json(
+                    {
+                        key: value
+                        for key, value in report.items()
+                        if key != "evaluation_sha256"
+                    }
+                )
+                report["compatibility"] = None
+                canonical = {}
             evaluations[endpoint_id] = {
                 "report": report,
                 "canonical": canonical,
