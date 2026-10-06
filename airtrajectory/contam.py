@@ -33,6 +33,7 @@ class ContamXSession:
         self.verbosity=verbosity
         self.ambient=dict(ambient or {})
         self.initial_input_controls={int(k):dict(v) for k,v in (initial_input_controls or {}).items()}
+        self.warm_start=bool(warm_start)
         self.engine=None
         self.started=False
 
@@ -143,7 +144,7 @@ class CONTAMEnvironment(VentilationEnvironment):
         binding_factory:Optional[Callable]=None,fixed_openings:Optional[Dict[str,float]]=None,
         initial_openings:Optional[Dict[str,float]]=None,rain:Optional[bool]=False,
         initial_co2_ppm:Optional[Dict[str,float]]=None,ambient:Optional[dict]=None,
-        initial_input_controls:Optional[dict]=None,
+        initial_input_controls:Optional[dict]=None,warm_start:bool=True,
     ):
         self.topology=topology; self.prj_path=Path(prj_path); self.zone_numbers=dict(zone_numbers)
         self.opening_controls=dict(opening_controls); self.co2_contaminant_number=co2_contaminant_number
@@ -184,7 +185,11 @@ class CONTAMEnvironment(VentilationEnvironment):
         if self.session is not None: self.session.close()
         self.session=ContamXSession(self.prj_path,self.binding_factory,ambient=self.ambient,initial_input_controls=self.initial_input_controls)
         meta=self.session.setup(); self._step=0; self.openings={k:self.initial_openings.get(k,0.0) for k in self.topology.openings}; self.openings.update(self.fixed_openings)
-        return self._initial_observation(),{"backend":"contamxpy","physics_fidelity":"CONTAM","contam":meta,"initial_state_source":"prj-profile"}
+        warm_start_steps=0
+        if self.warm_start:
+            self.session.step()
+            warm_start_steps=1
+        return self._initial_observation(),{"backend":"contamxpy","physics_fidelity":"CONTAM","contam":meta,"initial_state_source":"prj-profile","warm_start_steps":warm_start_steps,"warm_start_opening_pct":dict(self.openings)}
 
     def step(self,actions):
         actions=list(actions); previous=dict(self.openings)
