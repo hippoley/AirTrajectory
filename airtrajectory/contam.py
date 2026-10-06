@@ -27,11 +27,12 @@ class ContamControl:
 
 class ContamXSession:
     """Thin lifecycle wrapper around NIST contamxpy.cxLib."""
-    def __init__(self,prj_path:str|Path,binding_factory:Optional[Callable]=None,verbosity:int=0,ambient:Optional[dict]=None):
+    def __init__(self,prj_path:str|Path,binding_factory:Optional[Callable]=None,verbosity:int=0,ambient:Optional[dict]=None,initial_input_controls:Optional[dict]=None):
         self.prj_path=Path(prj_path)
         self.binding_factory=binding_factory
         self.verbosity=verbosity
         self.ambient=dict(ambient or {})
+        self.initial_input_controls={int(k):dict(v) for k,v in (initial_input_controls or {}).items()}
         self.engine=None
         self.started=False
 
@@ -61,12 +62,22 @@ class ContamXSession:
                 if "temperature_k" in ambient: cx.setAmbtTemperature(float(ambient["temperature_k"]))
                 for number,value in (ambient.get("mass_fractions") or {}).items():
                     cx.setAmbtMassFraction(int(number),float(value))
+                for index,spec in self.initial_input_controls.items():
+                    cx.setInputControlValue(int(index),float(spec["value"]))
         self.engine=factory(str(self.prj_path),0,True,init_callback)
         if hasattr(self.engine,"setVerbosity"): self.engine.setVerbosity(self.verbosity)
         setup_status=self.engine.setupSimulation(1)
         if setup_status not in (None,0):
             raise RuntimeError(f"ContamX setupSimulation failed with status {setup_status}")
         self.started=True
+        controls=list(getattr(self.engine,"inputControls",[]))
+        for index,spec in self.initial_input_controls.items():
+            if index<1 or index>len(controls):
+                raise RuntimeError(f"CONTAM initial input-control index out of range: {index}")
+            expected=str(spec.get("name") or "")
+            actual=str(getattr(controls[index-1],"name",""))
+            if expected and actual!=expected:
+                raise RuntimeError(f"CONTAM input-control mapping drift at {index}: expected {expected}, got {actual}")
         return {
             "version":self.engine.getVersion() if hasattr(self.engine,"getVersion") else "unknown",
             "zones":getattr(self.engine,"nZones",None),
@@ -133,6 +144,7 @@ class CONTAMEnvironment(VentilationEnvironment):
         binding_factory:Optional[Callable]=None,fixed_openings:Optional[Dict[str,float]]=None,
         initial_openings:Optional[Dict[str,float]]=None,rain:Optional[bool]=False,
         initial_co2_ppm:Optional[Dict[str,float]]=None,ambient:Optional[dict]=None,
+        initial_input_controls:Optional[dict]=None,
     ):
         self.topology=topology; self.prj_path=Path(prj_path); self.zone_numbers=dict(zone_numbers)
         self.opening_controls=dict(opening_controls); self.co2_contaminant_number=co2_contaminant_number
@@ -140,6 +152,7 @@ class CONTAMEnvironment(VentilationEnvironment):
         self.fixed_openings={k:float(v) for k,v in (fixed_openings or {}).items()}
         self.rain=rain
         self.ambient=dict(ambient or {})
+        self.initial_input_controls={int(k):dict(v) for k,v in (initial_input_controls or {}).items()}
         self.initial_co2_ppm={k:float(v) for k,v in (initial_co2_ppm or {}).items()}
         self.initial_openings={k:float(v) for k,v in (initial_openings or {}).items()}
         self.session=None; self._step=0; self.openings={k:self.initial_openings.get(k,0.0) for k in topology.openings}
@@ -170,7 +183,7 @@ class CONTAMEnvironment(VentilationEnvironment):
 
     def reset(self,seed=None):
         if self.session is not None: self.session.close()
-        self.session=ContamXSession(self.prj_path,self.binding_factory,ambient=self.ambient)
+        self.session=ContamXSession(self.prj_path,self.binding_factory,ambient=self.ambient,initial_input_controls=self.initial_input_controls)
         meta=self.session.setup(); self._step=0; self.openings={k:self.initial_openings.get(k,0.0) for k in self.topology.openings}; self.openings.update(self.fixed_openings)
         return self._initial_observation(),{"backend":"contamxpy","physics_fidelity":"CONTAM","contam":meta,"initial_state_source":"prj-profile"}
 
