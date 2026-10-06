@@ -2,14 +2,39 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
-from typing import Any
+from typing import Any, Mapping
 
 from .drivers.windowpilot import WindowPilotHTTPDriver
 from .windowpilot_contract_mapping import (
     build_windowpilot_response_adapter,
     validate_windowpilot_contract_mapping,
 )
+
+
+def resolve_windowpilot_headers(
+    spec: Mapping[str, Any],
+    *,
+    environ: Mapping[str, str] | None = None,
+) -> dict[str, str]:
+    refs = spec.get("headers_env") or {}
+    if not isinstance(refs, Mapping):
+        raise ValueError("endpoint headers_env must be an object")
+    env = os.environ if environ is None else environ
+    headers = {}
+    for header_name, env_name in refs.items():
+        header = str(header_name or "").strip()
+        variable = str(env_name or "").strip()
+        if not header or not variable:
+            raise ValueError("headers_env requires non-empty header/env names")
+        value = env.get(variable)
+        if value is None or not str(value):
+            raise ValueError(
+                f"missing WindowPilot header environment variable {variable}"
+            )
+        headers[header] = str(value)
+    return headers
 
 
 def load_windowpilot_driver_config(path: str | Path) -> dict[str, Any]:
@@ -30,6 +55,14 @@ def load_windowpilot_driver_config(path: str | Path) -> dict[str, Any]:
     for opening_id, spec in endpoints.items():
         if not isinstance(spec, dict):
             raise ValueError(f"endpoint {opening_id} must be an object")
+        headers_env = spec.get("headers_env") or {}
+        if not isinstance(headers_env, dict):
+            raise ValueError(f"endpoint {opening_id} headers_env must be an object")
+        for header_name, env_name in headers_env.items():
+            if not str(header_name or "").strip() or not str(env_name or "").strip():
+                raise ValueError(
+                    f"endpoint {opening_id} headers_env requires non-empty header/env names"
+                )
         profile_name = spec.get("contract_mapping_profile")
         if profile_name is not None and str(profile_name) not in normalized_profiles:
             raise ValueError(
@@ -68,6 +101,7 @@ def build_windowpilot_drivers(
             "position_tolerance_pct": float(
                 spec.get("position_tolerance_pct", 1.0)
             ),
+            "headers": resolve_windowpilot_headers(spec),
         }
         if request_json_factory is not None:
             kwargs["request_json"] = request_json_factory(opening_id, spec)
