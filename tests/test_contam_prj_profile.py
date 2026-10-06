@@ -64,7 +64,7 @@ def profile():
             "level_number": 1,
             "relative_height_m": 0.0,
             "initial_temperature_k": 298.15,
-            "initial_pressure_pa": 101325.0,
+            "initial_pressure_pa": 0.0,
         },
         "airflow_element_storage": {
             "window": {
@@ -114,7 +114,7 @@ class ContamPrjProfileTests(unittest.TestCase):
         living = next(z for z in bound["zones"] if z["key"] == "zone:living")
         self.assertEqual(living["level_number"], 1)
         self.assertEqual(living["initial_temperature_k"], 298.15)
-        self.assertEqual(living["initial_pressure_pa"], 101325.0)
+        self.assertEqual(living["initial_pressure_pa"], 0.0)
 
     def test_profile_fills_airflow_section_10_storage_fields(self):
         bound = bind_prj_serialization_profile(forced_manifest(), profile())
