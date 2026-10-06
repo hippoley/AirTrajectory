@@ -102,7 +102,8 @@ Ambient forcing is now explicit as well. `airtrajectory.contam_boundary.bind_bou
 | Writer manifest → airflow-element binding | ✅ verified | explicit profile binds deterministic `element:*` identities; production gate rejects illustrative profiles |
 | Bound manifest → boundary forcing | ✅ verified | wind/weather + contaminant profiles are explicit, hashed, zone-complete, and production-gated |
 | Forced manifest → PRJ readiness audit | ✅ verified | section/entity-level blockers are explicit and hashed; no file is emitted while incomplete |
-| PRJ readiness → generated PRJ | 🟡 reserved | concrete CONTAM serialization remains blocked until all stored fields are explicit |
+| Explicit PRJ profile → serialization readiness | ✅ verified | Section 10/14/15/16 + project/species/levels can be made complete without hidden defaults |
+| Serialization-ready manifest → generated PRJ | 🟡 reserved | concrete CONTAM text emission and runtime verification remain next |
 | Multi-room / multi-window scenario simulator | ✅ verified | deterministic toy/surrogate physics; not engineering truth |
 | Agent → safety gate → executed action → reward → trajectory | ✅ verified | proposed/executed/intervention are preserved |
 | Behavior Cloning baseline | ✅ verified | topology-local discrete policy trained from behavior rows |
@@ -326,3 +327,17 @@ python examples/inspect_contam_prj_readiness.py \
 ```
 
 The current forced manifest is intentionally expected to remain `BLOCKED`: it still lacks concrete stored PRJ values such as airflow `lam/turb/Re`, zone level/height/initial temperature/pressure, an explicit ppm→mass-fraction conversion policy, and low-level path records. These are now reported per section and per entity rather than silently guessed. A `.prj` writer will only be enabled after this gate reaches `READY_FOR_PRJ_SERIALIZATION`.
+
+### CONTAM explicit PRJ profile
+
+A concrete PRJ serialization profile can now fill the previously blocked Section 10/14/15/16 fields plus project controls, species definitions, and level records. The profile is explicit rather than inferred from UI geometry: every `path:*` record supplies its stored PRJ fields, zone state comes from declared defaults/overrides, and contaminant ppm values are converted to mass fraction using an explicit molecular-weight policy.
+
+```bash
+python examples/bind_contam_prj_profile.py \
+  artifacts/contam-forced.json \
+  examples/contam_prj_profile.example.json \
+  --out artifacts/contam-prj-profiled.json \
+  --readiness-out artifacts/contam-prj-readiness.json
+```
+
+With a complete profile, the readiness audit can now reach `READY_FOR_PRJ_SERIALIZATION`. The bundled example remains `engineering_validated=false`; it proves schema completeness and compiler behavior, not building-specific engineering truth.
