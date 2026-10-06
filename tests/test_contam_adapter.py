@@ -21,6 +21,17 @@ class FakeCx:
     def getPathFlow(self,p): return 0.25+self.steps*0.01
     def endSimulation(self): self.ended=True
 
+
+class GuardedInitialReadCx(FakeCx):
+    def getZoneMF(self,z,c):
+        if self.steps == 0:
+            raise AssertionError("zone state read before first ContamX solve")
+        return super().getZoneMF(z,c)
+    def getPathFlow(self,p):
+        if self.steps == 0:
+            raise AssertionError("path flow read before first ContamX solve")
+        return super().getPathFlow(p)
+
 class ContamAdapterTests(unittest.TestCase):
     def topology(self):
         return BuildingTopology.from_parts(
@@ -112,6 +123,32 @@ class ContamAdapterTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError,"fixed CONTAM opening D1 cannot move"):
                 env.step([TransitionAction("D1",50)])
             env.close()
+
+    def test_reset_uses_explicit_initial_state_before_first_contam_solve(self):
+        with tempfile.TemporaryDirectory() as d:
+            prj=Path(d)/"demo.prj"; prj.write_text("fixture")
+            env=CONTAMEnvironment(
+                self.topology(),
+                prj,
+                {"living":1,"bedroom":2},
+                {"W1":ContamControl(control_name="W1_open"),"W2":ContamControl(control_name="W2_open")},
+                path_numbers={"W1":1},
+                max_steps=2,
+                binding_factory=GuardedInitialReadCx,
+                initial_co2_ppm={"living":1400,"bedroom":900},
+            )
+            obs,info=env.reset()
+            self.assertEqual(obs["state_source"],"prj-profile-initial")
+            self.assertEqual(obs["co2_ppm"],{"living":1400.0,"bedroom":900.0})
+            self.assertEqual(obs["path_flow_kg_s"],{})
+            nxt,_,_,_,_=env.step([
+                TransitionAction("W1",75),
+                TransitionAction("W2",25),
+            ])
+            self.assertEqual(nxt["state_source"],"contam-solved")
+            self.assertTrue(nxt["path_flow_kg_s"])
+            env.close()
+
 
     def test_co2_mass_fraction_conversion(self):
         self.assertGreater(co2_mass_fraction_to_ppm(.001),600)
