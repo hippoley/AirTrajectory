@@ -1,7 +1,13 @@
 import copy
+import json
+from pathlib import Path
+import tempfile
 import unittest
 
-from airtrajectory.demo_physical_config import build_windowpilot_drivers
+from airtrajectory.demo_physical_config import (
+    build_windowpilot_drivers,
+    load_windowpilot_driver_config,
+)
 from airtrajectory.windowpilot_contract_baseline import (
     compare_windowpilot_contract_baseline,
     freeze_windowpilot_contract_baseline,
@@ -305,6 +311,40 @@ class WindowPilotContractMappingTests(unittest.TestCase):
                 for row in result["drifts"]
             )
         )
+
+    def test_config_loader_normalizes_profile_and_rejects_unknown_reference(self):
+        payload = {
+            "schema_version": "0.1",
+            "windowpilot_endpoints": {
+                "W1": {
+                    "base_url": "http://w1",
+                    "contract_mapping_profile": "vendor",
+                }
+            },
+            "contract_mapping_profiles": {
+                "vendor": profile(),
+            },
+            "fixed_openings": {},
+        }
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "windowpilot.json"
+            path.write_text(json.dumps(payload), encoding="utf-8")
+            loaded = load_windowpilot_driver_config(path)
+        normalized = loaded["contract_mapping_profiles"]["vendor"]
+        self.assertEqual(normalized["profile_id"], "vendor-v1")
+        self.assertEqual(len(normalized["profile_sha256"]), 64)
+
+        payload["windowpilot_endpoints"]["W1"][
+            "contract_mapping_profile"
+        ] = "missing"
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "windowpilot.json"
+            path.write_text(json.dumps(payload), encoding="utf-8")
+            with self.assertRaisesRegex(
+                ValueError,
+                "unknown contract mapping profile",
+            ):
+                load_windowpilot_driver_config(path)
 
 
 if __name__ == "__main__":
