@@ -59,8 +59,17 @@ def _require_source(source: Any) -> dict[str, Any]:
 
 
 def _validate_metric_geometry(data: dict[str, Any]) -> dict[str, Any]:
+    rooms = data.get("rooms")
     walls = data.get("walls")
     openings = data.get("openings")
+    if rooms is not None:
+        if not isinstance(rooms, dict) or not rooms:
+            raise ValueError("geometry evidence rooms must be a non-empty object")
+        for room_id, row in rooms.items():
+            if float(row.get("volume_m3")) <= 0:
+                raise ValueError(
+                    f"geometry room {room_id} volume_m3 must be positive"
+                )
     if not isinstance(walls, dict) or not walls:
         raise ValueError("geometry evidence requires wall measurements")
     if not isinstance(openings, dict) or not openings:
@@ -82,6 +91,7 @@ def _validate_metric_geometry(data: dict[str, Any]) -> dict[str, Any]:
                 f"geometry opening {opening_id} sill_height_m must be non-negative"
             )
     return {
+        "room_count": len(rooms or {}),
         "wall_count": len(walls),
         "opening_count": len(openings),
         "data_sha256": _sha256(data),
