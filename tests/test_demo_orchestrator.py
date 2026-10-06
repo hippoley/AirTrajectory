@@ -206,6 +206,8 @@ class DemoOrchestratorTests(unittest.TestCase):
         )
         self.assertEqual(result.trajectory.steps[0].executed_actions[0].opening_id,"W1")
         self.assertEqual(result.trajectory.context["fixed_opening_ids"],["D1","D2"])
+        self.assertEqual(result.trajectory.context["reset_info"]["warm_start_steps"],1)
+        self.assertEqual(result.trajectory.context["reset_info"]["warm_start_opening_pct"]["D1"],100.0)
 
 
     def test_physical_mode_requires_all_exterior_controllable_drivers(self):
