@@ -744,3 +744,67 @@ examples/field_measurements.template.json
 ```
 
 The protocol template is deliberately unapproved by default.
+
+
+### Raw field capture → aligned validation samples
+
+Field validation no longer requires manually authored `step=0/1/2` samples. The runtime receipt exposes an explicit simulated time axis, and the approved validation protocol freezes the alignment rules before data collection:
+
+```json
+{
+  "alignment": {
+    "sampling_interval_s": 60,
+    "max_skew_s": 10,
+    "aggregation": "nearest",
+    "accepted_qualities": ["measured"]
+  }
+}
+```
+
+A site recorder can emit timestamped events instead:
+
+```text
+timestamp
+signal_type = co2_ppm | opening_pct
+target_id
+value
+unit
+quality
+```
+
+Compile the raw capture:
+
+```bash
+python examples/compile_field_capture.py \
+  artifacts/engineering-runtime.json \
+  artifacts/field-validation-protocol.frozen.json \
+  path/to/field-capture.json \
+  --out artifacts/field-measurements.aligned.json
+```
+
+The compiler aligns each required zone/opening signal to the runtime receipt's `simulation_time_s` using only records inside the pre-approved skew window. Records with an unapproved quality label are ignored. A raw record cannot be consumed by more than one prediction point.
+
+The generated bundle carries:
+
+```text
+raw_capture_sha256
+alignment_receipt
+alignment_sha256
+selected record indices
+expected timestamp
+actual record timestamp
+per-record skew
+quality
+```
+
+Those hashes are then bound into the final field-validation receipt, preserving the chain:
+
+```text
+raw timestamped sensor events
+→ approved deterministic alignment
+→ validation samples
+→ prediction-vs-field metrics
+→ FIELD_VALIDATION_PASSED / FAILED
+```
+
+A starter capture contract is available at `examples/field_capture.template.json`.
