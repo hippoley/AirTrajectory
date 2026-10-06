@@ -186,10 +186,24 @@ class CONTAMEnvironment(VentilationEnvironment):
         self.session=ContamXSession(self.prj_path,self.binding_factory,ambient=self.ambient,initial_input_controls=self.initial_input_controls)
         meta=self.session.setup(); self._step=0; self.openings={k:self.initial_openings.get(k,0.0) for k in self.topology.openings}; self.openings.update(self.fixed_openings)
         warm_start_steps=0
+        warm_start_controls={}
         if self.warm_start:
+            # ContamX can start from a singular pressure matrix when several
+            # facade openings begin partially constrained. Establish one
+            # pressure solution with every dynamic exterior opening fully open,
+            # then restore the declared snapshot controls before policy step 0.
+            for opening_id,control in self.opening_controls.items():
+                value=control.open_value
+                if control.control_name:
+                    self.session.set_named_input_control(control.control_name,value)
+                else:
+                    self.session.set_input_control(control.control_number,value)
+                warm_start_controls[opening_id]=100.0
             self.session.step()
             warm_start_steps=1
-        return self._initial_observation(),{"backend":"contamxpy","physics_fidelity":"CONTAM","contam":meta,"initial_state_source":"prj-profile","warm_start_steps":warm_start_steps,"warm_start_opening_pct":dict(self.openings)}
+            for index,spec in self.initial_input_controls.items():
+                self.session.set_input_control(int(index),float(spec["value"]))
+        return self._initial_observation(),{"backend":"contamxpy","physics_fidelity":"CONTAM","contam":meta,"initial_state_source":"prj-profile","warm_start_steps":warm_start_steps,"warm_start_opening_pct":warm_start_controls,"restored_opening_pct":dict(self.openings)}
 
     def step(self,actions):
         actions=list(actions); previous=dict(self.openings)
