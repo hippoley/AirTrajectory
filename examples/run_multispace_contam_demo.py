@@ -30,8 +30,6 @@ def main() -> int:
     layout=LayoutContract.from_file(args.layout)
     snapshot=DemoRuntimeSnapshot.resolve(layout)
 
-    print("CONTAM_TRAJECTORY_ORCHESTRATOR_BEGIN", flush=True)
-    print("CONTAM_TRAJECTORY_INITIAL_OPENINGS", json.dumps(snapshot.opening_states, sort_keys=True), flush=True)
     result=run_demo(
         snapshot,
         mode="contam",
@@ -40,7 +38,6 @@ def main() -> int:
         contam_provenance=provenance,
         fixed_openings={"D1":100.0,"D2":100.0},
     )
-    print("CONTAM_TRAJECTORY_ORCHESTRATOR_RETURNED", flush=True)
     trajectory=result.trajectory
     payload={
         "marker":"GENERATED_CONTAM_TRAJECTORY_EXECUTED",
