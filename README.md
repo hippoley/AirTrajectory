@@ -1474,3 +1474,53 @@ python examples/evaluate_windowpilot_mapping_fixture.py \
 ```
 
 The same environment-backed HTTP header configuration is used by the live contract probe and WindowPilot drivers, so first-contact capture, live probe, preflight, and field validation do not diverge on authentication behavior.
+
+
+### One-command WindowPilot first-contact workspace
+
+For short hardware-access windows, capture the raw evidence and optionally evaluate a mapping profile in the same command:
+
+```bash
+python examples/build_windowpilot_first_contact_workspace.py \
+  path/to/windowpilot-endpoints.json \
+  --out-dir artifacts/windowpilot-first-contact \
+  --workspace-out artifacts/windowpilot-first-contact-workspace.json \
+  --mapping-profile path/to/windowpilot-mapping.json \
+  --require-compatible
+```
+
+The workspace runs the real network capture exactly once. Each successful endpoint writes its three exact raw response files, and the optional mapping evaluation runs only against those saved bytes in memory.
+
+Workspace status is explicit:
+
+```text
+CAPTURED_ONLY
+CAPTURED_AND_COMPATIBLE
+CAPTURED_WITH_MAPPING_ERROR
+CAPTURED_WITH_INCOMPATIBLE_MAPPING
+PARTIAL_CAPTURE
+PARTIAL_CAPTURE_WITH_MAPPING
+```
+
+Mapping failure does not discard the first-contact raw capture. An invalid profile, missing source path, or canonical incompatibility is recorded as a mapping result while the exact device responses remain available for offline iteration.
+
+Multi-endpoint capture is also failure-isolated. If W1 succeeds and W2 fails, the W1 payloads are preserved and the workspace records a `capture_errors` entry for W2. Because a failed endpoint may have issued an unknown number of GET attempts before the exception, partial workspaces do not fabricate an exact request count:
+
+```text
+successful_network_requests = known successful lower bound
+network_requests_exact      = false
+network_requests            = null
+```
+
+Only the all-success case reports an exact total.
+
+Recommended short-site workflow:
+
+```text
+one command on site
+→ preserve all successful raw endpoint captures
+→ optional immediate mapping check
+→ leave site with the workspace
+→ iterate mapping offline
+→ return only when live probe/preflight is ready
+```
