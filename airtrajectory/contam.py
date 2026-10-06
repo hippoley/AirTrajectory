@@ -9,7 +9,7 @@ import importlib
 from typing import Callable, Dict, Optional
 
 from .environment import VentilationEnvironment
-from .trajectory import RewardVector, TransitionAction
+from .trajectory import RewardVector, TransitionAction, ScalarControlAction
 
 def co2_mass_fraction_to_ppm(value: float) -> float:
     # ppmv ~= mass fraction * M_air / M_CO2 * 1e6
@@ -24,6 +24,27 @@ class ContamControl:
 
     def value_for_pct(self,pct:float)->float:
         return self.closed_value+(self.open_value-self.closed_value)*(float(pct)/100.0)
+
+@dataclass(frozen=True)
+class ContamScalarControl:
+    control_number: int = 0
+    control_name: str | None = None
+    command_min: float = 0.0
+    command_max: float = 1.0
+    control_min: float = 0.0
+    control_max: float = 1.0
+
+    def value_for_command(self,command:float)->float:
+        x=float(command)
+        if self.command_max<=self.command_min:
+            raise ValueError("command_max must be greater than command_min")
+        if x<self.command_min or x>self.command_max:
+            raise ValueError(
+                f"scalar command {x} outside [{self.command_min}, {self.command_max}]"
+            )
+        ratio=(x-self.command_min)/(self.command_max-self.command_min)
+        return self.control_min+(self.control_max-self.control_min)*ratio
+
 
 class ContamXSession:
     """Thin lifecycle wrapper around NIST contamxpy.cxLib."""
