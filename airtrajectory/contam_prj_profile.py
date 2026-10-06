@@ -88,6 +88,28 @@ def validate_prj_profile(profile: dict[str, Any]) -> None:
         if spec.get("conversion") != "ppmv-to-mass-fraction-mw-ratio":
             raise ValueError(f"species {key} has unsupported conversion policy")
 
+    project_controls = profile.get("project_controls")
+    if not isinstance(project_controls, dict) or not project_controls:
+        raise ValueError("project_controls are required")
+
+    path_records = profile.get("path_records")
+    if not isinstance(path_records, dict) or not path_records:
+        raise ValueError("path_records are required")
+    required_path_fields = (
+        "prj_flags", "filter_number", "wind_profile_number", "ahs_number",
+        "schedule_number", "level_number", "x_m", "y_m",
+        "relative_height_m", "element_multiplier",
+        "constant_wind_pressure_pa", "wind_speed_modifier",
+    )
+    for path_key, record in path_records.items():
+        if not isinstance(record, dict):
+            raise ValueError(f"path record {path_key} must be an object")
+        missing = [field for field in required_path_fields if field not in record]
+        if missing:
+            raise ValueError(
+                f"path record {path_key} missing fields: " + ",".join(missing)
+            )
+
 
 def bind_prj_serialization_profile(
     manifest: dict[str, Any],
@@ -194,6 +216,42 @@ def bind_prj_serialization_profile(
             }
         )
 
+    path_records = profile["path_records"]
+    known_paths = {path["key"] for path in manifest.get("flow_paths") or []}
+    unknown_path_records = set(path_records) - known_paths
+    missing_path_records = known_paths - set(path_records)
+    if unknown_path_records:
+        raise ValueError(
+            "PRJ profile path records reference unknown paths: "
+            + ",".join(sorted(unknown_path_records))
+        )
+    if missing_path_records:
+        raise ValueError(
+            "PRJ profile path records missing paths: "
+            + ",".join(sorted(missing_path_records))
+        )
+
+    flow_paths = []
+    for path in manifest.get("flow_paths") or []:
+        record = path_records[path["key"]]
+        flow_paths.append(
+            {
+                **path,
+                "prj_flags": int(record["prj_flags"]),
+                "filter_number": int(record["filter_number"]),
+                "wind_profile_number": int(record["wind_profile_number"]),
+                "ahs_number": int(record["ahs_number"]),
+                "schedule_number": int(record["schedule_number"]),
+                "level_number": int(record["level_number"]),
+                "x_m": float(record["x_m"]),
+                "y_m": float(record["y_m"]),
+                "relative_height_m": float(record["relative_height_m"]),
+                "element_multiplier": float(record["element_multiplier"]),
+                "constant_wind_pressure_pa": float(record["constant_wind_pressure_pa"]),
+                "wind_speed_modifier": float(record["wind_speed_modifier"]),
+            }
+        )
+
     level_numbers = sorted({zone["level_number"] for zone in zones})
     level_records = [
         {
@@ -220,6 +278,8 @@ def bind_prj_serialization_profile(
             airflow_elements,
             key=lambda item: item["key"],
         ),
+        "flow_paths": sorted(flow_paths, key=lambda item: item["key"]),
+        "project_controls": profile["project_controls"],
         "species_definitions": sorted(
             species_definitions,
             key=lambda item: item["key"],
@@ -240,8 +300,10 @@ def bind_prj_serialization_profile(
         },
         "zones": zones,
         "airflow_elements": airflow_elements,
+        "flow_paths": flow_paths,
         "contaminants": contaminants,
         "species_definitions": species_definitions,
         "level_records": level_records,
+        "project_controls": dict(profile["project_controls"]),
         "prj_profile_binding_sha256": _sha256(binding_payload),
     }
