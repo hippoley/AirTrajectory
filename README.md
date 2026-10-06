@@ -808,3 +808,42 @@ raw timestamped sensor events
 ```
 
 A starter capture contract is available at `examples/field_capture.template.json`.
+
+
+### Import gateway logs from JSONL or CSV
+
+Site systems do not need to emit the AirTrajectory capture envelope directly. Keep capture metadata in a small manifest JSON and export the actual measurements as JSONL/NDJSON or CSV with these columns:
+
+```text
+timestamp,signal_type,target_id,value,unit,quality
+```
+
+Import the raw files:
+
+```bash
+python examples/import_field_capture.py \
+  path/to/capture.manifest.json \
+  path/to/gateway.csv \
+  --out artifacts/field-capture.json
+```
+
+For JSONL:
+
+```bash
+python examples/import_field_capture.py \
+  path/to/capture.manifest.json \
+  path/to/gateway.jsonl \
+  --out artifacts/field-capture.json
+```
+
+The importer binds the original files with:
+
+```text
+manifest_sha256
+records_sha256
+record_count
+records_format
+import_receipt_sha256
+```
+
+Those hashes are preserved through capture alignment and into the final field-validation receipt, so a validation result can be traced back to the exact gateway export bytes.
