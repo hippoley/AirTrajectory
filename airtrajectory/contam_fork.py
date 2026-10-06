@@ -28,6 +28,8 @@ class ContamForkProfile:
     scalar_controls: Mapping[str, ContamScalarControl] = field(default_factory=dict)
     co2_contaminant_index: int = 0
     evaluation_zone: str = "living"
+    evidence_level: str = "simulation"
+    trusted_for_promotion: bool = False
 
 
 def _validate_origin(profile: ContamForkProfile, origin: dict) -> tuple[dict, dict, dict]:
@@ -199,8 +201,13 @@ def contam_fork_request(
             "end_scalar_values":dict(final.get("scalar_values") or {}),
             "series":[round(float(x["co2_ppm"][evaluation_zone]),3) for x in observations],
             "return":round(float(total_return),6),
-            "provenance":"backend-generated · CONTAM · engineering simulation",
-            "trusted_for_promotion":True,
+            "provenance":(
+                "backend-generated · CONTAM · engineering-trusted"
+                if profile.trusted_for_promotion
+                else "backend-generated · CONTAM · simulation-only"
+            ),
+            "evidence_level":profile.evidence_level,
+            "trusted_for_promotion":bool(profile.trusted_for_promotion),
         })
 
     return {
@@ -212,7 +219,8 @@ def contam_fork_request(
         "origin_kind":"explicit-snapshot",
         "backend":"contamxpy",
         "physics_fidelity":"CONTAM",
-        "trusted_for_promotion":True,
+        "evidence_level":profile.evidence_level,
+        "trusted_for_promotion":bool(profile.trusted_for_promotion),
         "horizon_minutes":horizon_steps,
         "contam":meta.get("contam") if isinstance(meta,dict) else None,
         "branches":branches,
@@ -267,8 +275,13 @@ def contam_strategy_fork_request(
             "end_scalar_values":dict(final.get("scalar_values") or {}),
             "series":[round(float(x["co2_ppm"][evaluation_zone]),3) for x in observations],
             "return":round(float(total_return),6),
-            "provenance":"backend-generated · CONTAM · engineering simulation",
-            "trusted_for_promotion":True,
+            "provenance":(
+                "backend-generated · CONTAM · engineering-trusted"
+                if profile.trusted_for_promotion
+                else "backend-generated · CONTAM · simulation-only"
+            ),
+            "evidence_level":profile.evidence_level,
+            "trusted_for_promotion":bool(profile.trusted_for_promotion),
         })
 
     return {
@@ -279,7 +292,8 @@ def contam_strategy_fork_request(
         "origin_kind":"explicit-snapshot",
         "backend":"contamxpy",
         "physics_fidelity":"CONTAM",
-        "trusted_for_promotion":True,
+        "evidence_level":profile.evidence_level,
+        "trusted_for_promotion":bool(profile.trusted_for_promotion),
         "horizon_minutes":horizon_steps,
         "contam":meta.get("contam") if isinstance(meta,dict) else None,
         "branches":branches,
