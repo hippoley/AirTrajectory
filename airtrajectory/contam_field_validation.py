@@ -284,6 +284,20 @@ def _validate_measurements(
     if raw_capture_sha256 is not None and len(str(raw_capture_sha256)) != 64:
         raise ValueError("raw_capture_sha256 is invalid")
 
+    import_provenance = field_bundle.get("import_provenance")
+    import_receipt_sha256 = None
+    source_records_sha256 = None
+    if import_provenance is not None:
+        if not isinstance(import_provenance, dict):
+            raise ValueError("import_provenance must be an object")
+        import_payload = dict(import_provenance)
+        import_receipt_sha256 = str(
+            import_payload.pop("import_receipt_sha256", "") or ""
+        )
+        if import_receipt_sha256 != _sha256(import_payload):
+            raise ValueError("import_provenance SHA-256 integrity check failed")
+        source_records_sha256 = import_payload.get("records_sha256")
+
     return {
         "validation_id": validation_id,
         "captured_at": captured_at,
@@ -292,6 +306,8 @@ def _validate_measurements(
         "bundle_sha256": _sha256(field_bundle),
         "raw_capture_sha256": raw_capture_sha256,
         "alignment_sha256": alignment_sha256,
+        "import_receipt_sha256": import_receipt_sha256,
+        "source_records_sha256": source_records_sha256,
     }
 
 
@@ -402,6 +418,8 @@ def validate_contam_against_field(
         "field_bundle_sha256": measurements["bundle_sha256"],
         "raw_capture_sha256": measurements["raw_capture_sha256"],
         "alignment_sha256": measurements["alignment_sha256"],
+        "import_receipt_sha256": measurements["import_receipt_sha256"],
+        "source_records_sha256": measurements["source_records_sha256"],
         "sample_count": len(measurements["samples"]),
         "co2_metrics": co2_metrics,
         "opening_position_metrics": opening_metrics,
