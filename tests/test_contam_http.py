@@ -36,10 +36,10 @@ class HTTPForkCx:
 
 
 class ContamHTTPTests(unittest.TestCase):
-    def request(self,server,payload):
+    def request(self,server,payload,path="/fork/contam"):
         body=json.dumps(payload).encode("utf-8")
         req=Request(
-            f"http://127.0.0.1:{server.server_address[1]}/fork/contam",
+            f"http://127.0.0.1:{server.server_address[1]}{path}",
             data=body,method="POST",headers={"Content-Type":"application/json"},
         )
         try:
@@ -89,6 +89,38 @@ class ContamHTTPTests(unittest.TestCase):
         status,payload=self.request(server,self.payload())
         self.assertEqual(status,503)
         self.assertEqual(payload["error"],"contam_profiles_unavailable")
+
+    def test_strategy_endpoint_returns_multi_action_contam_branch(self):
+        with tempfile.TemporaryDirectory() as d:
+            prj=Path(d)/"home.prj"
+            prj.write_text("fixture")
+            server=self.start(
+                contam_profiles={"home-v1":self.profile(prj)},
+                contam_binding_factory=HTTPForkCx,
+            )
+            payload={
+                "request_id":"http-strategy",
+                "profile_id":"home-v1",
+                "origin":{
+                    "co2_ppm":{"living":1400,"bedroom":950},
+                    "opening_pct":{"W1":25,"W2":0},
+                },
+                "candidates":[{
+                    "label":"cross-room",
+                    "actions":[
+                        {"opening_id":"W1","target_pct":75},
+                        {"opening_id":"W2","target_pct":25},
+                    ],
+                }],
+                "horizon_steps":2,
+            }
+            status,out=self.request(server,payload,"/fork/contam-strategy")
+            self.assertEqual(status,200)
+            self.assertEqual(out["schema_version"],"0.3")
+            self.assertEqual(out["physics_fidelity"],"CONTAM")
+            self.assertTrue(out["trusted_for_promotion"])
+            self.assertEqual(out["branches"][0]["label"],"cross-room")
+            self.assertEqual(len(out["branches"][0]["actions"]),2)
 
     def test_endpoint_returns_structured_contam_provenance(self):
         with tempfile.TemporaryDirectory() as d:
