@@ -43,22 +43,29 @@ def audit_prj_readiness(manifest: dict[str, Any]) -> dict[str, Any]:
     # Section 10: PL_ORFC needs stored lam/turb/expt/area/dia/coef/Re/unit fields.
     for element in manifest.get("airflow_elements") or []:
         fields: list[str] = []
-        if element.get("flow_exponent") is None:
-            fields.append("expt")
-        if element.get("flow_area_m2") is None:
-            fields.append("area")
-        if element.get("discharge_coefficient") is None:
-            fields.append("coef")
-        if element.get("hydraulic_diameter_m") is None:
-            fields.append("dia")
-        # These are stored PRJ values and must not be guessed from higher-level
-        # semantics without an explicit calibration/conversion policy.
-        if element.get("laminar_flow_coefficient") is None:
-            fields.append("lam")
-        if element.get("turbulent_flow_coefficient") is None:
-            fields.append("turb")
-        if element.get("transition_reynolds_number") is None:
-            fields.append("Re")
+        model=str(element.get("model") or "")
+        if model=="constant-volume-fan":
+            if element.get("design_flow_m3_s") is None:
+                fields.append("Flow")
+            if element.get("flow_unit") is None:
+                fields.append("u_F")
+        else:
+            if element.get("flow_exponent") is None:
+                fields.append("expt")
+            if element.get("flow_area_m2") is None:
+                fields.append("area")
+            if element.get("discharge_coefficient") is None:
+                fields.append("coef")
+            if element.get("hydraulic_diameter_m") is None:
+                fields.append("dia")
+            # These are stored PRJ values and must not be guessed from higher-level
+            # semantics without an explicit calibration/conversion policy.
+            if element.get("laminar_flow_coefficient") is None:
+                fields.append("lam")
+            if element.get("turbulent_flow_coefficient") is None:
+                fields.append("turb")
+            if element.get("transition_reynolds_number") is None:
+                fields.append("Re")
         if fields:
             missing["section_10_airflow_elements"][element["key"]] = fields
 
