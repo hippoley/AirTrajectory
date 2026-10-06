@@ -135,16 +135,27 @@ def import_field_capture(
 
     source_records_path = Path(records_path)
     source_manifest_path = Path(manifest_path)
+    import_payload = {
+        "adapter": "field-capture-importer-v1",
+        "records_format": fmt,
+        "manifest_filename": source_manifest_path.name,
+        "manifest_sha256": _sha256_bytes(manifest_bytes),
+        "records_filename": source_records_path.name,
+        "records_sha256": _sha256_bytes(records_bytes),
+        "record_count": len(records),
+    }
+    import_receipt_sha256 = hashlib.sha256(
+        json.dumps(
+            import_payload,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+    ).hexdigest()
     return {
         **manifest,
         "records": records,
         "import_provenance": {
-            "adapter": "field-capture-importer-v1",
-            "records_format": fmt,
-            "manifest_filename": source_manifest_path.name,
-            "manifest_sha256": _sha256_bytes(manifest_bytes),
-            "records_filename": source_records_path.name,
-            "records_sha256": _sha256_bytes(records_bytes),
-            "record_count": len(records),
+            **import_payload,
+            "import_receipt_sha256": import_receipt_sha256,
         },
     }
