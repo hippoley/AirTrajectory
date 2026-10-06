@@ -46,6 +46,14 @@ class GenerateMultispaceContamPrjTests(unittest.TestCase):
                 len(payload["demo_runtime_snapshot_sha256"]),
                 64,
             )
+            self.assertEqual(
+                payload["input_control_ranges"]["W1"]["closed_value"],
+                0.01,
+            )
+            self.assertAlmostEqual(
+                payload["initial_input_controls"]["1"]["value"],
+                0.01 + 0.99 * 0.65,
+            )
 
 
 if __name__ == "__main__":
