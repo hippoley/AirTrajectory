@@ -568,3 +568,53 @@ For metric geometry, airflow calibration, and boundary measurements, engineering
 Without that block, the evidence-backed profile remains `engineering_validated=false` and the final engineering-readiness audit fails closed. The final audit also re-checks receipt approval independently, so manually flipping the profile boolean cannot bypass the gate.
 
 `prj_engineering_review` is the exception because the review receipt itself is the approval act and is additionally bound to the exact reviewed profile SHA.
+
+
+### One-shot engineering CONTAM build
+
+After the measurement/calibration bundles have explicit approval and the PRJ serialization profile has an exact engineering-review receipt, the full engineering-input pipeline can be executed with one command:
+
+```bash
+python examples/build_engineering_contam_project.py \
+  --metric-evidence path/to/metric.bundle.json \
+  --airflow-evidence path/to/airflow.bundle.json \
+  --boundary-evidence path/to/boundary.bundle.json \
+  --prj-profile path/to/contam-prj-profile.json \
+  --prj-review-evidence path/to/prj-review.bundle.json \
+  --out artifacts/engineering.prj \
+  --receipt artifacts/engineering-build.json
+```
+
+The command performs:
+
+```text
+approved geometry evidence
+→ measured metric overlay
+
+approved airflow calibration
+→ leakage-aware airflow profile
+
+approved boundary observation
+→ weather + CO2 boundary profile
+
+exact PRJ review
+→ reviewed serialization profile
+
+all profiles
+→ CONTAM IR
+→ deterministic IDs
+→ PRJ readiness
+→ generated .prj
+→ engineering evidence audit
+```
+
+A successful build returns:
+
+```text
+status = ENGINEERING_INPUTS_READY
+engineering_inputs_ready = true
+runtime_verified = false
+engineering_truth = false
+```
+
+This distinction is intentional. The build proves that approved engineering inputs can be compiled consistently into a CONTAM project. A subsequent real ContamX execution is still required before runtime verification can be claimed.
