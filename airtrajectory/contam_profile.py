@@ -12,7 +12,7 @@ import json
 from typing import Any
 
 
-_SUPPORTED_MODELS = {"powerlaw-orifice-area"}
+_SUPPORTED_MODELS = {"powerlaw-orifice-area","constant-volume-fan"}
 
 
 def _sha256(payload: Any) -> str:
@@ -87,6 +87,13 @@ def validate_airflow_profile(
         model = rule.get("model")
         if model not in _SUPPORTED_MODELS:
             raise ValueError(f"airflow rule {kind} has unsupported model")
+        if model == "constant-volume-fan":
+            flow=float(rule.get("design_flow_m3_s"))
+            if flow<=0:
+                raise ValueError(
+                    f"airflow rule {kind} design_flow_m3_s must be positive"
+                )
+            continue
         exponent = float(rule.get("flow_exponent"))
         coefficient = float(rule.get("discharge_coefficient"))
         closed_leakage = float(rule.get("closed_leakage_multiplier", 0.0))
@@ -143,20 +150,30 @@ def bind_airflow_elements(
             )
 
         element_key = "element:" + str(path["layout_opening_id"])
-        element = {
-            "key": element_key,
-            "layout_opening_id": path["layout_opening_id"],
-            "model": rule["model"],
-            "flow_area_m2": flow_area,
-            "physical_area_m2": physical_area,
-            "flow_exponent": float(rule["flow_exponent"]),
-            "discharge_coefficient": float(rule["discharge_coefficient"]),
-            "closed_leakage_multiplier": float(
-                rule.get("closed_leakage_multiplier", 0.0)
-            ),
-            "hydraulic_diameter_m": rule.get("hydraulic_diameter_m"),
-            "contam_element_number": None,
-        }
+        if rule["model"] == "constant-volume-fan":
+            element = {
+                "key": element_key,
+                "layout_opening_id": path["layout_opening_id"],
+                "model": "constant-volume-fan",
+                "design_flow_m3_s": float(rule["design_flow_m3_s"]),
+                "physical_area_m2": physical_area,
+                "contam_element_number": None,
+            }
+        else:
+            element = {
+                "key": element_key,
+                "layout_opening_id": path["layout_opening_id"],
+                "model": rule["model"],
+                "flow_area_m2": flow_area,
+                "physical_area_m2": physical_area,
+                "flow_exponent": float(rule["flow_exponent"]),
+                "discharge_coefficient": float(rule["discharge_coefficient"]),
+                "closed_leakage_multiplier": float(
+                    rule.get("closed_leakage_multiplier", 0.0)
+                ),
+                "hydraulic_diameter_m": rule.get("hydraulic_diameter_m"),
+                "contam_element_number": None,
+            }
         elements.append(element)
         paths.append(
             {
@@ -166,7 +183,7 @@ def bind_airflow_elements(
                     "model": rule["model"],
                     "closed_leakage_multiplier": float(
                         rule.get("closed_leakage_multiplier", 0.0)
-                    ),
+                    ) if rule["model"] != "constant-volume-fan" else 0.0,
                     "contam_element_number": None,
                 },
             }
