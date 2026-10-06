@@ -74,7 +74,12 @@ class ContamXSession:
         return float(self._require("getZoneMassFraction","getZoneMF")(int(zone_number),int(contaminant_number)))
 
     def path_flow(self,path_number:int)->float:
-        return float(self._require("getPathFlow")(int(path_number)))
+        value=self._require("getPathFlow")(int(path_number))
+        if isinstance(value,(list,tuple)):
+            if not value:
+                raise RuntimeError("contamxpy getPathFlow returned an empty flow vector")
+            return float(sum(float(x) for x in value))
+        return float(value)
 
     def step(self):
         self._require("doSimStep","doCosimStep")(1)
