@@ -103,7 +103,9 @@ Ambient forcing is now explicit as well. `airtrajectory.contam_boundary.bind_bou
 | Bound manifest → boundary forcing | ✅ verified | wind/weather + contaminant profiles are explicit, hashed, zone-complete, and production-gated |
 | Forced manifest → PRJ readiness audit | ✅ verified | section/entity-level blockers are explicit and hashed; no file is emitted while incomplete |
 | Explicit PRJ profile → serialization readiness | ✅ verified | Section 10/14/15/16 + project/species/levels can be made complete without hidden defaults |
-| Serialization-ready manifest → generated PRJ | 🟡 reserved | concrete CONTAM text emission and runtime verification remain next |
+| Serialization-ready manifest → generated PRJ | ✅ verified | deterministic 3-zone/5-path PRJ generated from the shared topology pipeline |
+| Generated PRJ → real ContamX airflow | ✅ verified | Windows CI loads 3 zones/5 paths, advances solver, and requires non-zero net path flow |
+| Dynamic opening % → ContamX input controls | 🟡 next | static airflow works; W1/W2/W3 runtime actuation remains to be bound |
 | Multi-room / multi-window scenario simulator | ✅ verified | deterministic toy/surrogate physics; not engineering truth |
 | Agent → safety gate → executed action → reward → trajectory | ✅ verified | proposed/executed/intervention are preserved |
 | Behavior Cloning baseline | ✅ verified | topology-local discrete policy trained from behavior rows |
@@ -395,3 +397,9 @@ python examples/preflight_multispace_physical.py \
 ```
 
 This preflight never calls `set_position()` and therefore does not move hardware. It succeeds only when every configured physical opening reports `physical_write_ready=true`.
+
+### Real generated CONTAM airflow smoke
+
+The generated fixed-three-room project is now exercised by the real `contamxpy==0.0.9` / ContamX 3.4.1.7 runtime in Windows CI. The gate requires the generated PRJ to load as exactly 3 zones / 5 paths, advance one solver step, and report at least one non-zero net path flow. The current illustrative smoke produced five non-zero path flows, proving the generated topology is solver-connected rather than merely parser-valid.
+
+This remains `engineering_truth=false`: the bundled metric geometry, boundary forcing, and serialization profiles are illustrative. The verified claim is software/physics-chain execution, not calibrated building performance.
