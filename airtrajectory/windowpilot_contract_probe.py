@@ -220,6 +220,8 @@ def probe_windowpilot_http_contract(
     sensors = _get(thing_model, "sensors")
     timestamps = _get(thing_model, "sensor_timestamps")
     evidence = _get(thing_model, "sensor_evidence")
+    co2_evidence = None
+    site_id = None
     if not isinstance(thing_model, dict):
         findings.append(_finding(
             code="THING_MODEL_MISSING",
@@ -333,6 +335,11 @@ def probe_windowpilot_http_contract(
             "co2_evidence_present": (
                 isinstance(evidence, dict)
                 and isinstance(evidence.get("co2_ppm"), dict)
+            ),
+            "co2_site_id": (
+                site_id
+                if isinstance(co2_evidence, dict)
+                else None
             ),
         },
         "findings": findings,
