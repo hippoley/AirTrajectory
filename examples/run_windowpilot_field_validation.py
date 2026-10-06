@@ -42,6 +42,8 @@ def main() -> int:
     parser.add_argument("--contract-baseline", type=Path)
     parser.add_argument("--probe-out", type=Path)
     parser.add_argument("--contract-check-out", type=Path)
+    parser.add_argument("--startup-bundle-id")
+    parser.add_argument("--startup-bundle-out", type=Path)
     parser.add_argument("--require-pass", action="store_true")
     args = parser.parse_args()
 
@@ -83,7 +85,20 @@ def main() -> int:
         validation_id=args.validation_id,
         contract_baseline=baseline,
         contract_probe_report=probe_report,
+        startup_bundle_id=args.startup_bundle_id,
     )
+
+    startup_bundle = receipt.get("startup_bundle")
+    if args.startup_bundle_out is not None:
+        if startup_bundle is None:
+            raise ValueError(
+                "--startup-bundle-out requires --startup-bundle-id and --contract-baseline"
+            )
+        args.startup_bundle_out.parent.mkdir(parents=True, exist_ok=True)
+        args.startup_bundle_out.write_text(
+            json.dumps(startup_bundle, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
 
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text(
