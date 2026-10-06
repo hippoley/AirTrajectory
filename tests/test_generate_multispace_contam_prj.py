@@ -54,6 +54,17 @@ class GenerateMultispaceContamPrjTests(unittest.TestCase):
                 payload["initial_input_controls"]["1"]["value"],
                 0.01 + 0.99 * 0.65,
             )
+            self.assertEqual(
+                payload["engineering_readiness"]["status"],
+                "SOFTWARE_VERIFIED_ONLY",
+            )
+            self.assertFalse(
+                payload["engineering_readiness"]["engineering_truth"]
+            )
+            self.assertIn(
+                "airflow_calibration",
+                payload["engineering_readiness"]["blockers"],
+            )
 
 
 if __name__ == "__main__":
