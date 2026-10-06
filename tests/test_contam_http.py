@@ -69,6 +69,8 @@ class ContamHTTPTests(unittest.TestCase):
             {"living":1,"bedroom":2},
             {"W1":ContamControl(control_name="W1_open"),"W2":ContamControl(control_name="W2_open")},
             path_numbers={"W1":1,"W2":2},
+            evidence_level="test-engineering-trusted",
+            trusted_for_promotion=True,
         )
 
     def payload(self):
