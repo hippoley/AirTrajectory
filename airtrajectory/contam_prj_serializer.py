@@ -50,7 +50,6 @@ def _dynamic_window_controls(manifest: dict[str, Any]) -> list[dict[str, Any]]:
             "opening_id": str(path["layout_opening_id"]),
             "path_number": int(path["contam_path_number"]),
             "control_node_number": index,
-            "input_control_index": index,
             "name": str(path["layout_opening_id"]) + "_open",
         }
         for index, path in enumerate(paths, start=1)
@@ -302,8 +301,13 @@ def write_minimal_prj(manifest: dict[str, Any], path: str | Path) -> dict[str, A
         "engineering_truth": False,
         "dynamic_control_emitted": bool(controls),
         "dynamic_control_verified": False,
-        "input_controls": {
-            item["opening_id"]: item["input_control_index"]
+        "control_node_numbers": {
+            item["opening_id"]: item["control_node_number"]
             for item in controls
         },
+        "input_control_names": {
+            item["opening_id"]: item["name"]
+            for item in controls
+        },
+        "input_control_index_policy": "runtime-discovery-by-name",
     }
