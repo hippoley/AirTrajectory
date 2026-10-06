@@ -1,0 +1,22 @@
+{
+  "schema_version": "0.1",
+  "protocol_id": "replace-with-protocol-id",
+  "topology_id": "demo.fixed-three-room.v1",
+  "min_samples": 10,
+  "co2": {
+    "zones": ["living", "bedroom", "study"],
+    "rmse_ppm_max": 50.0,
+    "mae_ppm_max": 40.0
+  },
+  "opening_position": {
+    "openings": ["W1", "W2", "W3", "D1", "D2"],
+    "mae_pct_max": 2.0
+  },
+  "approval": {
+    "approved": false,
+    "approved_by": "replace-with-reviewer",
+    "approved_role": "replace-with-validation-role",
+    "approved_at": "replace-with-ISO8601-time",
+    "note": "Approve and freeze this protocol before collecting validation samples."
+  }
+}
