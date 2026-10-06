@@ -325,6 +325,12 @@ def render_minimal_prj(manifest: dict[str, Any], *, project_name: str = "airtraj
 
 def write_minimal_prj(manifest: dict[str, Any], path: str | Path) -> dict[str, Any]:
     target = Path(path)
+    project_controls = dict(manifest.get("project_controls") or {})
+    simulation_mode = str(project_controls.get("mode") or "")
+    _contaminant_mode_code(simulation_mode)
+    time_step_s = int(project_controls.get("time_step_s", 60))
+    start_time = str(project_controls.get("start") or "00:00:00")
+    stop_time = str(project_controls.get("stop") or "01:00:00")
     text = render_minimal_prj(manifest, project_name=target.name)
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(text, encoding="utf-8", newline="\n")
