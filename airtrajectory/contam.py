@@ -57,6 +57,8 @@ class ContamXSession:
             "version":self.engine.getVersion() if hasattr(self.engine,"getVersion") else "unknown",
             "zones":getattr(self.engine,"nZones",None),
             "paths":getattr(self.engine,"nPaths",None),
+            "input_controls":getattr(self.engine,"nInputControls",None),
+            "output_controls":getattr(self.engine,"nOutputControls",None),
             "time_step_s":self.engine.getSimTimeStep() if hasattr(self.engine,"getSimTimeStep") else None,
         }
 
