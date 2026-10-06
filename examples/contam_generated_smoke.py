@@ -17,7 +17,7 @@ def main() -> int:
 
     provenance = json.load(open(args.provenance, encoding="utf-8"))
     w1_path_number = int(provenance["path_numbers"]["path:W1"])
-    session = ContamXSession(args.prj)
+    session = ContamXSession(args.prj, ambient=dict(provenance.get("contam_ambient") or {}))
     try:
         meta = session.setup()
         if int(meta.get("input_controls") or 0) != 3:
