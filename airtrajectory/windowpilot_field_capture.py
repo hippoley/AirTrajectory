@@ -148,6 +148,8 @@ def collect_windowpilot_field_capture(
     started_at = float(clock_fn())
     records: list[dict[str, Any]] = []
     sample_receipts = []
+    endpoint_identity_sha256: dict[str, str] = {}
+    observed_site_ids: set[str] = set()
 
     for sample_index in range(count):
         sleep_fn(interval_s)
@@ -168,6 +170,16 @@ def collect_windowpilot_field_capture(
             if not reading.provenance:
                 raise RuntimeError(
                     f"WindowPilot endpoint {endpoint_id} CO2 lacks ThingModel/site provenance"
+                )
+            site_id = str(reading.provenance.get("site_id") or "")
+            if not site_id:
+                raise RuntimeError(
+                    f"WindowPilot endpoint {endpoint_id} CO2 provenance missing site_id"
+                )
+            observed_site_ids.add(site_id)
+            if len(observed_site_ids) > 1:
+                raise RuntimeError(
+                    "WindowPilot field capture spans multiple physical sites"
                 )
             row = {
                 "timestamp": _iso(reading.timestamp),
@@ -196,6 +208,22 @@ def collect_windowpilot_field_capture(
                 raise RuntimeError(
                     f"WindowPilot endpoint {opening_id} missing latest_position_feedback"
                 )
+            identity = readiness.get("hardware_identity")
+            if not isinstance(identity, dict):
+                raise RuntimeError(
+                    f"WindowPilot endpoint {opening_id} missing hardware_identity"
+                )
+            identity_sha = str(identity.get("identity_sha256") or "")
+            if len(identity_sha) != 64:
+                raise RuntimeError(
+                    f"WindowPilot endpoint {opening_id} has invalid hardware identity"
+                )
+            prior = endpoint_identity_sha256.get(opening_id)
+            if prior is not None and prior != identity_sha:
+                raise RuntimeError(
+                    f"WindowPilot endpoint {opening_id} hardware identity changed during capture"
+                )
+            endpoint_identity_sha256[opening_id] = identity_sha
             if feedback.get("measured") is not True:
                 raise RuntimeError(
                     f"WindowPilot endpoint {opening_id} position is not measured"
@@ -243,6 +271,10 @@ def collect_windowpilot_field_capture(
             "opening_position"
         ]["fixed_openings"],
         "co2_zone_sources": dict(sorted(co2_sources.items())),
+        "physical_site_id": next(iter(observed_site_ids), None),
+        "endpoint_identity_sha256": dict(
+            sorted(endpoint_identity_sha256.items())
+        ),
         "driver_capabilities": {
             key: asdict(drivers[key].capabilities())
             for key in sorted(drivers)
