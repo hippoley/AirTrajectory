@@ -22,6 +22,21 @@ class FakeCx:
     def endSimulation(self): self.ended=True
 
 
+
+class AmbientInitCx(FakeCx):
+    last_instance=None
+    def __init__(self,prj_file_path,wp_mode=0,cb_option=False,init_callback=None,*_):
+        super().__init__(prj_file_path,wp_mode,cb_option)
+        self.ambient={}
+        AmbientInitCx.last_instance=self
+        if init_callback is not None:
+            init_callback(self)
+    def setAmbtPressure(self,v): self.ambient["pressure_pa"]=float(v)
+    def setAmbtWindSpeed(self,v): self.ambient["wind_speed_m_s"]=float(v)
+    def setAmbtWindDirection(self,v): self.ambient["wind_direction_deg"]=float(v)
+    def setAmbtTemperature(self,v): self.ambient["temperature_k"]=float(v)
+    def setAmbtMassFraction(self,n,v): self.ambient.setdefault("mass_fractions",{})[int(n)]=float(v)
+
 class GuardedInitialReadCx(FakeCx):
     def getZoneMF(self,z,c):
         if self.steps == 0:
@@ -55,6 +70,31 @@ class ContamAdapterTests(unittest.TestCase):
             self.assertAlmostEqual(s.zone_mass_fraction(1,1),.00119)
             self.assertAlmostEqual(s.path_flow(1),.26)
             engine=s.engine; s.close(); self.assertTrue(engine.ended)
+
+    def test_session_initializes_explicit_ambient_boundary_before_setup(self):
+        with tempfile.TemporaryDirectory() as d:
+            prj=Path(d)/"demo.prj"; prj.write_text("fixture")
+            ambient={
+                "pressure_pa":101325,
+                "wind_speed_m_s":1.5,
+                "wind_direction_deg":180,
+                "temperature_k":298.15,
+                "mass_fractions":{"1":0.00065},
+            }
+            s=ContamXSession(prj,binding_factory=AmbientInitCx,ambient=ambient)
+            s.setup()
+            self.assertEqual(
+                AmbientInitCx.last_instance.ambient,
+                {
+                    "pressure_pa":101325.0,
+                    "wind_speed_m_s":1.5,
+                    "wind_direction_deg":180.0,
+                    "temperature_k":298.15,
+                    "mass_fractions":{1:0.00065},
+                },
+            )
+            s.close()
+
 
     def test_session_reduces_directional_path_flows_to_net_flow(self):
         class DirectionalCx(FakeCx):
