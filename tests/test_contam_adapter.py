@@ -80,6 +80,38 @@ class ContamAdapterTests(unittest.TestCase):
                 env.step([TransitionAction("W2",50)])
             env.close()
 
+    def test_named_control_and_fixed_opening_share_contam_environment(self):
+        topology=BuildingTopology.from_parts(
+            [ZoneNode("living",45),ZoneNode("bedroom",30)],
+            [
+                OpeningEdge("W1","living","OUTSIDE","window",1.2),
+                OpeningEdge("D1","living","bedroom","door",1.8),
+            ],
+        )
+        with tempfile.TemporaryDirectory() as d:
+            prj=Path(d)/"demo.prj"; prj.write_text("fixture")
+            env=CONTAMEnvironment(
+                topology,
+                prj,
+                {"living":1,"bedroom":2},
+                {"W1":ContamControl(control_name="W1_open")},
+                path_numbers={"W1":1,"D1":1},
+                max_steps=2,
+                binding_factory=FakeCx,
+                fixed_openings={"D1":100},
+                initial_openings={"W1":0,"D1":100},
+            )
+            obs,_=env.reset()
+            self.assertEqual(obs["opening_pct"]["D1"],100)
+            env.step([
+                TransitionAction("W1",75),
+                TransitionAction("D1",100),
+            ])
+            self.assertEqual(env.session.engine.controls[2],.75)
+            with self.assertRaisesRegex(RuntimeError,"fixed CONTAM opening D1 cannot move"):
+                env.step([TransitionAction("D1",50)])
+            env.close()
+
     def test_co2_mass_fraction_conversion(self):
         self.assertGreater(co2_mass_fraction_to_ppm(.001),600)
 
