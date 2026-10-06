@@ -9,6 +9,12 @@ from airtrajectory.trajectory import ActuatorFeedback, SensorReading
 from airtrajectory.windowpilot_validation_pipeline import (
     run_windowpilot_field_validation,
 )
+from airtrajectory.windowpilot_contract_probe import (
+    probe_windowpilot_config,
+)
+from airtrajectory.windowpilot_contract_baseline import (
+    freeze_windowpilot_contract_baseline,
+)
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -122,6 +128,89 @@ def config():
     }
 
 
+def probe_report(*, identity_w1="1", transport="rs485-verified"):
+    config_payload = config()
+
+    def factory(endpoint_id, spec):
+        identity = {
+            "W1": identity_w1,
+            "W2": "2",
+            "W3": "3",
+        }[endpoint_id]
+        room = {
+            "W1": "living",
+            "W2": "bedroom",
+            "W3": "study",
+        }[endpoint_id]
+        co2 = {
+            "W1": 1290.0,
+            "W2": 905.0,
+            "W3": 805.0,
+        }[endpoint_id]
+        payloads = {
+            "/api/capabilities": {
+                "execution": {
+                    "simulated": False,
+                    "measured_position": True,
+                    "transport": transport,
+                }
+            },
+            "/api/physical-readiness": {
+                "hardware_identity": {
+                    "identity_sha256": identity * 64,
+                },
+                "latest_position_feedback": {
+                    "position_pct": {
+                        "W1": 75.0,
+                        "W2": 35.0,
+                        "W3": 0.0,
+                    }[endpoint_id],
+                    "timestamp": 1800000000.0,
+                    "measured": True,
+                    "quality": "encoder-measured",
+                    "source": f"encoder-{endpoint_id}",
+                },
+            },
+            "/api/state": {
+                "thing_model": {
+                    "sensors": {"co2_ppm": co2},
+                    "sensor_timestamps": {
+                        "co2_ppm": 1800000000.0,
+                    },
+                    "sensor_evidence": {
+                        "co2_ppm": {
+                            "measured": True,
+                            "timestamp": 1800000000.0,
+                            "source": f"co2-{endpoint_id}",
+                            "thingmodel_binding": {
+                                "site_id": "site-a",
+                                "room_id": room,
+                            },
+                        }
+                    },
+                }
+            },
+        }
+
+        def request(method, path, body):
+            return payloads[path]
+
+        return request
+
+    return probe_windowpilot_config(
+        config=config_payload,
+        request_json_factory=factory,
+        clock_fn=lambda: 1800000001.0,
+    )
+
+
+def contract_baseline():
+    return freeze_windowpilot_contract_baseline(
+        probe_report(),
+        baseline_id="site-a-windowpilot-v1",
+    )
+
+
 class FakeDriver(PhysicalWindowDriver):
     def __init__(self, opening_id, co2, clock):
         self.opening_id = opening_id
@@ -225,6 +314,97 @@ class WindowPilotValidationPipelineTests(unittest.TestCase):
                 "adapter_receipt_sha256"
             ],
         )
+
+    def test_matching_contract_baseline_is_bound_into_pipeline_receipt(self):
+        layout = LayoutContract.from_file(LAYOUT)
+        clock = {"now": 1800000000.0}
+        drivers = {
+            "W1": FakeDriver("W1", 1290.0, clock),
+            "W2": FakeDriver("W2", 905.0, clock),
+            "W3": FakeDriver("W3", 805.0, clock),
+        }
+
+        def sleep(seconds):
+            clock["now"] += float(seconds)
+
+        baseline = contract_baseline()
+        current_probe = probe_report()
+        receipt, _, _ = run_windowpilot_field_validation(
+            layout=layout,
+            config=config(),
+            drivers=drivers,
+            protocol=protocol(),
+            runtime_receipt=runtime(layout),
+            validation_id="wp-baseline-match-001",
+            contract_baseline=baseline,
+            contract_probe_report=current_probe,
+            sleep_fn=sleep,
+            clock_fn=lambda: clock["now"],
+        )
+        self.assertEqual(
+            receipt["contract_baseline_sha256"],
+            baseline["baseline_sha256"],
+        )
+        self.assertEqual(
+            receipt["contract_probe_receipt_sha256"],
+            current_probe["config_probe_receipt_sha256"],
+        )
+        self.assertEqual(len(receipt["contract_comparison_sha256"]), 64)
+
+    def test_contract_drift_blocks_before_preflight_or_sampling(self):
+        layout = LayoutContract.from_file(LAYOUT)
+        clock = {"now": 1800000000.0}
+        drivers = {
+            "W1": FakeDriver("W1", 1290.0, clock),
+            "W2": FakeDriver("W2", 905.0, clock),
+            "W3": FakeDriver("W3", 805.0, clock),
+        }
+        calls = {"sleep": 0}
+
+        def forbidden_sleep(seconds):
+            calls["sleep"] += 1
+            raise AssertionError("sampling must not start after contract drift")
+
+        with self.assertRaisesRegex(
+            RuntimeError,
+            "contract baseline drift blocks field validation",
+        ):
+            run_windowpilot_field_validation(
+                layout=layout,
+                config=config(),
+                drivers=drivers,
+                protocol=protocol(),
+                runtime_receipt=runtime(layout),
+                validation_id="wp-baseline-drift-001",
+                contract_baseline=contract_baseline(),
+                contract_probe_report=probe_report(identity_w1="9"),
+                sleep_fn=forbidden_sleep,
+                clock_fn=lambda: clock["now"],
+            )
+        self.assertEqual(calls["sleep"], 0)
+        self.assertTrue(all(driver.commands == 0 for driver in drivers.values()))
+
+    def test_contract_baseline_and_probe_must_be_supplied_together(self):
+        layout = LayoutContract.from_file(LAYOUT)
+        clock = {"now": 1800000000.0}
+        drivers = {
+            "W1": FakeDriver("W1", 1290.0, clock),
+            "W2": FakeDriver("W2", 905.0, clock),
+            "W3": FakeDriver("W3", 805.0, clock),
+        }
+        with self.assertRaisesRegex(ValueError, "must be supplied together"):
+            run_windowpilot_field_validation(
+                layout=layout,
+                config=config(),
+                drivers=drivers,
+                protocol=protocol(),
+                runtime_receipt=runtime(layout),
+                validation_id="wp-baseline-pair-001",
+                contract_baseline=contract_baseline(),
+                contract_probe_report=None,
+                sleep_fn=lambda seconds: None,
+                clock_fn=lambda: clock["now"],
+            )
 
 
 if __name__ == "__main__":
