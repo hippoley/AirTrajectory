@@ -1,0 +1,111 @@
+{
+  "schema_version": "0.1",
+  "topology_id": "test.alt-two-room.v1",
+  "source_kind": "fixed-floorplan",
+  "outside_id": "OUTSIDE",
+  "capabilities": {
+    "floorplan_geometry_editable": false,
+    "opening_position_editable": true,
+    "opening_state_editable": true,
+    "arbitrary_topology_import": "reserved",
+    "contam_compiler": "reserved"
+  },
+  "rooms": [
+    {
+      "id": "zone_alpha",
+      "name": "ZONE ALPHA",
+      "x": 100,
+      "y": 100,
+      "w": 260,
+      "h": 220,
+      "volume_m3": 48
+    },
+    {
+      "id": "zone_beta",
+      "name": "ZONE BETA",
+      "x": 360,
+      "y": 100,
+      "w": 240,
+      "h": 220,
+      "volume_m3": 42
+    }
+  ],
+  "walls": [
+    {
+      "id": "alpha-west",
+      "kind": "exterior",
+      "source": "zone_alpha",
+      "target": "OUTSIDE",
+      "x1": 100,
+      "y1": 100,
+      "x2": 100,
+      "y2": 320
+    },
+    {
+      "id": "beta-east",
+      "kind": "exterior",
+      "source": "zone_beta",
+      "target": "OUTSIDE",
+      "x1": 600,
+      "y1": 100,
+      "x2": 600,
+      "y2": 320
+    },
+    {
+      "id": "alpha-beta",
+      "kind": "internal",
+      "source": "zone_alpha",
+      "target": "zone_beta",
+      "x1": 360,
+      "y1": 100,
+      "x2": 360,
+      "y2": 320
+    }
+  ],
+  "openings": [
+    {
+      "id": "AX",
+      "kind": "window",
+      "wall_id": "alpha-west",
+      "source": "zone_alpha",
+      "target": "OUTSIDE",
+      "position_t": 0.30,
+      "initial_open_pct": 0,
+      "max_area_m2": 1.1,
+      "render_side": "left",
+      "position_editable": true,
+      "state_editable": true
+    },
+    {
+      "id": "BZ",
+      "kind": "window",
+      "wall_id": "beta-east",
+      "source": "zone_beta",
+      "target": "OUTSIDE",
+      "position_t": 0.68,
+      "initial_open_pct": 0,
+      "max_area_m2": 1.0,
+      "render_side": "right",
+      "position_editable": true,
+      "state_editable": true
+    },
+    {
+      "id": "LINK9",
+      "kind": "door",
+      "wall_id": "alpha-beta",
+      "source": "zone_alpha",
+      "target": "zone_beta",
+      "position_t": 0.52,
+      "initial_open_pct": 100,
+      "max_area_m2": 1.7,
+      "render_side": "internal",
+      "position_editable": true,
+      "state_editable": true
+    }
+  ],
+  "compiler_contract": {
+    "current_consumers": ["web-ui", "trajectory-context"],
+    "reserved_consumers": ["contam-layout-compiler", "arbitrary-topology-importer"],
+    "note": "Acceptance fixture with deliberately non-W1/W2/W3 identifiers."
+  }
+}
