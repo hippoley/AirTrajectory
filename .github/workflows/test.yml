@@ -68,4 +68,4 @@ jobs:
         shell: pwsh
         run: |
           python examples/contam_generated_smoke.py artifacts/multispace-generated.prj --expected-zones 3 --expected-paths 5 | Tee-Object -FilePath generated-contam-smoke.json
-          if (-not (Select-String -Path generated-contam-smoke.json -Pattern "GENERATED_CONTAM_PRJ_LOADED")) { exit 1 }
+          if (-not (Select-String -Path generated-contam-smoke.json -Pattern "GENERATED_CONTAM_PRJ_EXECUTED")) { exit 1 }
