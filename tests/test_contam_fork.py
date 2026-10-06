@@ -55,6 +55,8 @@ class ContamForkTests(unittest.TestCase):
             },
             path_numbers={"W1":1,"W2":2},
             evaluation_zone="living",
+            evidence_level="test-engineering-trusted",
+            trusted_for_promotion=True,
         )
 
     def origin(self):
@@ -89,6 +91,35 @@ class ContamForkTests(unittest.TestCase):
             self.assertNotEqual(out["branches"][0]["end_co2_ppm"],out["branches"][1]["end_co2_ppm"])
             self.assertTrue(out["branches"][0]["series"])
             self.assertTrue(out["branches"][0]["path_flow_kg_s"])
+
+    def test_profile_trust_defaults_fail_closed(self):
+        with tempfile.TemporaryDirectory() as d:
+            prj=Path(d)/"home.prj"; prj.write_text("fixture")
+            profile=ContamForkProfile(
+                "simulation-only",
+                self.topology(),
+                prj,
+                {"living":1,"bedroom":2},
+                {
+                    "W1":ContamControl(control_name="W1_open"),
+                    "W2":ContamControl(control_name="W2_open"),
+                },
+                path_numbers={"W1":1,"W2":2},
+            )
+            out=contam_strategy_fork_request(
+                {
+                    "profile_id":"simulation-only",
+                    "origin":self.origin(),
+                    "candidates":[{"label":"x","actions":[{"opening_id":"W1","target_pct":75}]}],
+                    "horizon_steps":1,
+                },
+                {"simulation-only":profile},
+                binding_factory=ForkCx,
+            )
+            self.assertFalse(out["trusted_for_promotion"])
+            self.assertEqual(out["evidence_level"],"simulation")
+            self.assertFalse(out["branches"][0]["trusted_for_promotion"])
+            self.assertIn("simulation-only",out["branches"][0]["provenance"])
 
     def test_origin_must_exactly_cover_profile(self):
         with tempfile.TemporaryDirectory() as d:
