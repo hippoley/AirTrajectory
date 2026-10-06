@@ -190,6 +190,29 @@ class ContamFieldValidationTests(unittest.TestCase):
             offset=offset,
         )
 
+    def test_protocol_can_separate_measured_windows_from_fixed_doors(self):
+        spec = protocol()
+        spec["opening_position"]["openings"] = ["W1", "W2", "W3"]
+        spec["opening_position"]["fixed_openings"] = {
+            "D1": 100.0,
+            "D2": 100.0,
+        }
+        normalized = validate_field_validation_protocol(self.layout, spec)
+        self.assertEqual(
+            normalized["opening_position"]["openings"],
+            ["W1", "W2", "W3"],
+        )
+        self.assertEqual(
+            normalized["opening_position"]["fixed_openings"],
+            {"D1": 100.0, "D2": 100.0},
+        )
+
+    def test_measured_and_fixed_openings_cannot_overlap(self):
+        spec = protocol()
+        spec["opening_position"]["fixed_openings"] = {"W1": 100.0}
+        with self.assertRaisesRegex(ValueError, "must be disjoint"):
+            validate_field_validation_protocol(self.layout, spec)
+
     def test_approved_protocol_and_matching_field_data_can_pass(self):
         runtime, bundle = self.bundle()
         result = validate_contam_against_field(
