@@ -107,6 +107,9 @@ def main() -> int:
         "prj_profile_binding_sha256": manifest[
             "prj_profile_binding_sha256"
         ],
+        "zone_numbers": manifest["zone_numbers"],
+        "path_numbers": manifest["path_numbers"],
+        "control_numbers": manifest["control_numbers"],
         "readiness_sha256": readiness["readiness_sha256"],
         "engineering_truth": False,
         "purpose": "generated topology/load smoke",
