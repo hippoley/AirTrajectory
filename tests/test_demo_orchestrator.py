@@ -1,5 +1,7 @@
+import tempfile
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 
 from airtrajectory.demo_orchestrator import run_demo
 from airtrajectory.demo_runtime import DemoRuntimeSnapshot
@@ -63,6 +65,34 @@ class Driver:
             quality="measured",
         )
 
+
+
+class FakeContamCx:
+    def __init__(self, prj_file_path, wp_mode=0, cb_option=False, *_):
+        self.path=prj_file_path
+        self.nZones=3
+        self.nPaths=5
+        self.nInputControls=3
+        self.nOutputControls=0
+        self.inputControls=[
+            SimpleNamespace(name="W1_open"),
+            SimpleNamespace(name="W2_open"),
+            SimpleNamespace(name="W3_open"),
+        ]
+        self.outputControls=[]
+        self.controls={}
+        self.steps=0
+        self.ended=False
+    def setupSimulation(self,use_cosim=1): self.use_cosim=use_cosim
+    def getVersion(self): return "fake-contam"
+    def getSimTimeStep(self): return 60
+    def setInputControlValue(self,n,v): self.controls[n]=v
+    def doSimStep(self,n): self.steps+=n
+    def getZoneMF(self,z,c):
+        return {1:0.0020,2:0.0018,3:0.0017}[z]-(self.steps*0.00001)
+    def getPathFlow(self,p):
+        return float(p)*0.1
+    def endSimulation(self): self.ended=True
 
 class DemoOrchestratorTests(unittest.TestCase):
     def snapshot(self):
@@ -129,6 +159,53 @@ class DemoOrchestratorTests(unittest.TestCase):
             {f.actuator_id for f in step.actuator_feedback},
             {"W1", "W2", "W3"},
         )
+
+    def test_contam_backend_shares_snapshot_policy_and_symbolic_mappings(self):
+        snap=self.snapshot()
+        with tempfile.TemporaryDirectory() as d:
+            prj=Path(d)/"demo.prj"
+            prj.write_text("fixture")
+            provenance={
+                "sha256":"e"*64,
+                "zone_numbers":{
+                    "zone:bedroom":1,
+                    "zone:living":2,
+                    "zone:study":3,
+                },
+                "path_numbers":{
+                    "path:D1":1,
+                    "path:D2":2,
+                    "path:W1":3,
+                    "path:W2":4,
+                    "path:W3":5,
+                },
+                "input_control_names":{
+                    "W1":"W1_open",
+                    "W2":"W2_open",
+                    "W3":"W3_open",
+                },
+            }
+            result=run_demo(
+                snap,
+                mode="contam",
+                max_steps=1,
+                contam_prj_path=prj,
+                contam_provenance=provenance,
+                contam_binding_factory=FakeContamCx,
+                fixed_openings={"D1":100,"D2":100},
+            )
+        self.assertEqual(result.trajectory.environment_kind,"contam")
+        self.assertEqual(
+            result.trajectory.context["demo_runtime_snapshot_sha256"],
+            snap.sha256(),
+        )
+        self.assertEqual(
+            result.trajectory.context["contam_path_numbers"]["W1"],
+            3,
+        )
+        self.assertEqual(result.trajectory.steps[0].executed_actions[0].opening_id,"W1")
+        self.assertEqual(result.trajectory.context["fixed_opening_ids"],["D1","D2"])
+
 
     def test_physical_mode_requires_all_exterior_controllable_drivers(self):
         with self.assertRaisesRegex(ValueError, "missing drivers"):
