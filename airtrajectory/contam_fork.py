@@ -264,6 +264,7 @@ def contam_strategy_fork_request(
             "end_co2_ppm":round(float(final["co2_ppm"][evaluation_zone]),3),
             "end_co2_ppm_by_zone":{k:round(float(v),3) for k,v in final["co2_ppm"].items()},
             "path_flow_kg_s":dict(final.get("path_flow_kg_s") or {}),
+            "end_scalar_values":dict(final.get("scalar_values") or {}),
             "series":[round(float(x["co2_ppm"][evaluation_zone]),3) for x in observations],
             "return":round(float(total_return),6),
             "provenance":"backend-generated · CONTAM · engineering simulation",
