@@ -114,7 +114,7 @@ def main()->int:
         raise RuntimeError("transient fork returned no branches")
     if any(all(abs(float(value)-outdoor)<1e-6 for value in vector.values()) for vector in vectors):
         raise RuntimeError("transient counterfactual collapsed a full zone vector to outdoor CO2 in one step")
-    if not all(response.get("origin_opening_controls_applied") for _ in [0]):
+    if response.get("origin_opening_controls_applied") is not True:
         raise RuntimeError("fork opening origin was not applied")
 
     unique={
