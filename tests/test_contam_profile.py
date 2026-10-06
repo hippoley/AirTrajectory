@@ -46,6 +46,8 @@ class ContamProfileTests(unittest.TestCase):
         )
         self.assertFalse(bound["writer_contract"]["ready"])
         self.assertFalse(bound["airflow_profile"]["engineering_validated"])
+        window_path = next(p for p in bound["flow_paths"] if p["layout_opening_id"] == "W1")
+        self.assertEqual(window_path["airflow_element"]["closed_leakage_multiplier"], 0.01)
 
     def test_each_path_references_deterministic_element_number(self):
         bound = bind_airflow_elements(
@@ -88,6 +90,12 @@ class ContamProfileTests(unittest.TestCase):
         profile = illustrative_opening_profile()
         del profile["rules"]["door"]
         with self.assertRaisesRegex(ValueError, "no rule"):
+            bind_airflow_elements(metric_manifest(), profile)
+
+    def test_invalid_closed_leakage_multiplier_fails_closed(self):
+        profile = illustrative_opening_profile()
+        profile["rules"]["window"]["closed_leakage_multiplier"] = 1.0
+        with self.assertRaisesRegex(ValueError, "closed_leakage_multiplier"):
             bind_airflow_elements(metric_manifest(), profile)
 
     def test_invalid_engineering_parameter_fails_closed(self):
