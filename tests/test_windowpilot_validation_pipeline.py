@@ -406,6 +406,69 @@ class WindowPilotValidationPipelineTests(unittest.TestCase):
                 clock_fn=lambda: clock["now"],
             )
 
+    def test_startup_bundle_uses_exact_pipeline_preflight(self):
+        layout = LayoutContract.from_file(LAYOUT)
+        clock = {"now": 1800000000.0}
+        drivers = {
+            "W1": FakeDriver("W1", 1290.0, clock),
+            "W2": FakeDriver("W2", 905.0, clock),
+            "W3": FakeDriver("W3", 805.0, clock),
+        }
+
+        def sleep(seconds):
+            clock["now"] += float(seconds)
+
+        baseline = contract_baseline()
+        current_probe = probe_report()
+        receipt, _, _ = run_windowpilot_field_validation(
+            layout=layout,
+            config=config(),
+            drivers=drivers,
+            protocol=protocol(),
+            runtime_receipt=runtime(layout),
+            validation_id="wp-startup-bundle-001",
+            contract_baseline=baseline,
+            contract_probe_report=current_probe,
+            startup_bundle_id="site-a-startup-001",
+            sleep_fn=sleep,
+            clock_fn=lambda: clock["now"],
+        )
+        bundle = receipt["startup_bundle"]
+        self.assertIsNotNone(bundle)
+        self.assertEqual(
+            bundle["preflight_receipt_sha256"],
+            receipt["preflight_receipt_sha256"],
+        )
+        self.assertEqual(
+            bundle["startup_bundle_sha256"],
+            receipt["startup_bundle_sha256"],
+        )
+        self.assertEqual(bundle["actuator_writes"], 0)
+
+    def test_startup_bundle_requires_contract_baseline_and_probe(self):
+        layout = LayoutContract.from_file(LAYOUT)
+        clock = {"now": 1800000000.0}
+        drivers = {
+            "W1": FakeDriver("W1", 1290.0, clock),
+            "W2": FakeDriver("W2", 905.0, clock),
+            "W3": FakeDriver("W3", 805.0, clock),
+        }
+        with self.assertRaisesRegex(
+            ValueError,
+            "requires contract baseline and current probe",
+        ):
+            run_windowpilot_field_validation(
+                layout=layout,
+                config=config(),
+                drivers=drivers,
+                protocol=protocol(),
+                runtime_receipt=runtime(layout),
+                validation_id="wp-startup-bundle-no-baseline",
+                startup_bundle_id="site-a-startup-invalid",
+                sleep_fn=lambda seconds: None,
+                clock_fn=lambda: clock["now"],
+            )
+
 
 if __name__ == "__main__":
     unittest.main()
