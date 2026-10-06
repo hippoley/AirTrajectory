@@ -54,7 +54,11 @@ class ForkHTTPTests(unittest.TestCase):
         })
         self.assertEqual(status,200)
         self.assertEqual(payload["request_id"],"http-test")
+        self.assertEqual(payload["schema_version"],"0.2")
+        self.assertEqual(payload["physics_fidelity"],"TOY")
+        self.assertFalse(payload["trusted_for_promotion"])
         self.assertEqual(len(payload["branches"]),5)
+        self.assertTrue(all(branch["trusted_for_promotion"] is False for branch in payload["branches"]))
         self.assertTrue(payload["trace_id"])
 
     def test_incomplete_origin_is_400_not_fabricated(self):
