@@ -879,3 +879,43 @@ pipeline receipt SHA
 ```
 
 Intermediate aligned samples are optional output for audit/debugging; they are not required for normal operation.
+
+
+### Read-only WindowPilot field capture
+
+AirTrajectory can now collect validation records directly from multiple WindowPilot runtimes without issuing actuator commands:
+
+```bash
+python examples/capture_windowpilot_field_data.py \
+  artifacts/engineering-runtime.json \
+  artifacts/field-validation-protocol.frozen.json \
+  examples/windowpilot_endpoints.example.json \
+  --validation-id site-run-001 \
+  --out artifacts/windowpilot-field-capture.json
+```
+
+For the current fixed demo topology, the validation contract distinguishes:
+
+```text
+measured opening positions:
+  W1 / W2 / W3
+
+fixed topology assumptions:
+  D1 = 100%
+  D2 = 100%
+```
+
+Fixed doors remain part of topology completeness but are not fabricated as measured actuator evidence. Their declared values are checked against every runtime prediction step.
+
+The WindowPilot adapter is read-only. It uses:
+
+```text
+driver.read_sensors()
+→ measured CO2 + source timestamp + ThingModel/site provenance
+
+driver.physical_readiness()
+→ latest_position_feedback.measured=true
+→ hardware_identity.identity_sha256
+```
+
+It fails closed when an endpoint is simulated, measured position is unavailable, CO2 lacks provenance, endpoint hardware identity changes during capture, or CO2 sources span multiple physical sites. The resulting capture carries a hashed `windowpilot_capture_provenance` that is preserved through alignment and into the final validation receipt.
