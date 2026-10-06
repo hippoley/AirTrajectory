@@ -116,7 +116,7 @@ class ContamHTTPTests(unittest.TestCase):
             }
             status,out=self.request(server,payload,"/fork/contam-strategy")
             self.assertEqual(status,200)
-            self.assertEqual(out["schema_version"],"0.3")
+            self.assertEqual(out["schema_version"],"0.4")
             self.assertEqual(out["physics_fidelity"],"CONTAM")
             self.assertTrue(out["trusted_for_promotion"])
             self.assertEqual(out["branches"][0]["label"],"cross-room")
