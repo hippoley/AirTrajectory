@@ -136,7 +136,8 @@ def run_demo(
             binding_factory=contam_binding_factory,
             fixed_openings=fixed,
             initial_openings=snapshot.opening_states,
-            initial_co2_ppm={key:str_value for key,str_value in contam_provenance["initial_co2_ppm"].items()},
+            initial_co2_ppm={key:float(value) for key,value in contam_provenance["initial_co2_ppm"].items()},
+            ambient=dict(contam_provenance.get("contam_ambient") or {}),
         )
         try:
             trajectory = rollout(
