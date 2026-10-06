@@ -1,0 +1,20 @@
+{
+  "schema_version": "0.1",
+  "evidence_id": "prj-engineering-review-001",
+  "evidence_type": "prj_engineering_review",
+  "topology_id": "demo.fixed-three-room.v1",
+  "captured_at": "2026-10-06T14:00:00+08:00",
+  "method": "engineering-review",
+  "source": {
+    "kind": "review",
+    "id": "hvac-review-001",
+    "model": null,
+    "serial": null,
+    "calibration_ref": null
+  },
+  "data": {
+    "reviewer": "replace-with-reviewer",
+    "reviewer_role": "HVAC / building-airflow engineer",
+    "approved_profile_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  }
+}
