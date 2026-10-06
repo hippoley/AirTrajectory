@@ -57,6 +57,29 @@ def _require_source(source: Any) -> dict[str, Any]:
         "calibration_ref": source.get("calibration_ref"),
     }
 
+def _normalize_approval(value: Any) -> dict[str, Any] | None:
+    if value is None:
+        return None
+    if not isinstance(value, dict):
+        raise ValueError("evidence approval must be an object")
+    if value.get("approved") is not True:
+        raise ValueError("evidence approval must set approved=true")
+    approved_by = str(value.get("approved_by") or "")
+    approved_role = str(value.get("approved_role") or "")
+    if not approved_by or not approved_role:
+        raise ValueError(
+            "evidence approval requires approved_by and approved_role"
+        )
+    approved_at = _timestamp(value.get("approved_at"))
+    return {
+        "approved": True,
+        "approved_by": approved_by,
+        "approved_role": approved_role,
+        "approved_at": approved_at,
+        "note": value.get("note"),
+    }
+
+
 
 def _validate_metric_geometry(data: dict[str, Any]) -> dict[str, Any]:
     rooms = data.get("rooms")
@@ -213,6 +236,7 @@ def issue_evidence_receipt(bundle: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(data, dict):
         raise ValueError("evidence data must be an object")
     summary = _VALIDATORS[evidence_type](data)
+    approval = _normalize_approval(bundle.get("approval"))
 
     receipt_payload = {
         "schema_version": "0.1",
@@ -223,6 +247,7 @@ def issue_evidence_receipt(bundle: dict[str, Any]) -> dict[str, Any]:
         "method": method,
         "source": source,
         "summary": summary,
+        "approval": approval,
     }
     return {
         **receipt_payload,
