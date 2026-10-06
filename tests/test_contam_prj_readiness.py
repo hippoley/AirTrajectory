@@ -130,6 +130,19 @@ class ContamPrjReadinessTests(unittest.TestCase):
                     "conversion": "ppmv-to-mass-fraction-mw-ratio",
                 }
             },
+            "project_controls": {
+                "mode": "steady",
+                "start": "00:00:00",
+                "stop": "01:00:00",
+                "time_step_s": 60
+            },
+            "path_records": {
+                "path:W1": {"prj_flags":0,"filter_number":0,"wind_profile_number":0,"ahs_number":0,"schedule_number":0,"level_number":1,"x_m":0.0,"y_m":1.8,"relative_height_m":0.9,"element_multiplier":1.0,"constant_wind_pressure_pa":0.0,"wind_speed_modifier":1.0},
+                "path:W2": {"prj_flags":0,"filter_number":0,"wind_profile_number":0,"ahs_number":0,"schedule_number":0,"level_number":1,"x_m":5.0,"y_m":1.7,"relative_height_m":0.9,"element_multiplier":1.0,"constant_wind_pressure_pa":0.0,"wind_speed_modifier":1.0},
+                "path:W3": {"prj_flags":0,"filter_number":0,"wind_profile_number":0,"ahs_number":0,"schedule_number":0,"level_number":1,"x_m":3.8,"y_m":5.0,"relative_height_m":0.9,"element_multiplier":1.0,"constant_wind_pressure_pa":0.0,"wind_speed_modifier":1.0},
+                "path:D1": {"prj_flags":0,"filter_number":0,"wind_profile_number":0,"ahs_number":0,"schedule_number":0,"level_number":1,"x_m":5.0,"y_m":2.8,"relative_height_m":0.0,"element_multiplier":1.0,"constant_wind_pressure_pa":0.0,"wind_speed_modifier":1.0},
+                "path:D2": {"prj_flags":0,"filter_number":0,"wind_profile_number":0,"ahs_number":0,"schedule_number":0,"level_number":1,"x_m":2.5,"y_m":5.0,"relative_height_m":0.0,"element_multiplier":1.0,"constant_wind_pressure_pa":0.0,"wind_speed_modifier":1.0}
+            },
             "levels": {
                 "1": {
                     "name": "Ground",
@@ -140,15 +153,9 @@ class ContamPrjReadinessTests(unittest.TestCase):
         profiled = bind_prj_serialization_profile(manifest, prj_profile)
         result = audit_prj_readiness(profiled)
 
-        self.assertEqual(result["status"], "BLOCKED")
-        self.assertNotIn("section_10_airflow_elements", result["missing"])
-        self.assertNotIn("section_14_zones", result["missing"])
-        self.assertNotIn("section_15_initial_concentrations", result["missing"])
-        self.assertIn("section_16_airflow_paths", result["missing"])
-        self.assertEqual(
-            result["missing"]["global"]["manifest"],
-            ["section_1_project_weather_simulation_controls"],
-        )
+        self.assertEqual(result["status"], "READY_FOR_PRJ_SERIALIZATION")
+        self.assertTrue(result["prj_serialization_ready"])
+        self.assertEqual(result["missing"], {})
 
 
 if __name__ == "__main__":
