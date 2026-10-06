@@ -123,6 +123,13 @@ def validate_prj_profile(profile: dict[str, Any]) -> None:
                     f"airflow storage rule {kind} transition_reynolds_number must be positive"
                 )
             continue
+        if mode == "constant-volume-fan":
+            unit=int(rule.get("flow_unit",4))
+            if unit < 0:
+                raise ValueError(
+                    f"airflow storage rule {kind} flow_unit must be non-negative"
+                )
+            continue
         if mode != "explicit":
             raise ValueError(f"airflow storage rule {kind} has unsupported mode")
         if float(rule.get("hydraulic_diameter_m")) <= 0:
@@ -230,6 +237,14 @@ def bind_prj_serialization_profile(
                 flow_exponent=element["flow_exponent"],
                 transition_reynolds_number=rule["transition_reynolds_number"],
             )
+        elif mode == "constant-volume-fan":
+            if element.get("model") != "constant-volume-fan":
+                raise ValueError(
+                    f"airflow storage rule {kind} expects constant-volume-fan element"
+                )
+            storage = {
+                "flow_unit": int(rule.get("flow_unit",4)),
+            }
         else:
             storage = {
                 "hydraulic_diameter_m": float(rule["hydraulic_diameter_m"]),
