@@ -12,6 +12,9 @@ import time
 from typing import Any, Callable, Mapping
 
 from .drivers.windowpilot import WindowPilotHTTPDriver
+from .windowpilot_contract_mapping import (
+    build_windowpilot_response_adapter,
+)
 
 
 def _sha256(payload: Any) -> str:
@@ -103,11 +106,13 @@ def probe_windowpilot_http_contract(
     *,
     base_url: str,
     request_json: Callable[[str, str, Any], Any] | None = None,
+    response_adapter: Callable[[str, Any], dict[str, Any]] | None = None,
     clock_fn=time.time,
 ) -> dict[str, Any]:
     driver = WindowPilotHTTPDriver(
         base_url=base_url,
         request_json=request_json,
+        response_adapter=response_adapter,
     )
     fetch = driver._request_json
     endpoints = {
@@ -313,6 +318,7 @@ def probe_windowpilot_http_contract(
         "base_url_sha256": hashlib.sha256(
             str(base_url).encode("utf-8")
         ).hexdigest(),
+        "contract_mapping": driver.contract_mapping_identity(),
         "endpoints": endpoint_summary,
         "observed": {
             "execution": execution if isinstance(execution, dict) else None,
@@ -374,9 +380,20 @@ def probe_windowpilot_config(
             if request_json_factory is None
             else request_json_factory(endpoint_id, spec)
         )
+        response_adapter = None
+        profile_name = spec.get("contract_mapping_profile")
+        if profile_name is not None:
+            profiles = config.get("contract_mapping_profiles") or {}
+            profile = profiles.get(str(profile_name))
+            if not isinstance(profile, Mapping):
+                raise ValueError(
+                    f"endpoint {endpoint_id} references unavailable contract mapping profile {profile_name}"
+                )
+            response_adapter = build_windowpilot_response_adapter(profile)
         reports[endpoint_id] = probe_windowpilot_http_contract(
             base_url=base_url,
             request_json=request_json,
+            response_adapter=response_adapter,
             clock_fn=clock_fn,
         )
 
