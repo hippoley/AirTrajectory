@@ -36,6 +36,27 @@ def _path_endpoint_number(manifest: dict[str, Any], key: str) -> int:
     return _zone_number(manifest, key)
 
 
+
+def _dynamic_window_controls(manifest: dict[str, Any]) -> list[dict[str, Any]]:
+    paths = [
+        path
+        for path in manifest.get("flow_paths") or []
+        if path.get("kind") == "window"
+        and path.get("boundary_kind") == "exterior"
+    ]
+    paths.sort(key=lambda item: str(item["layout_opening_id"]))
+    return [
+        {
+            "opening_id": str(path["layout_opening_id"]),
+            "path_number": int(path["contam_path_number"]),
+            "control_node_number": index,
+            "input_control_index": index,
+            "name": str(path["layout_opening_id"]) + "_open",
+        }
+        for index, path in enumerate(paths, start=1)
+    ]
+
+
 def render_minimal_prj(manifest: dict[str, Any], *, project_name: str = "airtrajectory-generated.prj") -> str:
     readiness = audit_prj_readiness(manifest)
     if not readiness["prj_serialization_ready"]:
@@ -176,7 +197,15 @@ def render_minimal_prj(manifest: dict[str, Any], *, project_name: str = "airtraj
     emit("-999")
     emit("0 ! control super elements:")
     emit("-999")
-    emit("0 ! control nodes:")
+    dynamic_controls = _dynamic_window_controls(manifest)
+    emit(f"{len(dynamic_controls)} ! control nodes:")
+    emit("! # typ seq f n c1 c2 name")
+    for control in dynamic_controls:
+        nr = int(control["control_node_number"])
+        name = control["name"]
+        emit(f"{nr:4d} set {nr:3d} 0 0 0 0 {name}")
+        emit("AirTrajectory external opening multiplier 0..1")
+        emit(" 1")
     emit("-999")
     emit("0 ! simple AHS:")
     emit("-999")
@@ -223,10 +252,15 @@ def render_minimal_prj(manifest: dict[str, Any], *, project_name: str = "airtraj
         n = _path_endpoint_number(manifest, path["from"])
         m = _path_endpoint_number(manifest, path["to"])
         element_number = int(path["airflow_element"]["contam_element_number"])
+        control_by_opening = {
+            item["opening_id"]: item["control_node_number"]
+            for item in _dynamic_window_controls(manifest)
+        }
+        control_number = int(control_by_opening.get(path["layout_opening_id"], 0))
         emit(
             f"{nr:4d} {flags:4d} {n:4d} {m:4d} {element_number:4d} "
             f"{int(path['filter_number']):3d} {int(path['wind_profile_number']):3d} "
-            f"{int(path['ahs_number']):3d} {int(path['schedule_number']):3d} 0 "
+            f"{int(path['ahs_number']):3d} {int(path['schedule_number']):3d} {control_number:d} "
             f"{int(path['level_number']):3d} "
             f"{float(path['x_m']):.6g} {float(path['y_m']):.6g} "
             f"{float(path['relative_height_m']):.6g} "
@@ -258,6 +292,7 @@ def write_minimal_prj(manifest: dict[str, Any], path: str | Path) -> dict[str, A
     text = render_minimal_prj(manifest, project_name=target.name)
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(text, encoding="utf-8", newline="\n")
+    controls = _dynamic_window_controls(manifest)
     return {
         "path": str(target),
         "sha256": _sha256_text(text),
@@ -265,5 +300,10 @@ def write_minimal_prj(manifest: dict[str, Any], path: str | Path) -> dict[str, A
         "paths": len(manifest["flow_paths"]),
         "status": "GENERATED_TOPOLOGY_LOAD_SMOKE",
         "engineering_truth": False,
-        "dynamic_control_ready": False,
+        "dynamic_control_emitted": bool(controls),
+        "dynamic_control_verified": False,
+        "input_controls": {
+            item["opening_id"]: item["input_control_index"]
+            for item in controls
+        },
     }
