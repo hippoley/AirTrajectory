@@ -7,6 +7,7 @@ from pathlib import Path
 from airtrajectory.physical_origin_lease import (
     claim_physical_origin_execution,
     finalize_physical_origin_execution,
+    recover_abandoned_physical_origin_execution,
     verify_physical_origin_execution_lease,
 )
 
@@ -112,6 +113,96 @@ class PhysicalOriginLeaseTests(unittest.TestCase):
                     zone_id="living",
                     claimed_at=12.0,
                 )
+
+    def test_live_owner_inflight_lease_cannot_be_recovered(self):
+        with tempfile.TemporaryDirectory() as d:
+            claim=claim_physical_origin_execution(
+                lease_dir=d,
+                origin_receipt_sha256="a"*64,
+                origin_sha256="b"*64,
+                planner_receipt_sha256="c"*64,
+                planner_step_sha256="d"*64,
+                opening_id="W1",
+                zone_id="living",
+                claimed_at=10.0,
+                owner_host="host-a",
+                owner_pid=1234,
+            )
+            with self.assertRaisesRegex(RuntimeError,"owner process is still running"):
+                recover_abandoned_physical_origin_execution(
+                    lease_path=claim["lease_path"],
+                    recovered_at=20.0,
+                    recovery_host="host-a",
+                    process_alive_fn=lambda pid: True,
+                )
+            current=verify_physical_origin_execution_lease(
+                lease_path=claim["lease_path"],
+            )
+            self.assertEqual(current["status"],"IN_FLIGHT")
+
+    def test_dead_same_host_owner_is_sealed_as_recovery_required(self):
+        with tempfile.TemporaryDirectory() as d:
+            claim=claim_physical_origin_execution(
+                lease_dir=d,
+                origin_receipt_sha256="a"*64,
+                origin_sha256="b"*64,
+                planner_receipt_sha256="c"*64,
+                planner_step_sha256="d"*64,
+                opening_id="W1",
+                zone_id="living",
+                claimed_at=10.0,
+                owner_host="host-a",
+                owner_pid=1234,
+            )
+            recovered=recover_abandoned_physical_origin_execution(
+                lease_path=claim["lease_path"],
+                recovered_at=20.0,
+                recovery_host="host-a",
+                process_alive_fn=lambda pid: False,
+            )
+            self.assertEqual(recovered["status"],"RECOVERY_REQUIRED")
+            self.assertTrue(recovered["recovery"]["requires_new_physical_origin"])
+            self.assertEqual(
+                recovered["recovery"]["reason"],
+                "OWNER_PROCESS_NOT_RUNNING",
+            )
+            with self.assertRaisesRegex(RuntimeError,"already been claimed"):
+                claim_physical_origin_execution(
+                    lease_dir=d,
+                    origin_receipt_sha256="a"*64,
+                    origin_sha256="b"*64,
+                    planner_receipt_sha256="c"*64,
+                    planner_step_sha256="d"*64,
+                    opening_id="W1",
+                    zone_id="living",
+                    claimed_at=21.0,
+                )
+
+    def test_cross_host_owner_cannot_be_declared_dead_locally(self):
+        with tempfile.TemporaryDirectory() as d:
+            claim=claim_physical_origin_execution(
+                lease_dir=d,
+                origin_receipt_sha256="a"*64,
+                origin_sha256="b"*64,
+                planner_receipt_sha256="c"*64,
+                planner_step_sha256="d"*64,
+                opening_id="W1",
+                zone_id="living",
+                claimed_at=10.0,
+                owner_host="host-a",
+                owner_pid=1234,
+            )
+            with self.assertRaisesRegex(RuntimeError,"across hosts"):
+                recover_abandoned_physical_origin_execution(
+                    lease_path=claim["lease_path"],
+                    recovered_at=20.0,
+                    recovery_host="host-b",
+                    process_alive_fn=lambda pid: False,
+                )
+            current=verify_physical_origin_execution_lease(
+                lease_path=claim["lease_path"],
+            )
+            self.assertEqual(current["status"],"IN_FLIGHT")
 
     def test_tampered_lease_is_rejected(self):
         with tempfile.TemporaryDirectory() as d:
