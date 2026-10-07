@@ -2,7 +2,10 @@ import hashlib
 import json
 import unittest
 
-from airtrajectory.physical_origin import merge_physical_next_origins
+from airtrajectory.physical_origin import (
+    merge_physical_next_origins,
+    verify_physical_origin_receipt,
+)
 
 
 def sha(payload):
@@ -192,6 +195,70 @@ class MultiPhysicalOriginTests(unittest.TestCase):
         self.assertEqual(window["latest_timestamp"],16.0)
         self.assertEqual(window["skew_s"],3.0)
         self.assertEqual(window["max_allowed_skew_s"],10.0)
+
+    def test_hash_valid_multi_receipt_cannot_overclaim_measured_zones(self):
+        out=merge_physical_next_origins(
+            current_origin=self.base(),
+            measurements=[
+                {
+                    "zone_id":"living",
+                    "reconcile":reconcile("W1","living",1300,0.2),
+                },
+                {
+                    "zone_id":"bedroom",
+                    "reconcile":reconcile(
+                        "W2","bedroom",880,0.1,seed="b"
+                    ),
+                },
+            ],
+        )
+        out["measured_zones"]=["bedroom","living","study"]
+        payload={
+            key:value
+            for key,value in out.items()
+            if key not in {
+                "multi_physical_origin_receipt_sha256",
+                "origin_sha256",
+            }
+        }
+        out["multi_physical_origin_receipt_sha256"]=sha(payload)
+        with self.assertRaisesRegex(
+            RuntimeError,
+            "measured_zones do not match applied measurements",
+        ):
+            verify_physical_origin_receipt(out)
+
+    def test_hash_valid_multi_receipt_cannot_fake_inherited_coverage(self):
+        out=merge_physical_next_origins(
+            current_origin=self.base(),
+            measurements=[
+                {
+                    "zone_id":"living",
+                    "reconcile":reconcile("W1","living",1300,0.2),
+                },
+                {
+                    "zone_id":"bedroom",
+                    "reconcile":reconcile(
+                        "W2","bedroom",880,0.1,seed="b"
+                    ),
+                },
+            ],
+        )
+        out["inherited_openings"]=[]
+        payload={
+            key:value
+            for key,value in out.items()
+            if key not in {
+                "multi_physical_origin_receipt_sha256",
+                "origin_sha256",
+            }
+        }
+        out["multi_physical_origin_receipt_sha256"]=sha(payload)
+        with self.assertRaisesRegex(
+            RuntimeError,
+            "inherited_openings do not complement measured coverage",
+        ):
+            verify_physical_origin_receipt(out)
 
     def test_tampered_child_receipt_is_rejected(self):
         bad = reconcile("W1", "living", 1300, 0.2)
