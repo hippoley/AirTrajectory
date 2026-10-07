@@ -7,6 +7,7 @@ import unittest
 from pathlib import Path
 
 from airtrajectory.physical import DriverCapabilities
+from airtrajectory.physical_cycle_verify import verify_persisted_physical_cycle
 from airtrajectory.trajectory import ActuatorFeedback
 from airtrajectory.physical_origin import verify_physical_origin_receipt
 
@@ -244,6 +245,87 @@ class ReplannedPhysicalStepTests(unittest.TestCase):
             verified=verify_physical_origin_receipt(next_payload)
             self.assertEqual(verified["origin"]["co2_ppm"]["living"],1320.0)
             self.assertAlmostEqual(verified["origin"]["opening_pct"]["W1"],4.9)
+
+    def test_persisted_success_cycle_independently_verifies(self):
+        with tempfile.TemporaryDirectory() as d:
+            root=Path(d)
+            physical,planner=self._files(root)
+            driver=FakeDriver()
+            module.run_replanned_physical_step(
+                driver=driver,
+                physical_origin_receipt=physical,
+                planner_receipt=planner,
+                opening_id="W1",
+                zone_id="living",
+                max_delta_pct=10.0,
+                summary_out=root/"summary.json",
+                next_origin_out=root/"next.json",
+                execute=True,
+                snapshot_fn=lambda **kwargs:snapshot(),
+            )
+            result=verify_persisted_physical_cycle(
+                previous_origin_receipt=json.loads(
+                    physical.read_text(encoding="utf-8")
+                ),
+                planner_payload=json.loads(
+                    planner.read_text(encoding="utf-8")
+                ),
+                step_summary=json.loads(
+                    (root/"summary.json").read_text(encoding="utf-8")
+                ),
+                next_origin_receipt=json.loads(
+                    (root/"next.json").read_text(encoding="utf-8")
+                ),
+            )
+            self.assertEqual(result["status"],"PASS")
+            self.assertTrue(result["field_transition_contract_verified"])
+            self.assertEqual(result["opening_id"],"W1")
+            self.assertEqual(result["zone_id"],"living")
+            self.assertEqual(len(result["physical_cycle_verification_sha256"]),64)
+
+    def test_hash_valid_summary_cannot_change_persisted_authorization(self):
+        with tempfile.TemporaryDirectory() as d:
+            root=Path(d)
+            physical,planner=self._files(root)
+            driver=FakeDriver()
+            module.run_replanned_physical_step(
+                driver=driver,
+                physical_origin_receipt=physical,
+                planner_receipt=planner,
+                opening_id="W1",
+                zone_id="living",
+                max_delta_pct=10.0,
+                summary_out=root/"summary.json",
+                next_origin_out=root/"next.json",
+                execute=True,
+                snapshot_fn=lambda **kwargs:snapshot(),
+            )
+            summary=json.loads(
+                (root/"summary.json").read_text(encoding="utf-8")
+            )
+            summary["authorization"]["authorized_target_pct"]=42.0
+            summary_payload={
+                key:value
+                for key,value in summary.items()
+                if key!="replanned_physical_step_sha256"
+            }
+            summary["replanned_physical_step_sha256"]=sha(summary_payload)
+            with self.assertRaisesRegex(
+                RuntimeError,
+                "persisted authorization does not match",
+            ):
+                verify_persisted_physical_cycle(
+                    previous_origin_receipt=json.loads(
+                        physical.read_text(encoding="utf-8")
+                    ),
+                    planner_payload=json.loads(
+                        planner.read_text(encoding="utf-8")
+                    ),
+                    step_summary=summary,
+                    next_origin_receipt=json.loads(
+                        (root/"next.json").read_text(encoding="utf-8")
+                    ),
+                )
 
     def test_large_planner_jump_is_bounded_before_execution(self):
         with tempfile.TemporaryDirectory() as d:
