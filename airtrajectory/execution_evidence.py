@@ -122,7 +122,7 @@ def build_execution_evidence_envelope(
             "kind":"physical-control-transition",
             "request_id":request_obj.get("request_id"),
             "ack_id":request_obj.get("command_id"),
-            "mutation_expected":bool(record.get("motion_performed")),
+            "mutation_expected":request is not None,
             "parameters":{
                 "authorized_target_pct":request_obj.get("authorized_target_pct")
             },
@@ -145,6 +145,7 @@ def build_execution_evidence_envelope(
                 "opening_id":target.get("opening_id"),
                 "zone_id":target.get("zone_id"),
                 "motion_performed":bool(record.get("motion_performed")),
+                "mutation_observed":bool(record.get("motion_performed")),
                 "fresh_after_action":observation.get("fresh_after_action"),
             }
         },
