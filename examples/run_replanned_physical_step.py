@@ -38,6 +38,47 @@ def _write(path, payload):
     )
 
 
+def _safe_closeout_after_sensor_failure(driver, opening_id, prior_feedback):
+    """Best-effort measured closeout after an executed step loses fresh sensors."""
+    result={
+        "attempted":False,
+        "required":False,
+        "confirmed_closed":False,
+        "feedback":None,
+        "command_ack":None,
+        "error":None,
+    }
+    measured=getattr(prior_feedback,"measured_position_pct",None)
+    if measured is None:
+        result["required"]=True
+    else:
+        result["required"]=float(measured)>1.0
+    if not result["required"]:
+        result["confirmed_closed"]=True
+        result["feedback"]=asdict(prior_feedback)
+        return result
+
+    result["attempted"]=True
+    try:
+        close_feedback=driver.set_position(str(opening_id),0.0)
+        result["feedback"]=asdict(close_feedback)
+        result["command_ack"]=getattr(driver,"last_command_ack",None)
+        close_measured=close_feedback.measured_position_pct
+        if close_measured is None:
+            raise RuntimeError("safe closeout lacks measured position feedback")
+        if abs(float(close_measured))>1.0:
+            raise RuntimeError(
+                f"safe closeout remained at {float(close_measured):.2f}%"
+            )
+        if float(close_feedback.timestamp)<=float(prior_feedback.timestamp):
+            raise RuntimeError("safe closeout feedback is not newer than prior action")
+        result["confirmed_closed"]=True
+        return result
+    except Exception as exc:
+        result["error"]=str(exc)
+        return result
+
+
 def run_replanned_physical_step(
     *,
     driver,
@@ -169,20 +210,41 @@ def run_replanned_physical_step(
             after_timestamp=float(feedback.timestamp),
         )
     except Exception as exc:
+        recovery=_safe_closeout_after_sensor_failure(
+            driver,
+            str(opening_id),
+            feedback,
+        )
+        status=(
+            "SAFE_CLOSED_POST_ACTION_SENSORS_BLOCKED"
+            if recovery["confirmed_closed"]
+            else "BLOCKED_POST_ACTION_SENSORS_CLOSEOUT_FAILED"
+        )
         partial={
             **base,
-            "status":"BLOCKED_POST_ACTION_SENSORS",
+            "status":status,
             "motion_performed":True,
             "next_origin_ready":False,
             "actuator_feedback":feedback_row,
             "command_ack":command_ack,
-            "error":str(exc),
+            "sensor_failure":str(exc),
+            "safe_closeout":recovery,
+            "evidence_boundary":(
+                "the replanned action executed, but fresh post-action sensors "
+                "were unavailable; a measured safe closeout was attempted and "
+                "no next physical origin is emitted"
+            ),
         }
         final={**partial,"replanned_physical_step_sha256":_sha256(partial)}
         _write(summary_out,final)
+        recovery_note=(
+            "safe closeout confirmed"
+            if recovery["confirmed_closed"]
+            else "safe closeout failed: "+str(recovery.get("error") or "unknown")
+        )
         raise RuntimeError(
-            "replanned physical action executed but fresh sensor capture failed: "
-            +str(exc)
+            "replanned physical action executed but fresh sensor capture failed; "
+            +recovery_note+": "+str(exc)
         ) from exc
 
     next_origin=build_replanned_physical_step_origin(
