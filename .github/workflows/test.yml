@@ -248,7 +248,7 @@ jobs:
               json.dump(receipt,fh,indent=2,sort_keys=True)
           print("PHYSICAL_ORIGIN_CONTRACT_FIXTURE_CREATED",receipt["origin_sha256"])
           '@ | python -
-          python examples/run_contam_joint_closed_loop.py artifacts/multispace-transient.prj artifacts/multispace-transient.prj.json --control-steps 1 --prediction-horizon-steps 3 --physical-origin-receipt artifacts/physical-origin-ci-fixture.json --out artifacts/contam-replan-from-physical-origin.json | Tee-Object -FilePath contam-replan-from-physical-origin.log
+          python examples/run_contam_joint_closed_loop.py artifacts/multispace-transient.prj artifacts/multispace-transient.prj.json --spatialruntime-verify --control-steps 1 --prediction-horizon-steps 3 --physical-origin-receipt artifacts/physical-origin-ci-fixture.json --out artifacts/contam-replan-from-physical-origin.json | Tee-Object -FilePath contam-replan-from-physical-origin.log
           if (-not (Select-String -Path contam-replan-from-physical-origin.log -Pattern "REAL_CONTAM_REPLAN_FROM_PHYSICAL_ORIGIN")) { exit 1 }
           @'
           import json
@@ -268,6 +268,20 @@ jobs:
           assert projection["controller_scalar_values"]=={"rain":0.0}
           assert projection["contam_scalar_values"]=={}
           assert projection["dropped_scalar_values"]=={"rain":0.0}
+          sr=p["spatialruntime_consumer"]
+          assert sr["verified"] is True
+          assert sr["zone_ids"]==["bedroom","living","study"]
+          assert sr["flow_path_ids"]==["D1","D2","W1","W2","W3"]
+          rows=evidence["spatialruntime_result_consumers"]
+          assert len(rows)==r["steps"][0]["candidate_count"]
+          assert all(row["verified"] is True for row in rows)
+          assert all(row["adapter_id"]=="contam-project-v0.9" for row in rows)
+          assert all(row["max_abs_co2_ppm_delta"]==0 for row in rows)
+          assert all(row["max_abs_mass_flow_kg_s_delta"]==0 for row in rows)
+          assert all(len(row["request_hash"])==64 for row in rows)
+          assert all(len(row["result_hash"])==64 for row in rows)
+          assert all(len(row["receipt_sha256"])==64 for row in rows)
+          assert len({row["request_hash"] for row in rows})==len(rows)
           assert r["control_steps"]==1
           assert r["closed_loop_replanning_executed"] is False
           print("REAL_CONTAM_PHYSICAL_ORIGIN_REPLAN_VERIFIED",r["steps"][0]["selected_label"],fixture["origin_sha256"],projection)
