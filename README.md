@@ -336,6 +336,23 @@ This path makes repeated physical closed-loop execution possible, but repository
 CI still uses synthetic contract fixtures and does not claim real field
 validation.
 
+A claimed physical origin is never auto-unlocked by timeout. If the local
+process dies after the lease becomes `IN_FLIGHT`, seal that abandoned lease
+explicitly:
+
+```bash
+python examples/recover_abandoned_physical_lease.py \
+  --lease artifacts/physical-origin-leases/<origin-receipt-sha256>.json
+```
+
+Recovery is intentionally narrow: the lease must identify an owner host/PID,
+the recovery must run on that same host, and the owner PID must be provably
+absent. The command issues **no actuator write**. It only transitions the old
+lease to `RECOVERY_REQUIRED` and keeps the old physical origin permanently
+consumed. A fresh physical observation/origin is still required before control
+can resume. Cross-host leases fail closed because local PID checks cannot prove
+the remote owner is dead.
+
 After an executed step, verify the persisted artifacts independently without
 contacting hardware:
 
