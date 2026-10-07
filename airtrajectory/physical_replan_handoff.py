@@ -19,6 +19,20 @@ def _sha256(payload: Any) -> str:
     ).hexdigest()
 
 
+def _verify_embedded_sha(payload: Mapping[str, Any], field: str, label: str) -> str:
+    provided=str(payload.get(field) or "")
+    if len(provided)!=64:
+        raise RuntimeError(f"{label} is missing SHA-256")
+    calculated=_sha256({
+        key:value
+        for key,value in payload.items()
+        if key!=field
+    })
+    if calculated!=provided:
+        raise RuntimeError(f"{label} SHA-256 mismatch")
+    return provided
+
+
 def extract_replanned_physical_action(
     *,
     planner_payload: Mapping[str, Any],
@@ -48,12 +62,24 @@ def extract_replanned_physical_action(
     receipt=planner_payload.get("receipt")
     if not isinstance(receipt,Mapping):
         raise RuntimeError("planner payload missing closed-loop receipt")
+    receipt_sha=_verify_embedded_sha(
+        receipt,
+        "receipt_sha256",
+        "planner closed-loop receipt",
+    )
+    if planner_payload.get("physics_fidelity")!="CONTAM":
+        raise RuntimeError("physical replan handoff requires CONTAM planner fidelity")
     steps=receipt.get("steps")
     if not isinstance(steps,list) or len(steps)!=1:
         raise RuntimeError(
             "physical-origin replan handoff requires exactly one planning step"
         )
     step=steps[0]
+    step_sha=_verify_embedded_sha(
+        step,
+        "step_sha256",
+        "planner closed-loop step",
+    )
     if step.get("origin_sha256")!=verified_origin["origin_sha256"]:
         raise RuntimeError("planner step origin does not match physical origin")
     if receipt.get("initial_origin_sha256")!=verified_origin["origin_sha256"]:
@@ -74,7 +100,15 @@ def extract_replanned_physical_action(
 
     action=actions[0]
     target=float(action["target_pct"])
+    if not 0<=target<=100:
+        raise RuntimeError("replanned opening target is outside [0,100]")
     current=float(verified_origin["origin"]["opening_pct"][target_opening])
+    scalars=verified_origin["origin"].get("scalar_values") or {}
+    if "rain" not in scalars:
+        raise RuntimeError("physical origin lacks measured rain state")
+    rain_value=float(scalars["rain"])
+    if rain_value not in (0.0,1.0):
+        raise RuntimeError("physical origin rain state must be binary")
     payload={
         "schema_version":"0.1",
         "handoff":"physical-origin-replan-action-v1",
@@ -82,12 +116,13 @@ def extract_replanned_physical_action(
         "current_measured_pct":current,
         "planned_target_pct":target,
         "planned_delta_pct":target-current,
+        "current_rain":bool(rain_value),
         "selected_label":str(step.get("selected_label") or ""),
         "objective_score":float(step.get("objective_score")),
         "physical_origin_sha256":verified_origin["origin_sha256"],
         "physical_origin_receipt_sha256":verified_origin["receipt_sha256"],
-        "planner_receipt_sha256":str(receipt.get("receipt_sha256") or ""),
-        "planner_step_sha256":str(step.get("step_sha256") or ""),
+        "planner_receipt_sha256":receipt_sha,
+        "planner_step_sha256":step_sha,
         "planner_physics_fidelity":str(planner_payload.get("physics_fidelity") or ""),
         "planner_evidence_boundary":str(
             planner_payload.get("evidence_boundary") or ""
@@ -126,9 +161,21 @@ def authorize_replanned_physical_action(
 
     current=float(handoff["current_measured_pct"])
     planned=float(handoff["planned_target_pct"])
+    rain=handoff.get("current_rain")
+    if rain is None:
+        raise RuntimeError("replanned action handoff lacks rain safety state")
     delta=planned-current
-    bounded_delta=max(-max_delta,min(max_delta,delta))
-    authorized=max(0.0,min(100.0,current+bounded_delta))
+    if bool(rain) and planned>0:
+        authorized=0.0
+        intervention="RAIN_SAFE_CLOSE"
+    else:
+        bounded_delta=max(-max_delta,min(max_delta,delta))
+        authorized=max(0.0,min(100.0,current+bounded_delta))
+        intervention=(
+            None
+            if abs(authorized-planned)<=1e-9
+            else "REPLANNED_ACTION_BOUNDED_BY_FIELD_RAMP_LIMIT"
+        )
 
     result={
         "schema_version":"0.1",
@@ -137,15 +184,12 @@ def authorize_replanned_physical_action(
         "current_measured_pct":current,
         "planned_target_pct":planned,
         "planned_delta_pct":delta,
+        "current_rain":bool(rain),
         "max_delta_pct":max_delta,
         "authorized_target_pct":authorized,
         "authorized_delta_pct":authorized-current,
         "planner_action_fully_authorized":abs(authorized-planned)<=1e-9,
-        "intervention":(
-            None
-            if abs(authorized-planned)<=1e-9
-            else "REPLANNED_ACTION_BOUNDED_BY_FIELD_RAMP_LIMIT"
-        ),
+        "intervention":intervention,
         "replanned_action_handoff_sha256":provided,
         "physical_origin_sha256":str(handoff["physical_origin_sha256"]),
         "physical_origin_receipt_sha256":str(
@@ -238,8 +282,17 @@ def build_replanned_physical_step_origin(
         raise RuntimeError("replanned actuator feedback is not measured")
     measured=float(measured)
     feedback_ts=float(feedback.get("timestamp") or 0)
+    quality=str(feedback.get("quality") or "").lower()
     if not 0<=measured<=100 or feedback_ts<=0:
         raise RuntimeError("replanned actuator feedback is invalid")
+    if "measured" not in quality and "encoder" not in quality:
+        raise RuntimeError("replanned actuator feedback quality is not measured")
+    position_tolerance=1.0
+    if abs(measured-expected_target)>position_tolerance:
+        raise RuntimeError(
+            "replanned actuator feedback did not reach authorized target "
+            f"within {position_tolerance:.1f}%"
+        )
 
     if not isinstance(sensor_snapshot,Mapping):
         raise RuntimeError("replanned physical step missing sensor snapshot")
