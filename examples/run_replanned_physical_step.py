@@ -283,6 +283,7 @@ def run_replanned_physical_step(
         "execution_lease_claim_sha256":lease_claim["lease_sha256"],
     }
 
+    written_summary_sha=None
     try:
         feedback=driver.set_position(
             str(opening_id),
@@ -344,6 +345,7 @@ def run_replanned_physical_step(
             }
             final={**partial,"replanned_physical_step_sha256":_sha256(partial)}
             _write(summary_out,final)
+            written_summary_sha=final["replanned_physical_step_sha256"]
             recovery_note=(
                 "safe closeout confirmed"
                 if recovery["confirmed_closed"]
@@ -389,21 +391,16 @@ def run_replanned_physical_step(
         }
         final={**payload,"replanned_physical_step_sha256":_sha256(payload)}
         _write(summary_out,final)
-        finalized_lease=finalize_physical_origin_execution(
+        written_summary_sha=final["replanned_physical_step_sha256"]
+        finalize_physical_origin_execution(
             lease_path=lease_claim["lease_path"],
             status="ADVANCED",
             finalized_at=max(float(clock_fn()),now+1e-6),
             next_origin_receipt_sha256=next_origin[
                 "physical_origin_receipt_sha256"
             ],
-            step_summary_sha256=final["replanned_physical_step_sha256"],
+            step_summary_sha256=written_summary_sha,
         )
-        final={
-            **final,
-            "execution_lease_status":"ADVANCED",
-            "execution_lease_final_sha256":finalized_lease["lease_sha256"],
-        }
-        _write(summary_out,final)
         return final
 
     except Exception as exc:
@@ -419,13 +416,7 @@ def run_replanned_physical_step(
                     lease_path=lease_claim["lease_path"],
                     status="RECOVERY_REQUIRED",
                     finalized_at=max(float(clock_fn()),now+1e-6),
-                    step_summary_sha256=(
-                        json.loads(Path(summary_out).read_text(encoding="utf-8")).get(
-                            "replanned_physical_step_sha256"
-                        )
-                        if Path(summary_out).exists()
-                        else None
-                    ),
+                    step_summary_sha256=written_summary_sha,
                     recovery={
                         "error":str(exc),
                         "requires_new_physical_origin":True,
