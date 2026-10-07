@@ -290,8 +290,13 @@ def main() -> int:
         executor=executor,
         capability=contam_receding_horizon_capability(profile),
     )
-    if receipt["closed_loop_replanning_executed"] is not True:
-        raise RuntimeError("closed-loop Joint receipt did not execute replanning")
+    expected_replanning = args.control_steps > 1
+    if receipt["closed_loop_replanning_executed"] is not expected_replanning:
+        raise RuntimeError(
+            "closed-loop replanning flag does not match control-step count: "
+            f"expected={expected_replanning}, "
+            f"actual={receipt['closed_loop_replanning_executed']}"
+        )
     if len(receipt["steps"]) != args.control_steps:
         raise RuntimeError("closed-loop Joint control-step count mismatch")
     if not all(
