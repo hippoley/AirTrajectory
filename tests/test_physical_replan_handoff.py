@@ -37,6 +37,7 @@ def physical_origin():
         "opening_id":"W1",
         "physical_reconcile_sha256":"a"*64,
         "terminal_snapshot_sha256":"b"*64,
+        "hardware_identity_by_opening":{"W1":"c"*64},
         "origin":origin,
         "evidence_boundary":"single physical opening/zone updated from measured terminal state",
     }
