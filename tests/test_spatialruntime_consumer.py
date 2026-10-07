@@ -2,6 +2,7 @@ import unittest
 
 from airtrajectory.spatialruntime_consumer import (
     SpatialRuntimeConsumerError,
+    native_branch_result_from_stable,
     stable_mappings_from_provenance,
 )
 
@@ -81,6 +82,61 @@ class SpatialRuntimeConsumerMappingTests(unittest.TestCase):
             "has no flow_element_number",
         ):
             stable_mappings_from_provenance(self.provenance, broken)
+
+
+    def test_real_branch_results_are_converted_back_to_native_ids(self):
+        branch = {
+            "label": "Joint",
+            "end_co2_ppm_by_zone": {
+                "living": 1001.25,
+                "bedroom": 812.5,
+                "study": 903.75,
+            },
+            "path_flow_kg_s": {
+                "D1": -0.11,
+                "D2": 0.07,
+                "W1": -0.31,
+                "W2": 0.22,
+                "W3": -0.04,
+            },
+            "evidence_level": "real-contam-test",
+            "trusted_for_promotion": False,
+        }
+        native = native_branch_result_from_stable(branch, self.provenance)
+        self.assertEqual(native["source_format"], "airtrajectory_real_contam_branch")
+        self.assertEqual(
+            {row["native_zone_number"]: row["co2_ppm"] for row in native["zones"]},
+            {1: 1001.25, 2: 812.5, 3: 903.75},
+        )
+        self.assertEqual(
+            {row["native_path_number"]: row["mass_flow_kg_s"] for row in native["paths"]},
+            {1: -0.11, 2: 0.07, 3: -0.31, 4: 0.22, 5: -0.04},
+        )
+        self.assertEqual(
+            native["execution"]["schema"],
+            "airtrajectory_real_contam_branch_execution_v1",
+        )
+
+    def test_real_branch_result_requires_complete_path_coverage(self):
+        branch = {
+            "label": "broken",
+            "end_co2_ppm_by_zone": {
+                "living": 1000.0,
+                "bedroom": 800.0,
+                "study": 900.0,
+            },
+            "path_flow_kg_s": {
+                "D1": 0.1,
+                "D2": 0.1,
+                "W1": 0.1,
+                "W2": 0.1,
+            },
+        }
+        with self.assertRaisesRegex(
+            SpatialRuntimeConsumerError,
+            "path results do not exactly cover",
+        ):
+            native_branch_result_from_stable(branch, self.provenance)
 
 
 if __name__ == "__main__":

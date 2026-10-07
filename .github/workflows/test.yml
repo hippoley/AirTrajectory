@@ -296,6 +296,21 @@ jobs:
           assert sr["project_sha256"]==p["comparison"]["prj_sha256"]
           assert len(sr["binding_registry_fingerprint"])==64
           assert len(sr["receipt_sha256"])==64
+          srr=p["spatialruntime_result_consumers"]
+          assert len(srr)==len(p["branches"])
+          assert all(row["verified"] is True for row in srr)
+          assert all(row["adapter_id"]=="contam-project-v0.9" for row in srr)
+          assert all(row["native_result_source"]=="airtrajectory_real_contam_branch" for row in srr)
+          assert all(row["zone_count"]==3 for row in srr)
+          assert all(row["flow_path_count"]==5 for row in srr)
+          assert all(row["max_abs_co2_ppm_delta"]==0 for row in srr)
+          assert all(row["max_abs_mass_flow_kg_s_delta"]==0 for row in srr)
+          assert all(len(row["adapter_fingerprint"])==64 for row in srr)
+          assert all(len(row["request_hash"])==64 for row in srr)
+          assert all(len(row["result_hash"])==64 for row in srr)
+          assert all(len(row["feedback_sha256"])==64 for row in srr)
+          assert all(len(row["receipt_sha256"])==64 for row in srr)
+          assert [row["branch_label"] for row in srr]==[b["label"] for b in p["branches"]]
           assert all(set(b["co2_series_by_zone"])=={"living","bedroom","study"} for b in p["branches"])
           assert all(all(len(v)==3 for v in b["co2_series_by_zone"].values()) for b in p["branches"])
           print("JOINT_GOLDEN_CASE_RECEIPT_VERIFIED", c["joint_vs_independent_outcome"], c["objective_improvement"])
