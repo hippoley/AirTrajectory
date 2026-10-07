@@ -12,6 +12,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import socket
 from typing import Any, Mapping
 
 
@@ -47,6 +48,8 @@ def claim_physical_origin_execution(
     opening_id,
     zone_id,
     claimed_at,
+    owner_host=None,
+    owner_pid=None,
 ) -> dict[str, Any]:
     receipt_sha=_require_sha(
         origin_receipt_sha256,
@@ -63,6 +66,13 @@ def claim_physical_origin_execution(
     if not opening or not zone:
         raise ValueError("execution lease requires opening_id and zone_id")
 
+    host=str(owner_host or socket.gethostname())
+    pid=int(os.getpid() if owner_pid is None else owner_pid)
+    if not host:
+        raise ValueError("execution lease owner_host must be non-empty")
+    if pid<=0:
+        raise ValueError("execution lease owner_pid must be positive")
+
     path=_lease_path(lease_dir,receipt_sha)
     path.parent.mkdir(parents=True,exist_ok=True)
     payload={
@@ -76,6 +86,8 @@ def claim_physical_origin_execution(
         "opening_id":opening,
         "zone_id":zone,
         "claimed_at":ts,
+        "owner_host":host,
+        "owner_pid":pid,
         "evidence_boundary":(
             "local filesystem single-use execution lease; not a distributed "
             "gateway/device transaction guarantee"
@@ -188,6 +200,86 @@ def finalize_physical_origin_execution(
     return {**final,"lease_path":str(path)}
 
 
+def _default_process_alive(pid: int) -> bool:
+    try:
+        os.kill(int(pid),0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    except OSError:
+        # Fail closed when the platform cannot prove the process is gone.
+        return True
+    return True
+
+
+def recover_abandoned_physical_origin_execution(
+    *,
+    lease_path,
+    recovered_at,
+    recovery_host=None,
+    process_alive_fn=None,
+) -> dict[str, Any]:
+    """Seal a dead-owner IN_FLIGHT lease as RECOVERY_REQUIRED.
+
+    This never reopens the old physical origin. It is deliberately limited to
+    same-host recovery where the owner PID can be proven absent.
+    """
+    current=verify_physical_origin_execution_lease(
+        lease_path=lease_path,
+    )
+    if current["status"]!="IN_FLIGHT":
+        raise RuntimeError(
+            "only an IN_FLIGHT physical origin execution lease can be recovered"
+        )
+
+    owner_host=str(current.get("owner_host") or "")
+    owner_pid=current.get("owner_pid")
+    if not owner_host or owner_pid is None:
+        raise RuntimeError(
+            "execution lease lacks owner metadata required for safe recovery"
+        )
+    try:
+        owner_pid=int(owner_pid)
+    except (TypeError,ValueError) as exc:
+        raise RuntimeError("execution lease owner_pid is invalid") from exc
+    if owner_pid<=0:
+        raise RuntimeError("execution lease owner_pid is invalid")
+
+    host=str(recovery_host or socket.gethostname())
+    if host!=owner_host:
+        raise RuntimeError(
+            "cannot prove abandoned execution lease owner is dead across hosts"
+        )
+
+    checker=process_alive_fn or _default_process_alive
+    if checker(owner_pid):
+        raise RuntimeError(
+            "physical origin execution lease owner process is still running"
+        )
+
+    recovered_ts=float(recovered_at)
+    if recovered_ts<=float(current["claimed_at"]):
+        raise ValueError("recovered_at must be newer than claimed_at")
+
+    return finalize_physical_origin_execution(
+        lease_path=lease_path,
+        status="RECOVERY_REQUIRED",
+        finalized_at=recovered_ts,
+        recovery={
+            "reason":"OWNER_PROCESS_NOT_RUNNING",
+            "requires_new_physical_origin":True,
+            "abandoned_owner_host":owner_host,
+            "abandoned_owner_pid":owner_pid,
+            "recovered_at":recovered_ts,
+            "evidence_boundary":(
+                "same-host dead-owner recovery only; the old physical origin "
+                "remains permanently consumed and must not be replayed"
+            ),
+        },
+    )
+
+
 def verify_physical_origin_execution_lease(
     *,
     lease_path,
@@ -213,6 +305,28 @@ def verify_physical_origin_execution_lease(
         )
     ):
         raise RuntimeError("execution lease does not belong to expected physical origin")
+    owner_host=payload.get("owner_host")
+    owner_pid=payload.get("owner_pid")
+    if (owner_host is None)!=(owner_pid is None):
+        raise RuntimeError(
+            "physical origin execution lease owner metadata is incomplete"
+        )
+    if owner_host is not None:
+        if not str(owner_host):
+            raise RuntimeError(
+                "physical origin execution lease owner_host is invalid"
+            )
+        try:
+            parsed_owner_pid=int(owner_pid)
+        except (TypeError,ValueError) as exc:
+            raise RuntimeError(
+                "physical origin execution lease owner_pid is invalid"
+            ) from exc
+        if parsed_owner_pid<=0:
+            raise RuntimeError(
+                "physical origin execution lease owner_pid is invalid"
+            )
+
     status=str(payload.get("status") or "")
     if status not in {"IN_FLIGHT","ADVANCED","RECOVERY_REQUIRED"}:
         raise RuntimeError("physical origin execution lease status is invalid")
