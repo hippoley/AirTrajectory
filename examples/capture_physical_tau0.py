@@ -152,6 +152,7 @@ def capture_physical_tau0(
             authorization=physical_authorization,
             trajectory_step=asdict(trajectory.steps[0]),
             zone_id=predicted_zone_id,
+            closeout=closeout,
         )
     payload={
         "trajectory_id":trajectory.id,
