@@ -285,11 +285,11 @@ class WindowPilotHTTPDriver(PhysicalWindowDriver):
             )
         if (
             physical
-            and idempotency_contract!="process-local-fail-closed-v1"
+            and idempotency_contract!="durable-request-ledger-v1"
         ):
             raise RuntimeError(
-                "WindowPilot physical writes require a supported command "
-                "idempotency contract"
+                "WindowPilot physical writes require "
+                "durable-request-ledger-v1"
             )
 
         command_started=self._clock()
