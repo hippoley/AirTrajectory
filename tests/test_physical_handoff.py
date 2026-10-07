@@ -77,6 +77,43 @@ class PhysicalHandoffTests(unittest.TestCase):
             "command_ack_sha256": hashlib.sha256(raw).hexdigest(),
         }
 
+    def command_ack_v2(self, target_pct=5.0, scope_id="cccccccc-cccc-4ccc-8ccc-cccccccccccc"):
+        payload = {
+            "schema_version": "0.1",
+            "receipt": "windowpilot-command-ack-v2",
+            "accepted": True,
+            "accepted_at": 9.0,
+            "request_id":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+            "command_id":"bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+            "idempotency_scope_id":scope_id,
+            "action": "open",
+            "target_pct": float(target_pct),
+            "execution_backend": "cwds-ca01-thingmodel",
+            "transport": "thingmodel-http",
+            "simulated": False,
+            "hardware_identity_sha256": "c" * 64,
+            "physical_write_ready": True,
+            "write_contract_ready": True,
+            "motion_semantics_ready": True,
+            "write_blockers": [],
+            "evidence_kind": "physical-command-accepted",
+        }
+        raw = json.dumps(
+            payload,
+            sort_keys=True,
+            separators=(",", ":"),
+            ensure_ascii=False,
+        ).encode("utf-8")
+        return {
+            **payload,
+            "command_ack_sha256": hashlib.sha256(raw).hexdigest(),
+        }
+
+    def trajectory_step_v2(self, measured_position=4.8, scope_id="cccccccc-cccc-4ccc-8ccc-cccccccccccc"):
+        step=self.trajectory_step(measured_position)
+        step["info"]["command_acks"]=[self.command_ack_v2(5.0,scope_id)]
+        return step
+
     def trajectory_step(self, measured_position=4.8):
         return {
             "observation": {"co2_ppm": 1400.0},
@@ -222,6 +259,48 @@ class PhysicalHandoffTests(unittest.TestCase):
         self.assertTrue(out["next_origin_position_verified"])
         self.assertTrue(out["next_origin_sensor_verified"])
         self.assertTrue(out["physical_next_origin_ready"])
+
+    def test_reconcile_binds_first_contact_to_expected_scope(self):
+        scope="cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+        handoff = extract_closed_loop_opening_action(
+            self.closed_loop(),
+            step_index=0,
+            opening_id="W1",
+        )
+        authorization = authorize_tau0_from_planner(
+            handoff,
+            acceptance_policy=self.policy(),
+        )
+        out=build_physical_handoff_reconcile(
+            planner_handoff=handoff,
+            authorization=authorization,
+            trajectory_step=self.trajectory_step_v2(4.9,scope),
+            zone_id="living",
+            expected_command_scope_id=scope,
+        )
+        self.assertEqual(out["command_idempotency_scope_id"],scope)
+
+    def test_reconcile_rejects_first_contact_ack_from_other_scope(self):
+        handoff = extract_closed_loop_opening_action(
+            self.closed_loop(),
+            step_index=0,
+            opening_id="W1",
+        )
+        authorization = authorize_tau0_from_planner(
+            handoff,
+            acceptance_policy=self.policy(),
+        )
+        with self.assertRaisesRegex(RuntimeError,"idempotency scope mismatch"):
+            build_physical_handoff_reconcile(
+                planner_handoff=handoff,
+                authorization=authorization,
+                trajectory_step=self.trajectory_step_v2(
+                    4.9,
+                    "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+                ),
+                zone_id="living",
+                expected_command_scope_id="cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+            )
 
     def test_reconcile_rejects_tampered_command_ack(self):
         handoff = extract_closed_loop_opening_action(

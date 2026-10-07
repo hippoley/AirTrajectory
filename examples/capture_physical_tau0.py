@@ -3,6 +3,7 @@ import argparse
 from dataclasses import asdict
 import hashlib
 import json
+import uuid
 from pathlib import Path
 
 from airtrajectory.drivers import WindowPilotHTTPDriver
@@ -118,6 +119,19 @@ def capture_physical_tau0(
     except Exception as exc:
         capture_error=exc
 
+    probe_command_scope_id=getattr(
+        driver,
+        "last_command_idempotency_scope_id",
+        None,
+    )
+    if probe_command_scope_id is not None:
+        try:
+            probe_command_scope_id=str(uuid.UUID(str(probe_command_scope_id)))
+        except (ValueError,TypeError,AttributeError) as exc:
+            raise RuntimeError(
+                "physical tau0 probe command idempotency scope is invalid"
+            ) from exc
+
     last_feedback_ts=(
         trajectory_last_feedback_timestamp(trajectory)
         if trajectory is not None else 0.0
@@ -133,6 +147,31 @@ def capture_physical_tau0(
         )
     except Exception as exc:
         closeout_error=exc
+
+    closeout_command_scope_id=getattr(
+        driver,
+        "last_command_idempotency_scope_id",
+        None,
+    )
+    if closeout_command_scope_id is not None:
+        try:
+            closeout_command_scope_id=str(uuid.UUID(
+                str(closeout_command_scope_id)
+            ))
+        except (ValueError,TypeError,AttributeError) as exc:
+            if closeout_error is None:
+                closeout_error=RuntimeError(
+                    "physical tau0 closeout command idempotency scope is invalid"
+                )
+
+    if (
+        closeout_error is None
+        and (probe_command_scope_id is not None or closeout_command_scope_id is not None)
+        and probe_command_scope_id!=closeout_command_scope_id
+    ):
+        closeout_error=RuntimeError(
+            "physical tau0 idempotency scope drift between probe and safe closeout"
+        )
 
     if capture_error is not None:
         if closeout_error is not None:
@@ -164,6 +203,7 @@ def capture_physical_tau0(
             zone_id=predicted_zone_id,
             closeout=closeout,
             terminal_snapshot=terminal_snapshot,
+            expected_command_scope_id=probe_command_scope_id,
         )
     payload={
         "trajectory_id":trajectory.id,
@@ -174,6 +214,8 @@ def capture_physical_tau0(
         "output":str(out),
         **context_extra,
         "closeout":closeout,
+        "command_idempotency_scope_id":probe_command_scope_id,
+        "closeout_idempotency_scope_id":closeout_command_scope_id,
         "trajectory_sha256":hashlib.sha256(Path(out).read_bytes()).hexdigest(),
         "planner_handoff":planner_handoff,
         "physical_authorization":physical_authorization,

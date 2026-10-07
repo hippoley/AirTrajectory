@@ -360,12 +360,20 @@ class PhysicalArtifactVerifierTests(unittest.TestCase):
         ).encode("utf-8")
         return hashlib.sha256(raw).hexdigest()
 
-    def _add_command_handoff(self,trajectory,receipt):
+    def _add_command_handoff(
+        self,
+        trajectory,
+        receipt,
+        scope_id="cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+    ):
         ack_payload={
             "schema_version":"0.1",
-            "receipt":"windowpilot-command-ack-v1",
+            "receipt":"windowpilot-command-ack-v2",
             "accepted":True,
             "accepted_at":100.5,
+            "request_id":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+            "command_id":"bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+            "idempotency_scope_id":scope_id,
             "action":"open",
             "target_pct":5.0,
             "execution_backend":"cwds-ca01-thingmodel",
@@ -389,6 +397,7 @@ class PhysicalArtifactVerifierTests(unittest.TestCase):
             "reconcile":"sim-to-physical-first-contact-v1",
             "command_ack_sha256":ack["command_ack_sha256"],
             "command_hardware_identity_sha256":"same-hardware",
+            "command_idempotency_scope_id":scope_id,
             "command_write_gate_verified":True,
         }
         reconcile={
@@ -397,6 +406,8 @@ class PhysicalArtifactVerifierTests(unittest.TestCase):
         }
         audit=json.loads(receipt.read_text(encoding="utf-8"))
         audit["physical_reconcile"]=reconcile
+        audit["command_idempotency_scope_id"]=scope_id
+        audit["closeout_idempotency_scope_id"]=scope_id
         audit["sim_to_physical_handoff_verified"]=True
         audit["trajectory_sha256"]=hashlib.sha256(trajectory.read_bytes()).hexdigest()
         receipt.write_text(json.dumps(audit),encoding="utf-8")
@@ -413,6 +424,55 @@ class PhysicalArtifactVerifierTests(unittest.TestCase):
                 commission_bundle_path=bundle,
             )
         self.assertTrue(report["valid_artifacts"],report["reasons"])
+
+    def test_hash_valid_tau0_receipt_cannot_swap_expected_scope(self):
+        with tempfile.TemporaryDirectory() as d:
+            root=Path(d)
+            bundle,trajectory,receipt,_,_,_=self._valid_chain(root)
+            self._add_command_handoff(trajectory,receipt)
+            audit=json.loads(receipt.read_text(encoding="utf-8"))
+            other="dddddddd-dddd-4ddd-8ddd-dddddddddddd"
+            audit["command_idempotency_scope_id"]=other
+            audit["closeout_idempotency_scope_id"]=other
+            reconcile=dict(audit["physical_reconcile"])
+            reconcile["command_idempotency_scope_id"]=other
+            payload={
+                key:value
+                for key,value in reconcile.items()
+                if key!="physical_reconcile_sha256"
+            }
+            reconcile["physical_reconcile_sha256"]=self._canonical_sha(payload)
+            audit["physical_reconcile"]=reconcile
+            receipt.write_text(json.dumps(audit),encoding="utf-8")
+            report=verify_physical_tau0_artifacts(
+                trajectory_path=trajectory,
+                receipt_path=receipt,
+                commission_bundle_path=bundle,
+            )
+        self.assertFalse(report["valid_artifacts"])
+        self.assertTrue(any(
+            "command acknowledgement idempotency scope mismatch" in reason
+            for reason in report["reasons"]
+        ))
+
+    def test_tau0_probe_and_closeout_scope_drift_is_rejected_offline(self):
+        with tempfile.TemporaryDirectory() as d:
+            root=Path(d)
+            bundle,trajectory,receipt,_,_,_=self._valid_chain(root)
+            self._add_command_handoff(trajectory,receipt)
+            audit=json.loads(receipt.read_text(encoding="utf-8"))
+            audit["closeout_idempotency_scope_id"]="dddddddd-dddd-4ddd-8ddd-dddddddddddd"
+            receipt.write_text(json.dumps(audit),encoding="utf-8")
+            report=verify_physical_tau0_artifacts(
+                trajectory_path=trajectory,
+                receipt_path=receipt,
+                commission_bundle_path=bundle,
+            )
+        self.assertFalse(report["valid_artifacts"])
+        self.assertTrue(any(
+            "probe and closeout idempotency scopes do not match" in reason
+            for reason in report["reasons"]
+        ))
 
     def test_tampered_persisted_command_ack_is_rejected_offline(self):
         with tempfile.TemporaryDirectory() as d:
