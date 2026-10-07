@@ -177,6 +177,74 @@ jobs:
           assert r["steps"][0]["next_origin_sha256"]==r["steps"][1]["origin_sha256"]
           print("REAL_CONTAM_RECEDING_HORIZON_RECEIPT_VERIFIED", [s["selected_label"] for s in r["steps"]])
           '@ | python -
+      - name: Replan real ContamX from a physical-origin contract fixture
+        timeout-minutes: 5
+        shell: pwsh
+        run: |
+          @'
+          import hashlib
+          import json
+          from airtrajectory.demo_runtime import DemoRuntimeSnapshot
+          from airtrajectory.layout import LayoutContract
+
+          def sha(payload):
+              raw=json.dumps(payload,sort_keys=True,separators=(",",":"),ensure_ascii=False).encode("utf-8")
+              return hashlib.sha256(raw).hexdigest()
+
+          provenance=json.load(open("artifacts/multispace-transient.prj.json",encoding="utf-8"))
+          layout=LayoutContract.from_file("web/data/home_topology.fixed.json")
+          topology=layout.to_building_topology()
+          snapshot=DemoRuntimeSnapshot.resolve(layout)
+          origin={
+              "co2_ppm":{
+                  zone:float(provenance["initial_co2_ppm"][zone])
+                  for zone in sorted(topology.zones)
+              },
+              "opening_pct":{
+                  opening_id:float(snapshot.opening_states[opening_id])
+                  for opening_id in sorted(topology.openings)
+              },
+              "scalar_values":{"rain":0.0},
+          }
+          origin["co2_ppm"]["living"] += 17.0
+          origin["opening_pct"]["W1"] = 0.2
+          payload={
+              "schema_version":"0.1",
+              "source":"windowpilot-physical-reconcile-v1",
+              "zone_id":"living",
+              "opening_id":"W1",
+              "physical_reconcile_sha256":"0"*64,
+              "terminal_snapshot_sha256":"1"*64,
+              "origin":origin,
+              "contract_fixture":True,
+              "evidence_boundary":"synthetic CI contract fixture; not field evidence",
+          }
+          receipt={
+              **payload,
+              "origin_sha256":sha(origin),
+              "physical_origin_receipt_sha256":sha(payload),
+          }
+          with open("artifacts/physical-origin-ci-fixture.json","w",encoding="utf-8") as fh:
+              json.dump(receipt,fh,indent=2,sort_keys=True)
+          print("PHYSICAL_ORIGIN_CONTRACT_FIXTURE_CREATED",receipt["origin_sha256"])
+          '@ | python -
+          python examples/run_contam_joint_closed_loop.py artifacts/multispace-transient.prj artifacts/multispace-transient.prj.json --control-steps 1 --prediction-horizon-steps 3 --physical-origin-receipt artifacts/physical-origin-ci-fixture.json --out artifacts/contam-replan-from-physical-origin.json | Tee-Object -FilePath contam-replan-from-physical-origin.log
+          if (-not (Select-String -Path contam-replan-from-physical-origin.log -Pattern "REAL_CONTAM_REPLAN_FROM_PHYSICAL_ORIGIN")) { exit 1 }
+          @'
+          import json
+          p=json.load(open("artifacts/contam-replan-from-physical-origin.json",encoding="utf-8"))
+          fixture=json.load(open("artifacts/physical-origin-ci-fixture.json",encoding="utf-8"))
+          r=p["receipt"]
+          assert p["physical_origin_consumed"] is True
+          assert p["field_validated"] is False
+          assert p["physical_origin_evidence"]["receipt_sha256"]==fixture["physical_origin_receipt_sha256"]
+          assert p["physical_origin_evidence"]["origin_sha256"]==fixture["origin_sha256"]
+          assert r["initial_origin_sha256"]==fixture["origin_sha256"]
+          assert r["steps"][0]["origin_sha256"]==fixture["origin_sha256"]
+          assert r["control_steps"]==1
+          assert r["closed_loop_replanning_executed"] is False
+          print("REAL_CONTAM_PHYSICAL_ORIGIN_REPLAN_VERIFIED",r["steps"][0]["selected_label"],fixture["origin_sha256"])
+          '@ | python -
       - name: Compare adaptive vs Independent closed-loop on real ContamX
         timeout-minutes: 8
         shell: pwsh
