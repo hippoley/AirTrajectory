@@ -163,6 +163,64 @@ class VerifiedReplannedPhysicalCycleTests(unittest.TestCase):
             )
             self.assertEqual(persisted_summary["status"],"PASS")
 
+    def test_step_failure_after_motion_persists_top_level_blocked_summary(self):
+        with tempfile.TemporaryDirectory() as d:
+            root=Path(d)
+            paths=self._paths(root)
+
+            def fail_after_motion(**kwargs):
+                partial={
+                    "schema_version":"0.1",
+                    "workflow":"replanned-windowpilot-physical-step-v1",
+                    "mode":"execute",
+                    "status":"SAFE_CLOSED_POST_ACTION_SENSORS_BLOCKED",
+                    "motion_performed":True,
+                    "next_origin_ready":False,
+                    "replanned_physical_step_sha256":"a"*64,
+                }
+                Path(kwargs["summary_out"]).write_text(
+                    json.dumps(partial),
+                    encoding="utf-8",
+                )
+                raise RuntimeError("sensor timeout after motion")
+
+            with patch.object(
+                module,
+                "run_replanned_physical_step",
+                side_effect=fail_after_motion,
+            ), patch.object(
+                module,
+                "verify_persisted_physical_cycle",
+            ) as verifier:
+                with self.assertRaisesRegex(
+                    RuntimeError,
+                    "replanned physical step failed",
+                ):
+                    module.run_verified_replanned_physical_cycle(
+                        driver=object(),
+                        previous_origin_receipt=paths["previous"],
+                        planner_receipt=paths["planner"],
+                        opening_id="W1",
+                        zone_id="living",
+                        max_delta_pct=10,
+                        step_summary_out=paths["step"],
+                        next_origin_out=paths["next"],
+                        verification_out=paths["verification"],
+                        cycle_summary_out=paths["summary"],
+                        execute=True,
+                        lease_dir=paths["leases"],
+                    )
+            verifier.assert_not_called()
+            persisted=json.loads(paths["summary"].read_text(encoding="utf-8"))
+            self.assertEqual(persisted["status"],"BLOCKED_STEP_FAILED")
+            self.assertTrue(persisted["motion_performed"])
+            self.assertFalse(persisted["cycle_verified"])
+            self.assertEqual(
+                persisted["step_status"],
+                "SAFE_CLOSED_POST_ACTION_SENSORS_BLOCKED",
+            )
+            self.assertIn("sensor timeout after motion",persisted["step_error"])
+
     def test_verifier_failure_after_motion_persists_blocked_evidence(self):
         with tempfile.TemporaryDirectory() as d:
             root=Path(d)
