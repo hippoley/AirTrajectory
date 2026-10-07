@@ -306,6 +306,7 @@ class ReplannedPhysicalStepTests(unittest.TestCase):
                 next_origin_out=root/"next.json",
                 execute=True,
                 snapshot_fn=lambda **kwargs:snapshot(),
+                clock_fn=lambda:23.0,
             )
             result=verify_persisted_physical_cycle(
                 previous_origin_receipt=json.loads(
@@ -343,6 +344,7 @@ class ReplannedPhysicalStepTests(unittest.TestCase):
                 next_origin_out=root/"next.json",
                 execute=True,
                 snapshot_fn=lambda **kwargs:snapshot(),
+                clock_fn=lambda:23.0,
             )
             summary=json.loads(
                 (root/"summary.json").read_text(encoding="utf-8")
@@ -391,6 +393,7 @@ class ReplannedPhysicalStepTests(unittest.TestCase):
                 next_origin_out=root/"next.json",
                 execute=True,
                 snapshot_fn=lambda **kwargs:snapshot(),
+                clock_fn=lambda:23.0,
             )
             summary=json.loads(
                 (root/"summary.json").read_text(encoding="utf-8")
@@ -435,6 +438,7 @@ class ReplannedPhysicalStepTests(unittest.TestCase):
                 next_origin_out=root/"next.json",
                 execute=True,
                 snapshot_fn=lambda **kwargs:snapshot(),
+                clock_fn=lambda:23.0,
             )
             self.assertAlmostEqual(out["authorized_target_pct"],10.2)
             self.assertEqual(driver.commanded,[("W1",10.2)])
@@ -474,6 +478,7 @@ class ReplannedPhysicalStepTests(unittest.TestCase):
                 next_origin_out=root/"next.json",
                 execute=True,
                 snapshot_fn=lambda **kwargs:snapshot(),
+                clock_fn=lambda:23.0,
             )
             self.assertEqual(out["authorized_target_pct"],0.0)
             self.assertEqual(out["intervention"],"RAIN_SAFE_CLOSE")
