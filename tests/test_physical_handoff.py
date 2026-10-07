@@ -102,7 +102,9 @@ class PhysicalHandoffTests(unittest.TestCase):
             },
             zone_id="living",
         )
-        self.assertEqual(out["measured_position_pct"], 4.8)
+        self.assertEqual(out["action_feedback_position_pct"], 4.8)
+        self.assertFalse(out["next_origin_position_verified"])
+        self.assertIsNone(out["terminal_position_pct"])
         self.assertEqual(out["measured_co2_delta_ppm"], -8.0)
         self.assertAlmostEqual(
             out["measured_minus_predicted_zone_co2_ppm"],
@@ -110,6 +112,50 @@ class PhysicalHandoffTests(unittest.TestCase):
         )
         self.assertFalse(out["planner_action_fully_executed"])
         self.assertEqual(len(out["physical_reconcile_sha256"]), 64)
+
+    def test_safe_closeout_becomes_terminal_physical_position(self):
+        handoff = extract_closed_loop_opening_action(
+            self.closed_loop(),
+            step_index=0,
+            opening_id="W1",
+        )
+        authorization = authorize_tau0_from_planner(
+            handoff,
+            acceptance_policy=self.policy(),
+        )
+        out = build_physical_handoff_reconcile(
+            planner_handoff=handoff,
+            authorization=authorization,
+            trajectory_step={
+                "observation": {"co2_ppm": 1400.0},
+                "next_observation": {"co2_ppm": 1392.0},
+                "actuator_feedback": [
+                    {
+                        "actuator_id": "W1",
+                        "timestamp": 10.0,
+                        "measured_position_pct": 4.8,
+                        "quality": "encoder-measured",
+                    }
+                ],
+            },
+            zone_id="living",
+            closeout={
+                "confirmed_closed": True,
+                "feedback": {
+                    "actuator_id": "W1",
+                    "timestamp": 12.0,
+                    "measured_position_pct": 0.2,
+                    "quality": "encoder-measured",
+                },
+            },
+        )
+        self.assertEqual(out["action_feedback_position_pct"], 4.8)
+        self.assertEqual(out["terminal_position_pct"], 0.2)
+        self.assertEqual(
+            out["terminal_position_source"],
+            "safe-closeout-measured-feedback",
+        )
+        self.assertTrue(out["next_origin_position_verified"])
 
     def test_too_small_planner_target_fails_before_motion(self):
         payload = self.closed_loop()
