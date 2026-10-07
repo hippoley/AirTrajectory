@@ -226,9 +226,17 @@ def _validate_physical_origin_semantics(
             raise RuntimeError(
                 "replanned physical origin command request/command identity is invalid"
             ) from exc
-        if float(receipt.get("command_accepted_at") or 0)<=0:
+        command_accepted_at=float(receipt.get("command_accepted_at") or 0)
+        actuator_feedback_at=float(
+            receipt.get("actuator_feedback_timestamp") or 0
+        )
+        if command_accepted_at<=0:
             raise RuntimeError(
                 "replanned physical origin command accepted_at is invalid"
+            )
+        if actuator_feedback_at < command_accepted_at:
+            raise RuntimeError(
+                "replanned physical origin actuator feedback predates command acceptance"
             )
     elif source=="windowpilot-multi-physical-origin-v1":
         applied=receipt.get("applied_measurements")
