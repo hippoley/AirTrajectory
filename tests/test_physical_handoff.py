@@ -111,6 +111,20 @@ class PhysicalHandoffTests(unittest.TestCase):
         self.assertFalse(out["planner_action_fully_executed"])
         self.assertEqual(len(out["physical_reconcile_sha256"]), 64)
 
+    def test_too_small_planner_target_fails_before_motion(self):
+        payload = self.closed_loop()
+        payload["receipt"]["steps"][0]["selected_actions"][0]["target_pct"] = 1.0
+        handoff = extract_closed_loop_opening_action(
+            payload,
+            step_index=0,
+            opening_id="W1",
+        )
+        with self.assertRaisesRegex(RuntimeError, "below the 2% minimum Reality Delta"):
+            authorize_tau0_from_planner(
+                handoff,
+                acceptance_policy=self.policy(),
+            )
+
     def test_zero_or_close_planner_action_does_not_authorize_open_probe(self):
         payload = self.closed_loop()
         payload["receipt"]["steps"][0]["selected_actions"][0]["target_pct"] = 0
