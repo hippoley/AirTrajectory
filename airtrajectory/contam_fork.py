@@ -390,7 +390,9 @@ def contam_strategy_fork_request(
         "profile_id":profile_id,
         "topology_id":str(payload.get("topology_id",profile_id)),
         "origin_kind":(
-            "prj-initial-verified"
+            "prj-reseed-verified"
+            if profile.prj_reseed_continuation_verified
+            else "prj-initial-verified"
             if profile.prj_initial_co2_ppm
             else profile.origin_state_mode
         ),
@@ -402,6 +404,12 @@ def contam_strategy_fork_request(
         "contam":meta.get("contam") if isinstance(meta,dict) else None,
         "origin_opening_controls_applied":bool(
             isinstance(meta,dict) and meta.get("fork_origin_opening_controls_applied")
+        ),
+        "prj_reseed_continuation_verified":bool(
+            isinstance(meta,dict) and meta.get("prj_reseed_continuation_verified")
+        ),
+        "prj_reseed_receipt":(
+            meta.get("prj_reseed_receipt") if isinstance(meta,dict) else None
         ),
         "branches":branches,
     }
