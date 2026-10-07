@@ -179,6 +179,51 @@ class PhysicalOriginTests(unittest.TestCase):
         self.assertEqual(verified["measured_zones"],["living"])
         self.assertEqual(verified["measured_openings"],["W1"])
 
+    def test_hash_valid_receipt_cannot_falsely_claim_whole_home_measurement(self):
+        receipt=physical_next_origin_from_reconcile(
+            current_origin=self.current(),
+            reconcile=self.reconcile(),
+            zone_id="living",
+        )
+        receipt["whole_home_physically_measured"]=True
+        payload={
+            key:value
+            for key,value in receipt.items()
+            if key not in {
+                "physical_origin_receipt_sha256",
+                "origin_sha256",
+            }
+        }
+        receipt["physical_origin_receipt_sha256"]=sha(payload)
+        with self.assertRaisesRegex(
+            RuntimeError,
+            "whole_home_physically_measured contradicts",
+        ):
+            verify_physical_origin_receipt(receipt)
+
+    def test_hash_valid_first_contact_cannot_invent_aggregate_coverage(self):
+        receipt=physical_next_origin_from_reconcile(
+            current_origin=self.current(),
+            reconcile=self.reconcile(),
+            zone_id="living",
+        )
+        receipt["measured_zones"]=["living","bedroom","study"]
+        receipt["measured_openings"]=["W1","W2","W3","D1","D2"]
+        payload={
+            key:value
+            for key,value in receipt.items()
+            if key not in {
+                "physical_origin_receipt_sha256",
+                "origin_sha256",
+            }
+        }
+        receipt["physical_origin_receipt_sha256"]=sha(payload)
+        with self.assertRaisesRegex(
+            RuntimeError,
+            "must not self-declare aggregate measured coverage",
+        ):
+            verify_physical_origin_receipt(receipt)
+
     def test_tampered_physical_origin_receipt_is_rejected(self):
         receipt=physical_next_origin_from_reconcile(
             current_origin=self.current(),
