@@ -291,11 +291,16 @@ python examples/run_replanned_physical_step.py \
   --execute
 ```
 
-The execute path requires WindowPilot command acknowledgement v2. AirTrajectory
-creates a fresh UUID `request_id` for each command; WindowPilot must echo that
-challenge in the ACK and add its own UUID `command_id`. The ACK hash covers
-both identities. Legacy v1 acknowledgements remain readable as historical
-first-contact evidence, but they are not accepted for new replanned physical
+The execute path requires both WindowPilot command acknowledgement v2 and the
+gateway capability `command_idempotency_contract=durable-request-ledger-v1`.
+AirTrajectory creates a fresh UUID `request_id` for each command; WindowPilot
+must durably claim that request before hardware motion, echo it in the ACK, and
+add its own UUID `command_id`. The ACK hash covers both identities.
+
+A process-local idempotency registry is no longer sufficient for new real
+physical writes because a gateway restart could otherwise forget a consumed
+request. Legacy v1 acknowledgements and historical process-local artifacts
+remain readable for audit, but they are not accepted for new replanned physical
 cycles.
 
 The Python API requires an explicit `lease_dir` whenever
