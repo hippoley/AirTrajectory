@@ -20,6 +20,9 @@ from airtrajectory.layout import LayoutContract
 from airtrajectory.ventilation_path_candidates import (
     inject_ventilation_path_candidates,
 )
+from airtrajectory.spatialruntime_consumer import (
+    verify_generated_prj_with_spatialruntime,
+)
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -44,6 +47,11 @@ def main() -> int:
         default=ROOT / "web" / "data" / "home_topology.fixed.json",
     )
     parser.add_argument("--out", type=Path)
+    parser.add_argument(
+        "--spatialruntime-verify",
+        action="store_true",
+        help="verify generated PRJ identity/bindings through the SpatialRuntime consumer boundary",
+    )
     parser.add_argument(
         "--derive-path-candidates",
         action="store_true",
@@ -195,6 +203,15 @@ def main() -> int:
         topology=topology,
         prj_sha256=provenance.get("sha256"),
     )
+    spatialruntime_receipt = None
+    if args.spatialruntime_verify:
+        spatialruntime_receipt = verify_generated_prj_with_spatialruntime(
+            project_path=args.prj,
+            provenance=provenance,
+            case_id=case["golden_case_id"],
+        )
+        if spatialruntime_receipt.get("verified") is not True:
+            raise RuntimeError("SpatialRuntime consumer verification did not pass")
     if receipt["non_regression"] is not True:
         raise RuntimeError("Joint search regressed below included independent reference")
 
@@ -208,6 +225,7 @@ def main() -> int:
         "candidate_source": candidate_source,
         "ventilation_path_candidates": path_candidate_metadata,
         "comparison": receipt,
+        "spatialruntime_consumer": spatialruntime_receipt,
         "branches": response["branches"],
     }
     rendered = json.dumps(payload, indent=2, sort_keys=True)

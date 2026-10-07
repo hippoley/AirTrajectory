@@ -31,8 +31,16 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - name: Install official contamxpy runtime
-        run: python -m pip install -e ".[contam]"
+      - name: Checkout SpatialRuntime consumer dependency
+        uses: actions/checkout@v4
+        with:
+          repository: hippoley/SpatialRuntime
+          ref: main
+          path: _spatialruntime
+      - name: Install official contamxpy runtime and SpatialRuntime
+        run: |
+          python -m pip install -e ".[contam]"
+          python -m pip install -e "_spatialruntime"
       - name: Inspect installed contamxpy API
         run: |
           python -c "import inspect,contamxpy; print('cxLib', inspect.signature(contamxpy.cxLib)); print('setupSimulation', inspect.signature(contamxpy.cxLib.setupSimulation)); print('doSimStep', inspect.signature(contamxpy.cxLib.doSimStep)); print('endSimulation', inspect.signature(contamxpy.cxLib.endSimulation))"
@@ -193,7 +201,7 @@ jobs:
         timeout-minutes: 4
         shell: pwsh
         run: |
-          python examples/run_contam_joint_golden_case.py artifacts/multispace-transient.prj artifacts/multispace-transient.prj.json --out artifacts/contam-joint-golden-case.json | Tee-Object -FilePath contam-joint-golden-case.log
+          python examples/run_contam_joint_golden_case.py artifacts/multispace-transient.prj artifacts/multispace-transient.prj.json --spatialruntime-verify --out artifacts/contam-joint-golden-case.json | Tee-Object -FilePath contam-joint-golden-case.log
           if (-not (Select-String -Path contam-joint-golden-case.log -Pattern "REAL_CONTAM_JOINT_GOLDEN_CASE_EXECUTED")) { exit 1 }
           @'
           import json
@@ -206,6 +214,13 @@ jobs:
           assert p["golden_case"]["time_step_s"]==60
           assert p["golden_case"]["horizon_steps"]==3
           assert len(p["branches"])>=2
+          sr=p["spatialruntime_consumer"]
+          assert sr["verified"] is True
+          assert sr["zone_ids"]==["bedroom","living","study"]
+          assert sr["flow_path_ids"]==["D1","D2","W1","W2","W3"]
+          assert sr["project_sha256"]==p["comparison"]["prj_sha256"]
+          assert len(sr["binding_registry_fingerprint"])==64
+          assert len(sr["receipt_sha256"])==64
           assert all(set(b["co2_series_by_zone"])=={"living","bedroom","study"} for b in p["branches"])
           assert all(all(len(v)==3 for v in b["co2_series_by_zone"].values()) for b in p["branches"])
           print("JOINT_GOLDEN_CASE_RECEIPT_VERIFIED", c["joint_vs_independent_outcome"], c["objective_improvement"])
