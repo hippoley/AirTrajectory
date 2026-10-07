@@ -273,4 +273,27 @@ def verify_physical_origin_execution_lease(
     status=str(payload.get("status") or "")
     if status not in {"IN_FLIGHT","ADVANCED","RECOVERY_REQUIRED","RECOVERED"}:
         raise RuntimeError("physical origin execution lease status is invalid")
+    if status=="RECOVERED":
+        _require_sha(
+            payload.get("recovery_required_lease_sha256"),
+            "pre-recovery execution lease",
+        )
+        _require_sha(
+            payload.get("recovery_origin_sha256"),
+            "recovery physical origin state",
+        )
+        _require_sha(
+            payload.get("recovery_origin_receipt_sha256"),
+            "recovery physical origin receipt",
+        )
+        _require_sha(
+            payload.get("recovery_summary_sha256"),
+            "physical recovery summary",
+        )
+        if float(payload.get("recovered_at") or 0)<=float(
+            payload.get("finalized_at") or 0
+        ):
+            raise RuntimeError(
+                "physical origin recovery timestamp is not newer than failed lease"
+            )
     return {**payload,"lease_path":str(path)}
