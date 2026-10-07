@@ -298,11 +298,25 @@ def run_replanned_physical_step(
 
         command_ack=getattr(driver,"last_command_ack",None)
         command_request_id=getattr(driver,"last_command_request_id",None)
+        command_scope_id=getattr(
+            driver,
+            "last_command_idempotency_scope_id",
+            None,
+        )
         if not isinstance(command_ack,dict):
             raise RuntimeError("replanned physical step missing verified command acknowledgement")
         if not command_request_id:
             raise RuntimeError(
                 "replanned physical step missing request-bound command identity"
+            )
+        if not command_scope_id:
+            raise RuntimeError(
+                "replanned physical step missing durable command idempotency scope"
+            )
+        if command_ack.get("idempotency_scope_id")!=command_scope_id:
+            raise RuntimeError(
+                "command acknowledgement idempotency scope does not match "
+                "the issued command scope"
             )
         if (
             readiness_identity_sha
@@ -335,6 +349,7 @@ def run_replanned_physical_step(
                 "next_origin_ready":False,
                 "actuator_feedback":feedback_row,
                 "command_request_id":str(command_request_id),
+                "command_idempotency_scope_id":str(command_scope_id),
                 "command_ack":command_ack,
                 "sensor_failure":str(exc),
                 "safe_closeout":recovery,
@@ -362,6 +377,7 @@ def run_replanned_physical_step(
             authorization=authorization,
             command_ack=command_ack,
             expected_request_id=str(command_request_id),
+            expected_idempotency_scope_id=str(command_scope_id),
             feedback=feedback_row,
             sensor_snapshot=snapshot,
             zone_id=str(zone_id),
@@ -375,6 +391,7 @@ def run_replanned_physical_step(
             "next_origin_ready":True,
             "actuator_feedback":feedback_row,
             "command_request_id":str(command_request_id),
+            "command_idempotency_scope_id":str(command_scope_id),
             "command_ack":command_ack,
             "command_ack_sha256":command_ack.get("command_ack_sha256"),
             "sensor_snapshot":snapshot,
