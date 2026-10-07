@@ -4,6 +4,7 @@ Runs deterministic sibling sessions from the same PRJ:
 - baseline: no mass adjustment
 - 1x: setZoneAddMass(mass)
 - 2x: setZoneAddMass(2 * mass)
+- -1x: setZoneAddMass(-mass)
 
 This does not claim state continuation. It measures immediate and one-step effects
 and checks whether the response is directionally and approximately linear.
@@ -73,6 +74,12 @@ def main() -> int:
         args.contaminant,
         float(args.mass) * 2.0,
     )
+    negative_one_x = run_case(
+        args.prj,
+        args.zone,
+        args.contaminant,
+        -float(args.mass),
+    )
 
     immediate_effect_1x = (
         one_x["immediate_mass_fraction"]
@@ -90,6 +97,14 @@ def main() -> int:
         two_x["after_step_mass_fraction"]
         - baseline["after_step_mass_fraction"]
     )
+    immediate_effect_negative_1x = (
+        negative_one_x["immediate_mass_fraction"]
+        - baseline["immediate_mass_fraction"]
+    )
+    after_step_effect_negative_1x = (
+        negative_one_x["after_step_mass_fraction"]
+        - baseline["after_step_mass_fraction"]
+    )
 
     def ratio(double, single):
         if abs(single) < 1e-20:
@@ -104,17 +119,28 @@ def main() -> int:
         "baseline": baseline,
         "one_x": one_x,
         "two_x": two_x,
+        "negative_one_x": negative_one_x,
         "effects": {
             "immediate_1x": immediate_effect_1x,
             "immediate_2x": immediate_effect_2x,
             "after_step_1x": after_step_effect_1x,
             "after_step_2x": after_step_effect_2x,
+            "immediate_negative_1x": immediate_effect_negative_1x,
+            "after_step_negative_1x": after_step_effect_negative_1x,
             "immediate_2x_over_1x": ratio(
                 immediate_effect_2x,
                 immediate_effect_1x,
             ),
             "after_step_2x_over_1x": ratio(
                 after_step_effect_2x,
+                after_step_effect_1x,
+            ),
+            "immediate_negative_over_positive": ratio(
+                immediate_effect_negative_1x,
+                immediate_effect_1x,
+            ),
+            "after_step_negative_over_positive": ratio(
+                after_step_effect_negative_1x,
                 after_step_effect_1x,
             ),
         },
