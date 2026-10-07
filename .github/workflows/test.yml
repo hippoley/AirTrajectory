@@ -290,21 +290,61 @@ jobs:
         timeout-minutes: 8
         shell: pwsh
         run: |
-          python examples/run_contam_joint_closed_loop.py artifacts/multispace-transient.prj artifacts/multispace-transient.prj.json --control-steps 3 --prediction-horizon-steps 3 --candidate-mode adaptive --out artifacts/contam-closed-loop-adaptive.json | Tee-Object -FilePath contam-closed-loop-adaptive.log
-          python examples/run_contam_joint_closed_loop.py artifacts/multispace-transient.prj artifacts/multispace-transient.prj.json --control-steps 3 --prediction-horizon-steps 3 --candidate-mode independent-only --out artifacts/contam-closed-loop-independent.json | Tee-Object -FilePath contam-closed-loop-independent.log
+          python examples/run_contam_joint_closed_loop.py artifacts/multispace-transient.prj artifacts/multispace-transient.prj.json --spatialruntime-verify --control-steps 3 --prediction-horizon-steps 3 --candidate-mode adaptive --out artifacts/contam-closed-loop-adaptive.json | Tee-Object -FilePath contam-closed-loop-adaptive.log
+          python examples/run_contam_joint_closed_loop.py artifacts/multispace-transient.prj artifacts/multispace-transient.prj.json --spatialruntime-verify --control-steps 3 --prediction-horizon-steps 3 --candidate-mode independent-only --out artifacts/contam-closed-loop-independent.json | Tee-Object -FilePath contam-closed-loop-independent.log
           python examples/compare_contam_closed_loop_modes.py artifacts/contam-closed-loop-adaptive.json artifacts/contam-closed-loop-independent.json --out artifacts/contam-closed-loop-comparison.json | Tee-Object -FilePath contam-closed-loop-comparison.log
           if (-not (Select-String -Path contam-closed-loop-comparison.log -Pattern "REAL_CONTAM_CLOSED_LOOP_MODES_COMPARED")) { exit 1 }
           @'
           import json
           p=json.load(open("artifacts/contam-closed-loop-comparison.json",encoding="utf-8"))
+          adaptive=json.load(open("artifacts/contam-closed-loop-adaptive.json",encoding="utf-8"))
+          independent=json.load(open("artifacts/contam-closed-loop-independent.json",encoding="utf-8"))
           c=p["comparison"]
+
+          def verify_spatialruntime(run):
+              sr=run["spatialruntime_consumer"]
+              assert sr["verified"] is True
+              assert sr["zone_ids"]==["bedroom","living","study"]
+              assert sr["flow_path_ids"]==["D1","D2","W1","W2","W3"]
+              for step in run["receipt"]["steps"]:
+                  rows=step["evaluation_evidence"]["spatialruntime_result_consumers"]
+                  assert len(rows)==step["candidate_count"]
+                  assert all(row["verified"] is True for row in rows)
+                  assert all(row["adapter_id"]=="contam-project-v0.9" for row in rows)
+                  assert all(row["native_result_source"]=="airtrajectory_real_contam_branch" for row in rows)
+                  assert all(row["zone_count"]==3 for row in rows)
+                  assert all(row["flow_path_count"]==5 for row in rows)
+                  assert all(row["max_abs_co2_ppm_delta"]==0 for row in rows)
+                  assert all(row["max_abs_mass_flow_kg_s_delta"]==0 for row in rows)
+                  assert all(len(row["request_hash"])==64 for row in rows)
+                  assert all(len(row["result_hash"])==64 for row in rows)
+                  assert all(len(row["feedback_sha256"])==64 for row in rows)
+                  assert all(len(row["receipt_sha256"])==64 for row in rows)
+                  assert len({row["request_hash"] for row in rows})==len(rows)
+              return sum(
+                  len(step["evaluation_evidence"]["spatialruntime_result_consumers"])
+                  for step in run["receipt"]["steps"]
+              )
+
+          adaptive_receipts=verify_spatialruntime(adaptive)
+          independent_receipts=verify_spatialruntime(independent)
+          assert adaptive_receipts>independent_receipts
+          assert independent_receipts==3
           assert p["control_steps"]==3
           assert p["prediction_horizon_steps"]==3
           assert c["outcome"] in ("WIN","TIE","LOSS")
           assert len(c["comparison_sha256"])==64
           assert c["adaptive"]["metrics"]["control_steps"]==3
           assert c["independent"]["metrics"]["control_steps"]==3
-          print("REAL_CONTAM_CLOSED_LOOP_COMPARISON_VERIFIED", c["outcome"], c["objective_improvement"], c["adaptive"]["metrics"], c["independent"]["metrics"])
+          print(
+              "REAL_CONTAM_CLOSED_LOOP_COMPARISON_VERIFIED",
+              c["outcome"],
+              c["objective_improvement"],
+              c["adaptive"]["metrics"],
+              c["independent"]["metrics"],
+              {"adaptive_spatialruntime_receipts":adaptive_receipts,
+               "independent_spatialruntime_receipts":independent_receipts},
+          )
           '@ | python -
       - name: Run Independent vs Joint Golden Case on real ContamX
         timeout-minutes: 4
