@@ -242,6 +242,55 @@ status = BLOCKED_...
 This prevents process failure from being misinterpreted as "no physical action
 occurred."
 
+## JUnit XML compatibility
+
+GEISA conformance currently uses Cukinia JUnit XML reports. A semantic execution
+record does not need to replace that pipeline.
+
+A low-friction integration model is:
+
+```text
+existing test
+    ↓
+Cukinia / runner
+    ├── JUnit XML (existing CI/reporting)
+    └── FieldExecutionRecord sidecar (semantic evidence)
+```
+
+A JUnit testcase can expose a few stable correlation fields as properties:
+
+```text
+field.execution_id
+field.result
+field.target_identity
+field.request_id
+field.reason_code
+field.sidecar_path
+```
+
+The complete record remains a separate artifact. This avoids forcing
+device/field-specific evidence into JUnit's pass/fail-oriented vocabulary while
+preserving compatibility with existing GEISA report tooling.
+
+AirTrajectory provides an exploratory reference schema at:
+
+`schemas/field-execution-record-v0.1.schema.json`
+
+and a projection CLI:
+
+```bash
+python examples/export_field_execution_record.py \
+  --cycle-summary artifacts/verified-replanned-physical-cycle.json \
+  --step-summary artifacts/replanned-physical-step.json \
+  --verification-receipt artifacts/replanned-physical-cycle-verification.json \
+  --spec-clause-ref geisa/specification#110 \
+  --out artifacts/field-execution-record.json
+```
+
+The adapter is intentionally downstream of the native AirTrajectory evidence
+chain. It does not make the control runtime depend on this exploratory
+conformance representation.
+
 ## Suggested GEISA conformance cases
 
 A useful first contribution would not need to standardize every field-tool
