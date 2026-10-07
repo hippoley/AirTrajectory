@@ -15,6 +15,7 @@ def base_envelope():
         "subject":{"kind":"conformance-execution","identity":"case-1","version":"0.1"},
         "target":{"kind":"device","identity":"device-1","scope":None},
         "operation":{"kind":"transition","request_id":"req-1","ack_id":"ack-1","mutation_expected":True,"parameters":{}},
+        "harness_status":"COMPLETED",
         "result":"PASS",
         "reason_code":None,
         "observations":[],
@@ -112,6 +113,31 @@ class ExecutionEvidenceEnvelopeTests(unittest.TestCase):
         self.assertFalse(envelope["extensions"]["physical"]["motion_performed"])
         self.assertFalse(envelope["extensions"]["physical"]["mutation_observed"])
         self.assertEqual(envelope["result"],"BLOCKED")
+
+    def test_fail_can_be_a_successful_harness_execution(self):
+        payload=base_envelope()
+        payload["result"]="FAIL"
+        payload["verification"]["status"]="FAIL"
+        validate_execution_evidence_envelope(payload)
+        self.assertEqual(payload["harness_status"],"COMPLETED")
+
+    def test_harness_error_is_distinct_from_semantic_fail(self):
+        payload=base_envelope()
+        payload["harness_status"]="ERROR"
+        payload["result"]="FAIL"
+        payload["verification"]={
+            "performed":False,
+            "status":"NOT_PERFORMED",
+            "verifier":None,
+            "evidence_refs":[],
+        }
+        validate_execution_evidence_envelope(payload)
+
+    def test_pass_rejects_harness_error(self):
+        payload=base_envelope()
+        payload["harness_status"]="ERROR"
+        with self.assertRaisesRegex(RuntimeError,"completed harness"):
+            validate_execution_evidence_envelope(payload)
 
 
 if __name__=="__main__":

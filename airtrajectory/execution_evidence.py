@@ -127,6 +127,7 @@ def build_execution_evidence_envelope(
                 "authorized_target_pct":request_obj.get("authorized_target_pct")
             },
         },
+        "harness_status":"COMPLETED",
         "result":result,
         "reason_code":record.get("reason_code"),
         "observations":observations,
@@ -160,6 +161,9 @@ def validate_execution_evidence_envelope(envelope: Mapping[str, Any]) -> None:
         raise RuntimeError("unsupported envelope schema_version")
     if payload.get("record_type")!="execution-evidence-envelope-v0.1":
         raise RuntimeError("unsupported envelope record type")
+    harness_status=payload.get("harness_status")
+    if harness_status not in {"COMPLETED","ERROR","INTERRUPTED"}:
+        raise RuntimeError("invalid harness_status")
     result=payload.get("result")
     if result not in _RESULTS:
         raise RuntimeError("invalid envelope result")
@@ -171,6 +175,8 @@ def validate_execution_evidence_envelope(envelope: Mapping[str, Any]) -> None:
     recovery=_as_mapping(payload["recovery"],"recovery")
 
     if result=="PASS":
+        if harness_status!="COMPLETED":
+            raise RuntimeError("PASS envelope requires completed harness")
         if verification.get("performed") is not True:
             raise RuntimeError("PASS envelope requires verification")
         if verification.get("status")!="PASS":
