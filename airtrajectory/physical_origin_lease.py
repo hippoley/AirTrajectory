@@ -225,13 +225,9 @@ def record_physical_origin_recovery(
         recovery_origin_receipt_sha256,
         "recovery physical origin receipt",
     )
-    payload["recovery_summary_sha256"]=(
-        None
-        if recovery_summary_sha256 is None
-        else _require_sha(
-            recovery_summary_sha256,
-            "physical recovery summary",
-        )
+    payload["recovery_summary_sha256"]=_require_sha(
+        recovery_summary_sha256,
+        "physical recovery summary",
     )
     final={**payload,"lease_sha256":_sha256(payload)}
     temp=path.with_suffix(path.suffix+".tmp")
