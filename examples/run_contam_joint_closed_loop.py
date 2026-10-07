@@ -126,6 +126,7 @@ def main() -> int:
         key: float(value)
         for key, value in provenance["initial_co2_ppm"].items()
     }
+    initial_scalars = {}
     physical_origin_evidence = None
     if args.physical_origin_receipt is not None:
         if args.control_steps != 1:
@@ -165,6 +166,10 @@ def main() -> int:
         initial_openings = {
             opening_id: float(physical_origin["opening_pct"][opening_id])
             for opening_id in sorted(topology.openings)
+        }
+        initial_scalars = {
+            key: float(value)
+            for key, value in physical_origin["scalar_values"].items()
         }
     fixed = {
         opening_id: float(initial_openings[opening_id])
@@ -282,6 +287,7 @@ def main() -> int:
         initial_origin=ClosedLoopOrigin(
             co2_ppm=initial_co2,
             opening_pct=initial_openings,
+            scalar_values=initial_scalars,
         ),
         control_steps=args.control_steps,
         prediction_horizon_steps=args.prediction_horizon_steps,
