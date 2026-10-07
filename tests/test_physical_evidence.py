@@ -351,6 +351,90 @@ class PhysicalArtifactVerifierTests(unittest.TestCase):
         payload["trajectory_sha256"]=hashlib.sha256(trajectory.read_bytes()).hexdigest()
         receipt.write_text(json.dumps(payload),encoding="utf-8")
 
+    def _canonical_sha(self,payload):
+        raw=json.dumps(
+            payload,
+            sort_keys=True,
+            separators=(",",":"),
+            ensure_ascii=False,
+        ).encode("utf-8")
+        return hashlib.sha256(raw).hexdigest()
+
+    def _add_command_handoff(self,trajectory,receipt):
+        ack_payload={
+            "schema_version":"0.1",
+            "receipt":"windowpilot-command-ack-v1",
+            "accepted":True,
+            "accepted_at":100.5,
+            "action":"open",
+            "target_pct":5.0,
+            "execution_backend":"cwds-ca01-thingmodel",
+            "transport":"thingmodel-http",
+            "simulated":False,
+            "hardware_identity_sha256":"same-hardware",
+            "physical_write_ready":True,
+            "write_contract_ready":True,
+            "motion_semantics_ready":True,
+            "write_blockers":[],
+            "evidence_kind":"physical-command-accepted",
+        }
+        ack={**ack_payload,"command_ack_sha256":self._canonical_sha(ack_payload)}
+
+        traj=json.loads(trajectory.read_text(encoding="utf-8"))
+        traj["steps"][0]["info"]={"backend":"physical-window","command_acks":[ack]}
+        trajectory.write_text(json.dumps(traj)+"\n",encoding="utf-8")
+
+        reconcile_payload={
+            "schema_version":"0.1",
+            "reconcile":"sim-to-physical-first-contact-v1",
+            "command_ack_sha256":ack["command_ack_sha256"],
+            "command_hardware_identity_sha256":"same-hardware",
+            "command_write_gate_verified":True,
+        }
+        reconcile={
+            **reconcile_payload,
+            "physical_reconcile_sha256":self._canonical_sha(reconcile_payload),
+        }
+        audit=json.loads(receipt.read_text(encoding="utf-8"))
+        audit["physical_reconcile"]=reconcile
+        audit["sim_to_physical_handoff_verified"]=True
+        audit["trajectory_sha256"]=hashlib.sha256(trajectory.read_bytes()).hexdigest()
+        receipt.write_text(json.dumps(audit),encoding="utf-8")
+        return ack
+
+    def test_valid_command_ack_handoff_is_independently_verified(self):
+        with tempfile.TemporaryDirectory() as d:
+            root=Path(d)
+            bundle,trajectory,receipt,_,_,_=self._valid_chain(root)
+            self._add_command_handoff(trajectory,receipt)
+            report=verify_physical_tau0_artifacts(
+                trajectory_path=trajectory,
+                receipt_path=receipt,
+                commission_bundle_path=bundle,
+            )
+        self.assertTrue(report["valid_artifacts"],report["reasons"])
+
+    def test_tampered_persisted_command_ack_is_rejected_offline(self):
+        with tempfile.TemporaryDirectory() as d:
+            root=Path(d)
+            bundle,trajectory,receipt,_,_,_=self._valid_chain(root)
+            self._add_command_handoff(trajectory,receipt)
+            traj=json.loads(trajectory.read_text(encoding="utf-8"))
+            traj["steps"][0]["info"]["command_acks"][0]["target_pct"]=4.0
+            trajectory.write_text(json.dumps(traj)+"\n",encoding="utf-8")
+            self._refresh_trajectory_sha(trajectory,receipt)
+            report=verify_physical_tau0_artifacts(
+                trajectory_path=trajectory,
+                receipt_path=receipt,
+                commission_bundle_path=bundle,
+            )
+        self.assertFalse(report["valid_artifacts"])
+        self.assertTrue(any(
+            "command acknowledgement SHA-256 mismatch" in reason
+            or "command acknowledgement target mismatch" in reason
+            for reason in report["reasons"]
+        ))
+
     def test_valid_artifact_chain_passes(self):
         with tempfile.TemporaryDirectory() as d:
             root=Path(d)
