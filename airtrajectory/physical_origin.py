@@ -155,7 +155,10 @@ def verify_physical_origin_receipt(receipt: Mapping[str, Any]) -> dict[str, Any]
         raise ValueError("physical origin receipt must be an object")
 
     source=str(receipt.get("source") or "")
-    if source=="windowpilot-physical-reconcile-v1":
+    if source in {
+        "windowpilot-physical-reconcile-v1",
+        "windowpilot-replanned-physical-step-v1",
+    }:
         receipt_hash_field="physical_origin_receipt_sha256"
     elif source=="windowpilot-multi-physical-origin-v1":
         receipt_hash_field="multi_physical_origin_receipt_sha256"
