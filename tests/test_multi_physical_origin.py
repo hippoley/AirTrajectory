@@ -16,7 +16,16 @@ def sha(payload):
     ).hexdigest()
 
 
-def reconcile(opening_id, zone_id, co2, position, *, rain=False, seed="a"):
+def reconcile(
+    opening_id,
+    zone_id,
+    co2,
+    position,
+    *,
+    rain=False,
+    seed="a",
+    sensor_timestamp=13.0,
+):
     payload = {
         "schema_version": "0.1",
         "reconcile": "sim-to-physical-first-contact-v1",
@@ -33,9 +42,9 @@ def reconcile(opening_id, zone_id, co2, position, *, rain=False, seed="a"):
         "terminal_position_source": "safe-closeout-measured-feedback",
         "next_origin_position_verified": True,
         "terminal_co2_ppm": co2,
-        "terminal_co2_timestamp": 13.0,
+        "terminal_co2_timestamp": sensor_timestamp,
         "terminal_rain": rain,
-        "terminal_rain_timestamp": 13.0,
+        "terminal_rain_timestamp": sensor_timestamp,
         "terminal_snapshot_sha256": seed * 64,
         "next_origin_sensor_verified": True,
         "physical_next_origin_ready": True,
@@ -137,6 +146,52 @@ class MultiPhysicalOriginTests(unittest.TestCase):
                     {"zone_id": "bedroom", "reconcile": reconcile("W2", "bedroom", 880, 0.1, rain=True, seed="b")},
                 ],
             )
+
+    def test_temporally_incoherent_measurements_are_rejected(self):
+        with self.assertRaisesRegex(RuntimeError, "max temporal skew"):
+            merge_physical_next_origins(
+                current_origin=self.base(),
+                measurements=[
+                    {
+                        "zone_id":"living",
+                        "reconcile":reconcile(
+                            "W1","living",1300,0.2,sensor_timestamp=13.0
+                        ),
+                    },
+                    {
+                        "zone_id":"bedroom",
+                        "reconcile":reconcile(
+                            "W2","bedroom",880,0.1,seed="b",sensor_timestamp=30.0
+                        ),
+                    },
+                ],
+                max_measurement_skew_s=10.0,
+            )
+
+    def test_temporally_coherent_receipt_records_measurement_span(self):
+        out=merge_physical_next_origins(
+            current_origin=self.base(),
+            measurements=[
+                {
+                    "zone_id":"living",
+                    "reconcile":reconcile(
+                        "W1","living",1300,0.2,sensor_timestamp=13.0
+                    ),
+                },
+                {
+                    "zone_id":"bedroom",
+                    "reconcile":reconcile(
+                        "W2","bedroom",880,0.1,seed="b",sensor_timestamp=16.0
+                    ),
+                },
+            ],
+            max_measurement_skew_s=10.0,
+        )
+        window=out["measurement_time_range"]
+        self.assertEqual(window["earliest_timestamp"],13.0)
+        self.assertEqual(window["latest_timestamp"],16.0)
+        self.assertEqual(window["skew_s"],3.0)
+        self.assertEqual(window["max_allowed_skew_s"],10.0)
 
     def test_tampered_child_receipt_is_rejected(self):
         bad = reconcile("W1", "living", 1300, 0.2)
