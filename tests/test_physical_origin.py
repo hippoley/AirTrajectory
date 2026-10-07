@@ -75,6 +75,7 @@ class PhysicalOriginTests(unittest.TestCase):
             "measured_minus_predicted_zone_co2_ppm": 482.26,
             "planner_handoff_sha256": "a" * 64,
             "physical_authorization_sha256": "b" * 64,
+            "command_hardware_identity_sha256": "c" * 64,
             "evidence_boundary": (
                 "bounded first-contact physical handoff; planner target may be safety-limited "
                 "and therefore is not claimed as full closed-loop field execution"
@@ -178,6 +179,10 @@ class PhysicalOriginTests(unittest.TestCase):
         )
         self.assertEqual(verified["measured_zones"],["living"])
         self.assertEqual(verified["measured_openings"],["W1"])
+        self.assertEqual(
+            verified["hardware_identity_by_opening"],
+            {"W1":"c"*64},
+        )
 
     def test_hash_valid_receipt_cannot_falsely_claim_whole_home_measurement(self):
         receipt=physical_next_origin_from_reconcile(
