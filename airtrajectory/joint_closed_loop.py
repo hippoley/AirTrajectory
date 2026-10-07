@@ -86,6 +86,20 @@ def contam_receding_horizon_capability(profile) -> BackendContinuationCapability
     """
     mode = str(getattr(profile, "origin_state_mode", "declared-only"))
     has_prj_anchor = bool(getattr(profile, "prj_initial_co2_ppm", {}))
+    reseed_verified = bool(
+        getattr(profile, "prj_reseed_continuation_verified", False)
+    )
+    if reseed_verified:
+        return BackendContinuationCapability(
+            backend="contamxpy",
+            physics_fidelity="CONTAM",
+            state_reinjection_verified=True,
+            continuation_mode="prj-section15-reseed-verified",
+            evidence_boundary=(
+                "verified contaminant-state continuation under identical static "
+                "boundaries and controls; native restart/time continuity not established"
+            ),
+        )
     boundary = (
         "fork origins are anchored to the PRJ initial contaminant state; "
         "arbitrary solved CO2 reinjection/branch continuation is not verified"

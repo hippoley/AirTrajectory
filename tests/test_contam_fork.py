@@ -138,6 +138,57 @@ class ContamForkTests(unittest.TestCase):
                     binding_factory=ForkCx,
                 )
 
+
+    def test_verified_prj_reseed_allows_new_co2_origin_and_emits_receipt(self):
+        with tempfile.TemporaryDirectory() as d:
+            prj=Path(d)/"home.prj"
+            prj.write_text(
+                "ContamW 3.4.0.4 0\n"
+                "home.prj\n"
+                "2 ! initial zone concentrations:\n"
+                "! Z#      CO2\n"
+                "   1 2.12713004e-03\n"
+                "   2 1.44341039e-03\n"
+                "-999\n"
+                "* end project file.\n"
+            )
+            base=self.profile(prj)
+            profile=ContamForkProfile(
+                base.profile_id,
+                base.topology,
+                base.prj_path,
+                base.zone_numbers,
+                base.opening_controls,
+                path_numbers=base.path_numbers,
+                evaluation_zone=base.evaluation_zone,
+                evidence_level=base.evidence_level,
+                trusted_for_promotion=base.trusted_for_promotion,
+                prj_initial_co2_ppm=base.prj_initial_co2_ppm,
+                origin_state_mode=base.origin_state_mode,
+                prj_reseed_continuation_verified=True,
+            )
+            origin=self.origin()
+            origin["co2_ppm"]={"living":900.0,"bedroom":700.0}
+            out=contam_strategy_fork_request(
+                {
+                    "profile_id":"home-v1",
+                    "origin":origin,
+                    "candidates":[
+                        {
+                            "label":"reseeded",
+                            "actions":[{"opening_id":"W1","target_pct":75}],
+                        }
+                    ],
+                    "horizon_steps":1,
+                },
+                {"home-v1":profile},
+                binding_factory=ForkCx,
+            )
+            self.assertEqual(out["origin_kind"],"prj-reseed-verified")
+            self.assertTrue(out["prj_reseed_continuation_verified"])
+            self.assertEqual(out["prj_reseed_receipt"]["zone_count"],2)
+            self.assertEqual(len(out["prj_reseed_receipt"]["reseeded_prj_sha256"]),64)
+
     def test_origin_opening_controls_are_applied_before_candidate_solve(self):
         with tempfile.TemporaryDirectory() as d:
             prj=Path(d)/"home.prj"; prj.write_text("fixture")

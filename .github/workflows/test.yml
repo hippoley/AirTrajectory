@@ -152,6 +152,23 @@ jobs:
         run: |
           python examples/contam_transient_fork_smoke.py artifacts/multispace-transient.prj artifacts/multispace-transient.prj.json | Tee-Object -FilePath transient-contam-counterfactual.log
           if (-not (Select-String -Path transient-contam-counterfactual.log -Pattern "TRANSIENT_CONTAM_COUNTERFACTUAL_EXECUTED")) { exit 1 }
+      - name: Run receding-horizon Joint on real ContamX
+        timeout-minutes: 5
+        shell: pwsh
+        run: |
+          python examples/run_contam_joint_closed_loop.py artifacts/multispace-transient.prj artifacts/multispace-transient.prj.json --control-steps 2 --prediction-horizon-steps 3 --out artifacts/contam-joint-closed-loop.json | Tee-Object -FilePath contam-joint-closed-loop.log
+          if (-not (Select-String -Path contam-joint-closed-loop.log -Pattern "REAL_CONTAM_RECEDING_HORIZON_JOINT_EXECUTED")) { exit 1 }
+          @'
+          import json
+          p=json.load(open("artifacts/contam-joint-closed-loop.json",encoding="utf-8"))
+          r=p["receipt"]
+          assert r["closed_loop_replanning_executed"] is True
+          assert len(r["steps"])==2
+          assert r["backend_capability"]["state_reinjection_verified"] is True
+          assert all(s["evaluation_evidence"]["origin_kind"]=="prj-reseed-verified" for s in r["steps"])
+          assert r["steps"][0]["next_origin_sha256"]==r["steps"][1]["origin_sha256"]
+          print("REAL_CONTAM_RECEDING_HORIZON_RECEIPT_VERIFIED", [s["selected_label"] for s in r["steps"]])
+          '@ | python -
       - name: Run Independent vs Joint Golden Case on real ContamX
         timeout-minutes: 4
         shell: pwsh
