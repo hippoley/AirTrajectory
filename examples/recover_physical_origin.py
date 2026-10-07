@@ -5,6 +5,7 @@ import argparse
 from dataclasses import asdict
 import hashlib
 import json
+import os
 from pathlib import Path
 import time
 
@@ -26,6 +27,28 @@ def _sha256(payload):
         ensure_ascii=False,
     ).encode("utf-8")
     return hashlib.sha256(raw).hexdigest()
+
+
+def _prepare_atomic(path, payload):
+    target=Path(path)
+    target.parent.mkdir(parents=True,exist_ok=True)
+    temp=target.with_name(target.name+".pending")
+    data=(
+        json.dumps(payload,ensure_ascii=False,indent=2,sort_keys=True)+"\n"
+    ).encode("utf-8")
+    fd=os.open(
+        str(temp),
+        os.O_WRONLY|os.O_CREAT|os.O_TRUNC,
+        0o600,
+    )
+    try:
+        with os.fdopen(fd,"wb") as fh:
+            fh.write(data)
+            fh.flush()
+            os.fsync(fh.fileno())
+    except Exception:
+        raise
+    return temp,target
 
 
 def _write(path, payload):
@@ -209,17 +232,30 @@ def recover_physical_origin(
         float(snapshot["co2_timestamp"]),
         float(snapshot["rain_timestamp"]),
     )
-    record_physical_origin_recovery(
-        lease_path=lease_path,
-        recovered_at=recovered_at,
-        recovery_origin_sha256=recovery_origin["origin_sha256"],
-        recovery_origin_receipt_sha256=recovery_origin[
-            "physical_origin_receipt_sha256"
-        ],
-        recovery_summary_sha256=summary["recovery_summary_sha256"],
+    origin_temp,origin_target=_prepare_atomic(
+        recovery_origin_out,
+        recovery_origin,
     )
-    _write(recovery_origin_out,recovery_origin)
-    _write(summary_out,summary)
+    summary_temp,summary_target=_prepare_atomic(
+        summary_out,
+        summary,
+    )
+    try:
+        record_physical_origin_recovery(
+            lease_path=lease_path,
+            recovered_at=recovered_at,
+            recovery_origin_sha256=recovery_origin["origin_sha256"],
+            recovery_origin_receipt_sha256=recovery_origin[
+                "physical_origin_receipt_sha256"
+            ],
+            recovery_summary_sha256=summary["recovery_summary_sha256"],
+        )
+        os.replace(origin_temp,origin_target)
+        os.replace(summary_temp,summary_target)
+    except Exception:
+        # Pending files intentionally remain when possible. The consumed lease
+        # is never rolled back to RECOVERY_REQUIRED/available automatically.
+        raise
     return summary
 
 
