@@ -194,10 +194,45 @@ def build_windowpilot_deployment_config_draft(
 
     field_capture = source_config.get("field_capture")
     if isinstance(field_capture, Mapping):
-        draft_config["field_capture"] = json.loads(
-            json.dumps(field_capture)
+        source_input = field_capture.get("source")
+        source_output = (
+            {
+                key: source_input.get(key)
+                for key in (
+                    "kind",
+                    "id",
+                    "model",
+                    "serial",
+                    "calibration_ref",
+                )
+                if isinstance(source_input, Mapping)
+                and key in source_input
+            }
+            if isinstance(source_input, Mapping)
+            else {}
         )
-        source = field_capture.get("source")
+        zone_sources_input = field_capture.get("co2_zone_sources")
+        field_capture_output = {
+            "source": source_output,
+            "co2_zone_sources": (
+                {
+                    str(key): str(value)
+                    for key, value in sorted(
+                        zone_sources_input.items()
+                    )
+                }
+                if isinstance(zone_sources_input, Mapping)
+                else {}
+            ),
+            "max_sample_age_s": float(
+                field_capture.get("max_sample_age_s", 10.0)
+            ),
+            "max_future_skew_s": float(
+                field_capture.get("max_future_skew_s", 2.0)
+            ),
+        }
+        draft_config["field_capture"] = field_capture_output
+        source = source_input
         if not isinstance(source, Mapping):
             blockers.append("field_capture.source is missing")
         else:
@@ -258,7 +293,7 @@ def build_windowpilot_deployment_config_draft(
         ),
         "blockers": blockers,
         "deployment_config_sha256": _sha256(draft_config),
-        "secret_values_embedded": False,
+        "http_secret_values_embedded": False,
     }
     receipt = {
         **receipt_payload,
