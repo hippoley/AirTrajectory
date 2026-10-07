@@ -659,7 +659,7 @@ class CoreTests(unittest.TestCase):
             "execution":{"transport":"rs485-verified","simulated":False,"measured_position":True},
             "position_feedback":{"position_pct":40.5,"timestamp":now,"measured":True,"quality":"encoder-measured"},
             "command_ack_contract":"windowpilot-command-ack-v2",
-            "command_idempotency_contract":"process-local-fail-closed-v1",
+            "command_idempotency_contract":"durable-request-ledger-v1",
         }
         def request(method,path,payload):
             if path=="/api/capabilities": return caps
@@ -696,7 +696,7 @@ class CoreTests(unittest.TestCase):
                 "quality":"encoder-measured",
             },
             "command_ack_contract":"windowpilot-command-ack-v2",
-            "command_idempotency_contract":"process-local-fail-closed-v1",
+            "command_idempotency_contract":"durable-request-ledger-v1",
         }
         def request(method,path,payload):
             if path=="/api/capabilities":
@@ -737,7 +737,7 @@ class CoreTests(unittest.TestCase):
                 "quality":"encoder-measured",
             },
             "command_ack_contract":"windowpilot-command-ack-v2",
-            "command_idempotency_contract":"process-local-fail-closed-v1",
+            "command_idempotency_contract":"durable-request-ledger-v1",
         }
         def request(method,path,payload):
             if path=="/api/capabilities":
@@ -772,7 +772,7 @@ class CoreTests(unittest.TestCase):
             "execution":{"transport":"verified","simulated":False,"measured_position":True},
             "position_feedback":{"position_pct":40.0,"timestamp":99.0,"measured":True,"quality":"stale"},
             "command_ack_contract":"windowpilot-command-ack-v2",
-            "command_idempotency_contract":"process-local-fail-closed-v1",
+            "command_idempotency_contract":"durable-request-ledger-v1",
         }
         def request(method,path,payload):
             calls.append((method,path,payload))
@@ -827,6 +827,34 @@ class CoreTests(unittest.TestCase):
             driver.set_position("w1",5)
         self.assertFalse(any(method=="POST" for method,_,_ in calls))
 
+    def test_windowpilot_physical_write_rejects_process_local_idempotency_before_post(self):
+        calls=[]
+        caps={
+            "execution":{
+                "transport":"verified",
+                "simulated":False,
+                "measured_position":True,
+            },
+            "position_feedback":{
+                "position_pct":0.0,
+                "timestamp":100.0,
+                "measured":True,
+            },
+            "command_ack_contract":"windowpilot-command-ack-v2",
+            "command_idempotency_contract":"process-local-fail-closed-v1",
+        }
+        def request(method,path,payload):
+            calls.append((method,path,payload))
+            if path=="/api/capabilities":
+                return caps
+            raise AssertionError(
+                "physical POST must not occur with process-local idempotency"
+            )
+        driver=WindowPilotHTTPDriver(request_json=request)
+        with self.assertRaisesRegex(RuntimeError,"durable-request-ledger-v1"):
+            driver.set_position("w1",5)
+        self.assertFalse(any(method=="POST" for method,_,_ in calls))
+
     def test_windowpilot_physical_write_requires_idempotency_contract_before_post(self):
         calls=[]
         caps={
@@ -850,7 +878,7 @@ class CoreTests(unittest.TestCase):
                 "physical POST must not occur without idempotency contract"
             )
         driver=WindowPilotHTTPDriver(request_json=request)
-        with self.assertRaisesRegex(RuntimeError,"idempotency contract"):
+        with self.assertRaisesRegex(RuntimeError,"durable-request-ledger-v1"):
             driver.set_position("w1",5)
         self.assertFalse(any(method=="POST" for method,_,_ in calls))
 
@@ -868,7 +896,7 @@ class CoreTests(unittest.TestCase):
                 "measured":True,
             },
             "command_ack_contract":"windowpilot-command-ack-v1",
-            "command_idempotency_contract":"process-local-fail-closed-v1",
+            "command_idempotency_contract":"durable-request-ledger-v1",
         }
         def request(method,path,payload):
             calls.append((method,path,payload))
@@ -885,7 +913,7 @@ class CoreTests(unittest.TestCase):
             "execution":{"transport":"verified","simulated":False,"measured_position":True},
             "position_feedback":{"position_pct":5.0,"timestamp":101.0,"measured":True},
             "command_ack_contract":"windowpilot-command-ack-v2",
-            "command_idempotency_contract":"process-local-fail-closed-v1",
+            "command_idempotency_contract":"durable-request-ledger-v1",
         }
         def request(method,path,payload):
             if path=="/api/capabilities":
