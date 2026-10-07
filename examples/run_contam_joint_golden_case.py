@@ -21,6 +21,7 @@ from airtrajectory.ventilation_path_candidates import (
     inject_ventilation_path_candidates,
 )
 from airtrajectory.spatialruntime_consumer import (
+    verify_branch_result_with_spatialruntime,
     verify_generated_prj_with_spatialruntime,
 )
 
@@ -204,6 +205,7 @@ def main() -> int:
         prj_sha256=provenance.get("sha256"),
     )
     spatialruntime_receipt = None
+    spatialruntime_result_receipts = []
     if args.spatialruntime_verify:
         spatialruntime_receipt = verify_generated_prj_with_spatialruntime(
             project_path=args.prj,
@@ -212,6 +214,20 @@ def main() -> int:
         )
         if spatialruntime_receipt.get("verified") is not True:
             raise RuntimeError("SpatialRuntime consumer verification did not pass")
+        for branch_index, branch in enumerate(response["branches"]):
+            result_receipt = verify_branch_result_with_spatialruntime(
+                project_path=args.prj,
+                provenance=provenance,
+                case_id=case["golden_case_id"],
+                branch=branch,
+                source_step=0,
+                source_revision=branch_index,
+            )
+            if result_receipt.get("verified") is not True:
+                raise RuntimeError(
+                    "SpatialRuntime result normalization verification did not pass"
+                )
+            spatialruntime_result_receipts.append(result_receipt)
     if receipt["non_regression"] is not True:
         raise RuntimeError("Joint search regressed below included independent reference")
 
@@ -226,6 +242,7 @@ def main() -> int:
         "ventilation_path_candidates": path_candidate_metadata,
         "comparison": receipt,
         "spatialruntime_consumer": spatialruntime_receipt,
+        "spatialruntime_result_consumers": spatialruntime_result_receipts,
         "branches": response["branches"],
     }
     rendered = json.dumps(payload, indent=2, sort_keys=True)
