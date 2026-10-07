@@ -320,7 +320,7 @@ jobs:
         timeout-minutes: 4
         shell: pwsh
         run: |
-          python examples/run_contam_joint_golden_case.py artifacts/multispace-transient.prj artifacts/multispace-transient.prj.json --derive-path-candidates --path-intensities 35,55,75 --out artifacts/contam-ventilation-path-ranking.json | Tee-Object -FilePath contam-ventilation-path-ranking.log
+          python examples/run_contam_joint_golden_case.py artifacts/multispace-transient.prj artifacts/multispace-transient.prj.json --spatialruntime-verify --derive-path-candidates --path-intensities 35,55,75 --out artifacts/contam-ventilation-path-ranking.json | Tee-Object -FilePath contam-ventilation-path-ranking.log
           if (-not (Select-String -Path contam-ventilation-path-ranking.log -Pattern "REAL_CONTAM_JOINT_GOLDEN_CASE_EXECUTED")) { exit 1 }
           @'
           import json
@@ -336,6 +336,25 @@ jobs:
           assert c["status"]=="PASS"
           assert c["non_regression"] is True
           assert len(c["comparison_sha256"])==64
+          sr=p["spatialruntime_consumer"]
+          assert sr["verified"] is True
+          assert sr["zone_ids"]==["bedroom","living","study"]
+          assert sr["flow_path_ids"]==["D1","D2","W1","W2","W3"]
+          srr=p["spatialruntime_result_consumers"]
+          assert len(srr)==len(p["branches"])
+          assert all(row["verified"] is True for row in srr)
+          assert all(row["adapter_id"]=="contam-project-v0.9" for row in srr)
+          assert all(row["native_result_source"]=="airtrajectory_real_contam_branch" for row in srr)
+          assert all(row["zone_count"]==3 for row in srr)
+          assert all(row["flow_path_count"]==5 for row in srr)
+          assert all(row["max_abs_co2_ppm_delta"]==0 for row in srr)
+          assert all(row["max_abs_mass_flow_kg_s_delta"]==0 for row in srr)
+          assert all(len(row["adapter_fingerprint"])==64 for row in srr)
+          assert all(len(row["request_hash"])==64 for row in srr)
+          assert all(len(row["result_hash"])==64 for row in srr)
+          assert all(len(row["feedback_sha256"])==64 for row in srr)
+          assert all(len(row["receipt_sha256"])==64 for row in srr)
+          assert [row["branch_label"] for row in srr]==[b["label"] for b in p["branches"]]
           ranked=sorted(c["all_candidates"], key=lambda row:(row["objective_score"],row["label"]))
           print("REAL_CONTAM_VENTILATION_PATH_RANKING_VERIFIED", ranked[0]["label"], ranked[0]["objective_score"])
           '@ | python -
