@@ -1524,3 +1524,68 @@ one command on site
 → iterate mapping offline
 → return only when live probe/preflight is ready
 ```
+
+
+### Build a sanitized deployment config from first-contact evidence
+
+After a first-contact workspace reaches compatible mapping, generate a deployment config draft instead of manually copying endpoint/auth/mapping settings:
+
+```bash
+python examples/build_windowpilot_deployment_config.py \
+  path/to/original-windowpilot-config.json \
+  artifacts/windowpilot-first-contact-workspace.json \
+  --mapping-profile path/to/windowpilot-mapping.json \
+  --mapping-profile-name vendor-v1 \
+  --config-out artifacts/windowpilot-deployment.json \
+  --receipt-out artifacts/windowpilot-deployment-draft.json \
+  --require-ready
+```
+
+The builder only carries fields that can be justified from the source config and first-contact evidence:
+
+```text
+endpoint URL
+timeout / feedback timeout / position tolerance
+headers_env names (never secret values)
+mapping profile reference + deterministic profile SHA
+topology_id when already declared
+fixed_openings when already declared
+explicit field_capture source metadata
+explicit room → CO2 endpoint mapping
+```
+
+It does not infer room identity from endpoint names. W1 does not automatically become `living`, and W2 does not automatically become `bedroom`.
+
+The draft receipt reports:
+
+```text
+READY_FOR_LIVE_PROBE
+DRAFT_WITH_BLOCKERS
+```
+
+Typical blockers include:
+
+```text
+endpoint mapping not COMPATIBLE
+partial first-contact capture
+replace-with-* deployment metadata
+missing field_capture.source identity/calibration
+missing explicit room-to-endpoint CO2 mapping
+CO2 mapping references an endpoint not captured during first contact
+mapping profile SHA differs from the profile evaluated in the workspace
+```
+
+The emitted config is sanitized by whitelist. Unknown endpoint fields, inline tokens, root passwords, private field-capture keys, and other arbitrary source-config keys are not copied. HTTP authentication remains represented only by `headers_env` variable names.
+
+Recommended handoff:
+
+```text
+first-contact workspace
+→ offline mapping COMPATIBLE
+→ sanitized deployment config draft
+→ READY_FOR_LIVE_PROBE
+→ live contract probe
+→ freeze baseline
+→ preflight
+→ startup bundle / field validation
+```
