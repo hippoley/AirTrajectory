@@ -137,6 +137,13 @@ def run_replanned_physical_step(
         raise RuntimeError(
             "replanned physical step readiness lacks stable hardware identity"
         )
+    expected_origin_identity=str(
+        handoff.get("physical_hardware_identity_sha256") or ""
+    )
+    if identity!=expected_origin_identity:
+        raise RuntimeError(
+            "current WindowPilot hardware identity does not match physical origin"
+        )
 
     base={
         "schema_version":"0.1",
@@ -167,6 +174,7 @@ def run_replanned_physical_step(
         "intervention":authorization["intervention"],
         "physical_write_ready":True,
         "readiness_hardware_identity_sha256":readiness_identity_sha,
+        "origin_hardware_identity_sha256":expected_origin_identity,
         "handoff":handoff,
         "authorization":authorization,
     }

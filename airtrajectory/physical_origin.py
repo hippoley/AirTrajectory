@@ -107,6 +107,10 @@ def physical_next_origin_from_reconcile(
         raise RuntimeError("terminal physical CO2 must be non-negative")
     if close_ts <= 0 or co2_ts <= close_ts or rain_ts <= close_ts:
         raise RuntimeError("terminal physical sensors are not newer than closeout")
+    hardware_identity=_require_sha256(
+        reconcile.get("command_hardware_identity_sha256"),
+        "physical reconcile command hardware identity",
+    )
 
     co2_map = dict(current["co2_ppm"])
     opening_map = dict(current["opening_pct"])
@@ -132,6 +136,9 @@ def physical_next_origin_from_reconcile(
             reconcile.get("terminal_snapshot_sha256") or ""
         ),
         "origin": origin,
+        "hardware_identity_by_opening": {
+            opening_id: hardware_identity,
+        },
         "evidence_boundary": (
             "single physical opening/zone updated from measured terminal state; "
             "all untouched zones/openings remain inherited from the prior origin"
@@ -163,6 +170,29 @@ def _normalized_unique_strings(value: Any, label: str) -> list[str]:
     if len(set(normalized))!=len(normalized):
         raise RuntimeError(f"{label} contains duplicate identifiers")
     return sorted(normalized)
+
+
+def _validate_hardware_identity_map(
+    receipt: Mapping[str, Any],
+    measured_openings: list[str],
+) -> dict[str, str]:
+    raw=receipt.get("hardware_identity_by_opening")
+    if not isinstance(raw,Mapping):
+        raise RuntimeError(
+            "physical origin missing hardware_identity_by_opening"
+        )
+    normalized={
+        str(opening_id):_require_sha256(
+            identity,
+            f"hardware identity for opening {opening_id}",
+        )
+        for opening_id,identity in raw.items()
+    }
+    if set(normalized)!=set(measured_openings):
+        raise RuntimeError(
+            "physical origin hardware identity coverage does not match measured openings"
+        )
+    return dict(sorted(normalized.items()))
 
 
 def _validate_physical_origin_semantics(
@@ -302,6 +332,11 @@ def _validate_physical_origin_semantics(
                 "physical origin inherited_openings do not complement measured coverage"
             )
 
+    hardware_identity_by_opening=_validate_hardware_identity_map(
+        receipt,
+        measured_openings,
+    )
+
     expected_whole_home=not inherited_zones and not inherited_openings
     if "whole_home_physically_measured" in receipt:
         if bool(receipt.get("whole_home_physically_measured"))!=expected_whole_home:
@@ -315,6 +350,7 @@ def _validate_physical_origin_semantics(
         "inherited_zones":inherited_zones,
         "inherited_openings":inherited_openings,
         "whole_home_physically_measured":expected_whole_home,
+        "hardware_identity_by_opening":hardware_identity_by_opening,
     }
 
 
@@ -390,6 +426,9 @@ def verify_physical_origin_receipt(receipt: Mapping[str, Any]) -> dict[str, Any]
         "measured_openings":semantics["measured_openings"],
         "inherited_zones":semantics["inherited_zones"],
         "inherited_openings":semantics["inherited_openings"],
+        "hardware_identity_by_opening":semantics[
+            "hardware_identity_by_opening"
+        ],
         "evidence_boundary":str(receipt.get("evidence_boundary") or ""),
     }
 
@@ -430,6 +469,7 @@ def merge_physical_next_origins(
     rain_value: float | None = None
     applied: list[dict[str, Any]] = []
     measurement_windows: list[dict[str, Any]] = []
+    hardware_identity_by_opening: dict[str, str] = {}
 
     for index, row in enumerate(measurements):
         if not isinstance(row, Mapping):
@@ -455,6 +495,14 @@ def merge_physical_next_origins(
             zone_id=zone_id,
         )
         candidate = receipt["origin"]
+        child_hardware=receipt["hardware_identity_by_opening"]
+        child_identity=str(child_hardware[opening_id])
+        if opening_id in hardware_identity_by_opening:
+            if hardware_identity_by_opening[opening_id]!=child_identity:
+                raise RuntimeError(
+                    f"conflicting hardware identity for opening {opening_id}"
+                )
+        hardware_identity_by_opening[opening_id]=child_identity
         candidate_rain = candidate["scalar_values"].get("rain")
         if rain_value is None:
             rain_value = candidate_rain
@@ -516,6 +564,9 @@ def merge_physical_next_origins(
         "base_origin_sha256": _sha256(base),
         "measured_zones": measured_zones,
         "measured_openings": measured_openings,
+        "hardware_identity_by_opening": dict(
+            sorted(hardware_identity_by_opening.items())
+        ),
         "inherited_zones": inherited_zones,
         "inherited_openings": inherited_openings,
         "applied_measurements": applied,

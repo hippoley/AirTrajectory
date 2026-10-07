@@ -301,6 +301,22 @@ fresh request_id
 → fresh CO₂/rain timestamps
 ```
 
+Physical origins also carry per-opening hardware lineage. Before a replanned
+command can move, the selected opening must satisfy:
+
+```text
+physical origin hardware_identity_by_opening[W1]
+==
+current WindowPilot /physical-readiness hardware identity
+==
+command ACK hardware identity
+```
+
+The same mapping is preserved into the next physical-origin receipt and is
+rechecked by the offline cycle verifier. This prevents a valid measured origin
+from one installed actuator from being silently replayed against another
+WindowPilot endpoint that happens to use the same logical opening ID.
+
 The execute path requires measured actuator feedback and fresh CO₂/rain newer
 than that feedback. It then emits another verified physical-origin receipt:
 

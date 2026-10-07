@@ -61,6 +61,7 @@ def reconcile(
         "measured_minus_predicted_zone_co2_ppm": co2 - 900.0,
         "planner_handoff_sha256": "1" * 64,
         "physical_authorization_sha256": "2" * 64,
+        "command_hardware_identity_sha256": seed * 64,
         "evidence_boundary": (
             "bounded first-contact physical handoff; planner target may be safety-limited "
             "and therefore is not claimed as full closed-loop field execution"
@@ -113,6 +114,10 @@ class MultiPhysicalOriginTests(unittest.TestCase):
         self.assertEqual(origin["opening_pct"]["W3"], 55.0)
         self.assertEqual(out["measured_zones"], ["bedroom", "living"])
         self.assertEqual(out["measured_openings"], ["W1", "W2"])
+        self.assertEqual(
+            out["hardware_identity_by_opening"],
+            {"W1":"a"*64,"W2":"b"*64},
+        )
         self.assertEqual(out["inherited_zones"], ["study"])
         self.assertEqual(out["inherited_openings"], ["D1", "D2", "W3"])
         self.assertFalse(out["whole_home_physically_measured"])

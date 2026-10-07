@@ -75,6 +75,7 @@ class PhysicalOriginTests(unittest.TestCase):
             "measured_minus_predicted_zone_co2_ppm": 482.26,
             "planner_handoff_sha256": "a" * 64,
             "physical_authorization_sha256": "b" * 64,
+            "command_hardware_identity_sha256": "c" * 64,
             "evidence_boundary": (
                 "bounded first-contact physical handoff; planner target may be safety-limited "
                 "and therefore is not claimed as full closed-loop field execution"
@@ -178,6 +179,10 @@ class PhysicalOriginTests(unittest.TestCase):
         )
         self.assertEqual(verified["measured_zones"],["living"])
         self.assertEqual(verified["measured_openings"],["W1"])
+        self.assertEqual(
+            verified["hardware_identity_by_opening"],
+            {"W1":"c"*64},
+        )
 
     def test_hash_valid_receipt_cannot_falsely_claim_whole_home_measurement(self):
         receipt=physical_next_origin_from_reconcile(
@@ -221,6 +226,31 @@ class PhysicalOriginTests(unittest.TestCase):
         with self.assertRaisesRegex(
             RuntimeError,
             "must not self-declare aggregate measured coverage",
+        ):
+            verify_physical_origin_receipt(receipt)
+
+    def test_hash_valid_receipt_cannot_lie_about_hardware_coverage(self):
+        receipt=physical_next_origin_from_reconcile(
+            current_origin=self.current(),
+            reconcile=self.reconcile(),
+            zone_id="living",
+        )
+        receipt["hardware_identity_by_opening"]={
+            "W1":"c"*64,
+            "W2":"d"*64,
+        }
+        payload={
+            key:value
+            for key,value in receipt.items()
+            if key not in {
+                "physical_origin_receipt_sha256",
+                "origin_sha256",
+            }
+        }
+        receipt["physical_origin_receipt_sha256"]=sha(payload)
+        with self.assertRaisesRegex(
+            RuntimeError,
+            "hardware identity coverage does not match measured openings",
         ):
             verify_physical_origin_receipt(receipt)
 

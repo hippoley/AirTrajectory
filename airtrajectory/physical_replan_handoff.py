@@ -87,6 +87,12 @@ def extract_replanned_physical_action(
         raise RuntimeError("planner initial origin does not match physical origin")
 
     target_opening=str(opening_id or "")
+    identity_map=verified_origin.get("hardware_identity_by_opening") or {}
+    physical_hardware_identity=str(identity_map.get(target_opening) or "")
+    if not physical_hardware_identity:
+        raise RuntimeError(
+            f"physical origin has no measured hardware identity for {target_opening}"
+        )
     actions=[
         action
         for action in (step.get("selected_actions") or [])
@@ -122,6 +128,7 @@ def extract_replanned_physical_action(
         "objective_score":float(step.get("objective_score")),
         "physical_origin_sha256":verified_origin["origin_sha256"],
         "physical_origin_receipt_sha256":verified_origin["receipt_sha256"],
+        "physical_hardware_identity_sha256":physical_hardware_identity,
         "planner_receipt_sha256":receipt_sha,
         "planner_step_sha256":step_sha,
         "planner_physics_fidelity":str(planner_payload.get("physics_fidelity") or ""),
@@ -281,6 +288,19 @@ def build_replanned_physical_step_origin(
         )
     if command_ack.get("accepted") is not True:
         raise RuntimeError("replanned physical command was not accepted")
+    ack_hardware_identity=str(
+        command_ack.get("hardware_identity_sha256") or ""
+    )
+    prior_identity_map=previous.get("hardware_identity_by_opening") or {}
+    expected_hardware_identity=str(prior_identity_map.get(opening_id) or "")
+    if not expected_hardware_identity:
+        raise RuntimeError(
+            "previous physical origin lacks hardware identity for commanded opening"
+        )
+    if ack_hardware_identity!=expected_hardware_identity:
+        raise RuntimeError(
+            "replanned physical command hardware identity differs from previous physical origin"
+        )
     if command_ack.get("simulated") is not False:
         raise RuntimeError("replanned physical command acknowledgement is simulated")
     if command_ack.get("physical_write_ready") is not True:
@@ -361,6 +381,8 @@ def build_replanned_physical_step_origin(
             sorted((k,float(v)) for k,v in origin["scalar_values"].items())
         ),
     }
+    next_hardware_identity_by_opening=dict(prior_identity_map)
+    next_hardware_identity_by_opening[opening_id]=ack_hardware_identity
 
     prior_measured_zones=set(previous["measured_zones"])
     prior_measured_openings=set(previous["measured_openings"])
@@ -387,6 +409,9 @@ def build_replanned_physical_step_origin(
         "actuator_feedback_timestamp":feedback_ts,
         "measured_zones":sorted(prior_measured_zones),
         "measured_openings":sorted(prior_measured_openings),
+        "hardware_identity_by_opening":dict(
+            sorted(next_hardware_identity_by_opening.items())
+        ),
         "inherited_zones":sorted(all_zones-prior_measured_zones),
         "inherited_openings":sorted(all_openings-prior_measured_openings),
         "whole_home_physically_measured":(
