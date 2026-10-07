@@ -68,6 +68,20 @@ jobs:
           open("_contam_prj.txt","w",encoding="utf-8").write(matches[0])
           print(matches[0])
           '@ | python -
+      - name: Probe real contamxpy continuation surface
+        shell: pwsh
+        run: |
+          $prj = (Get-Content _contam_prj.txt -Raw).Trim()
+          python examples/probe_contam_continuation.py "$prj" --out artifacts/contam-continuation-capability.json | Tee-Object -FilePath contam-continuation-capability.log
+          if (-not (Select-String -Path contam-continuation-capability.log -Pattern "CONTAM_CONTINUATION_CAPABILITY_PROBED")) { exit 1 }
+          @'
+          import json
+          p=json.load(open("artifacts/contam-continuation-capability.json",encoding="utf-8"))
+          assert p["state_reinjection_verified"] is False
+          assert len(p["probe_sha256"])==64
+          assert "continuity_test_required" in p
+          print("CONTAM_CONTINUATION_CAPABILITY_RECEIPT_VERIFIED")
+          '@ | python -
       - name: Execute real CONTAM engine
         shell: pwsh
         run: |
