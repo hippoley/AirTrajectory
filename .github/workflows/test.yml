@@ -107,3 +107,24 @@ jobs:
         run: |
           python examples/contam_transient_fork_smoke.py artifacts/multispace-transient.prj artifacts/multispace-transient.prj.json | Tee-Object -FilePath transient-contam-counterfactual.log
           if (-not (Select-String -Path transient-contam-counterfactual.log -Pattern "TRANSIENT_CONTAM_COUNTERFACTUAL_EXECUTED")) { exit 1 }
+      - name: Run Independent vs Joint Golden Case on real ContamX
+        timeout-minutes: 4
+        shell: pwsh
+        run: |
+          python examples/run_contam_joint_golden_case.py artifacts/multispace-transient.prj artifacts/multispace-transient.prj.json --out artifacts/contam-joint-golden-case.json | Tee-Object -FilePath contam-joint-golden-case.log
+          if (-not (Select-String -Path contam-joint-golden-case.log -Pattern "REAL_CONTAM_JOINT_GOLDEN_CASE_EXECUTED")) { exit 1 }
+          @'
+          import json
+          p=json.load(open("artifacts/contam-joint-golden-case.json",encoding="utf-8"))
+          c=p["comparison"]
+          assert c["status"]=="PASS"
+          assert c["non_regression"] is True
+          assert c["joint_vs_independent_outcome"] in ("WIN","TIE")
+          assert len(c["comparison_sha256"])==64
+          assert p["golden_case"]["time_step_s"]==60
+          assert p["golden_case"]["horizon_steps"]==3
+          assert len(p["branches"])>=2
+          assert all(set(b["co2_series_by_zone"])=={"living","bedroom","study"} for b in p["branches"])
+          assert all(all(len(v)==3 for v in b["co2_series_by_zone"].values()) for b in p["branches"])
+          print("JOINT_GOLDEN_CASE_RECEIPT_VERIFIED", c["joint_vs_independent_outcome"], c["objective_improvement"])
+          '@ | python -
