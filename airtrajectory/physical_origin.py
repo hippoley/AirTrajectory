@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import uuid
 from typing import Any, Mapping
 
 from .joint_closed_loop import ClosedLoopOrigin
@@ -218,6 +219,25 @@ def _validate_physical_origin_semantics(
         )
         _require_sha256(receipt.get("command_ack_sha256"),"physical command acknowledgement")
         _require_sha256(receipt.get("sensor_snapshot_sha256"),"physical sensor snapshot")
+        try:
+            uuid.UUID(str(receipt.get("command_request_id") or ""))
+            uuid.UUID(str(receipt.get("command_id") or ""))
+        except (ValueError,TypeError,AttributeError) as exc:
+            raise RuntimeError(
+                "replanned physical origin command request/command identity is invalid"
+            ) from exc
+        command_accepted_at=float(receipt.get("command_accepted_at") or 0)
+        actuator_feedback_at=float(
+            receipt.get("actuator_feedback_timestamp") or 0
+        )
+        if command_accepted_at<=0:
+            raise RuntimeError(
+                "replanned physical origin command accepted_at is invalid"
+            )
+        if actuator_feedback_at < command_accepted_at:
+            raise RuntimeError(
+                "replanned physical origin actuator feedback predates command acceptance"
+            )
     elif source=="windowpilot-multi-physical-origin-v1":
         applied=receipt.get("applied_measurements")
         if not isinstance(applied,list) or not applied:

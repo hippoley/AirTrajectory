@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import uuid
 from typing import Any, Mapping
 
 
@@ -34,8 +35,20 @@ def _verify_command_ack(ack: Mapping[str, Any], *, expected_target: float) -> di
     }
     if provided != _sha256(payload):
         raise RuntimeError("physical command acknowledgement SHA-256 mismatch")
-    if ack.get("receipt") != "windowpilot-command-ack-v1":
+    contract=str(ack.get("receipt") or "")
+    if contract not in {
+        "windowpilot-command-ack-v1",
+        "windowpilot-command-ack-v2",
+    }:
         raise RuntimeError("physical command acknowledgement contract is unsupported")
+    if contract=="windowpilot-command-ack-v2":
+        try:
+            uuid.UUID(str(ack.get("request_id") or ""))
+            uuid.UUID(str(ack.get("command_id") or ""))
+        except (ValueError,TypeError,AttributeError) as exc:
+            raise RuntimeError(
+                "physical command acknowledgement v2 identity is invalid"
+            ) from exc
     if ack.get("accepted") is not True:
         raise RuntimeError("physical command was not acknowledged as accepted")
     if ack.get("simulated") is not False:

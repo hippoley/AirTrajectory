@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import uuid
 from typing import Any, Mapping
 
 from .physical_origin import verify_physical_origin_receipt
@@ -213,6 +214,7 @@ def build_replanned_physical_step_origin(
     previous_physical_origin_receipt: Mapping[str, Any],
     authorization: Mapping[str, Any],
     command_ack: Mapping[str, Any],
+    expected_request_id: str,
     feedback: Mapping[str, Any],
     sensor_snapshot: Mapping[str, Any],
     zone_id: str,
@@ -261,6 +263,22 @@ def build_replanned_physical_step_origin(
     }
     if provided_ack_hash!=_sha256(ack_payload):
         raise RuntimeError("replanned physical command acknowledgement SHA-256 mismatch")
+    if command_ack.get("receipt")!="windowpilot-command-ack-v2":
+        raise RuntimeError(
+            "replanned physical command requires windowpilot-command-ack-v2"
+        )
+    try:
+        ack_request_id=str(uuid.UUID(str(command_ack.get("request_id") or "")))
+        command_id=str(uuid.UUID(str(command_ack.get("command_id") or "")))
+        expected_request=str(uuid.UUID(str(expected_request_id or "")))
+    except (ValueError,TypeError,AttributeError) as exc:
+        raise RuntimeError(
+            "replanned physical command request/command identity is invalid"
+        ) from exc
+    if ack_request_id!=expected_request:
+        raise RuntimeError(
+            "replanned physical command ACK request_id does not match the issued request"
+        )
     if command_ack.get("accepted") is not True:
         raise RuntimeError("replanned physical command was not accepted")
     if command_ack.get("simulated") is not False:
@@ -272,6 +290,11 @@ def build_replanned_physical_step_origin(
     ack_target=command_ack.get("target_pct")
     if ack_target is None or abs(float(ack_target)-expected_target)>1e-9:
         raise RuntimeError("replanned physical command target mismatch")
+    expected_action="close" if expected_target<=0 else "open"
+    if str(command_ack.get("action") or "")!=expected_action:
+        raise RuntimeError(
+            "replanned physical command action does not match authorized target"
+        )
 
     if not isinstance(feedback,Mapping):
         raise RuntimeError("replanned physical step missing actuator feedback")
@@ -282,9 +305,14 @@ def build_replanned_physical_step_origin(
         raise RuntimeError("replanned actuator feedback is not measured")
     measured=float(measured)
     feedback_ts=float(feedback.get("timestamp") or 0)
+    ack_ts=float(command_ack.get("accepted_at") or 0)
     quality=str(feedback.get("quality") or "").lower()
-    if not 0<=measured<=100 or feedback_ts<=0:
-        raise RuntimeError("replanned actuator feedback is invalid")
+    if not 0<=measured<=100 or feedback_ts<=0 or ack_ts<=0:
+        raise RuntimeError("replanned actuator feedback/ACK timestamp is invalid")
+    if feedback_ts < ack_ts:
+        raise RuntimeError(
+            "replanned actuator feedback predates command acknowledgement"
+        )
     if "measured" not in quality and "encoder" not in quality:
         raise RuntimeError("replanned actuator feedback quality is not measured")
     position_tolerance=1.0
@@ -349,6 +377,9 @@ def build_replanned_physical_step_origin(
         "parent_physical_origin_receipt_sha256":previous["receipt_sha256"],
         "replanned_action_authorization_sha256":auth_hash,
         "command_ack_sha256":provided_ack_hash,
+        "command_request_id":ack_request_id,
+        "command_id":command_id,
+        "command_accepted_at":ack_ts,
         "sensor_snapshot_sha256":snapshot_hash,
         "opening_id":opening_id,
         "zone_id":zone,

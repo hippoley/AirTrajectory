@@ -8,6 +8,7 @@ from __future__ import annotations
 import hashlib
 import json
 import time
+import uuid
 from typing import Callable
 from urllib.request import Request, urlopen
 
@@ -44,6 +45,7 @@ class WindowPilotHTTPDriver(PhysicalWindowDriver):
         self._clock=clock_fn
         self.last_command_ack=None
         self.last_safety_stop_ack=None
+        self.last_command_request_id=None
 
     def _request_json(self, method: str, path: str, payload=None):
         raw=self._raw_request_json(method,path,payload)
@@ -77,14 +79,35 @@ class WindowPilotHTTPDriver(PhysicalWindowDriver):
         expected_action: str,
         expected_target,
         require_physical: bool,
+        expected_request_id: str | None = None,
     ):
         if not isinstance(response,dict):
             raise RuntimeError("WindowPilot command response is not an object")
         ack=response.get("command_ack")
         if not isinstance(ack,dict):
             raise RuntimeError("WindowPilot command response missing command_ack")
-        if ack.get("receipt")!="windowpilot-command-ack-v1":
+        contract=str(ack.get("receipt") or "")
+        if contract not in {
+            "windowpilot-command-ack-v1",
+            "windowpilot-command-ack-v2",
+        }:
             raise RuntimeError("WindowPilot command_ack contract is unsupported")
+        if contract=="windowpilot-command-ack-v2":
+            try:
+                request_id=str(uuid.UUID(str(ack.get("request_id") or "")))
+                command_id=str(uuid.UUID(str(ack.get("command_id") or "")))
+            except (ValueError,TypeError,AttributeError) as exc:
+                raise RuntimeError(
+                    "WindowPilot command_ack v2 request/command identity is invalid"
+                ) from exc
+            if expected_request_id is not None and request_id!=expected_request_id:
+                raise RuntimeError(
+                    "WindowPilot command_ack request_id does not match this command request"
+                )
+        elif expected_request_id is not None:
+            raise RuntimeError(
+                "WindowPilot command_ack v1 cannot satisfy request-bound execution"
+            )
         if ack.get("accepted") is not True:
             raise RuntimeError("WindowPilot command was not acknowledged as accepted")
         if str(ack.get("action") or "")!=str(expected_action):
@@ -252,18 +275,32 @@ class WindowPilotHTTPDriver(PhysicalWindowDriver):
             else {}
         )
         physical=pre_execution.get("simulated") is False
-        if physical and pre_caps.get("command_ack_contract")!="windowpilot-command-ack-v1":
+        ack_contract=str(pre_caps.get("command_ack_contract") or "")
+        if physical and ack_contract not in {
+            "windowpilot-command-ack-v1",
+            "windowpilot-command-ack-v2",
+        }:
             raise RuntimeError(
                 "WindowPilot physical command acknowledgement contract is unavailable"
             )
 
         command_started=self._clock()
+        request_id=(
+            str(uuid.uuid4())
+            if ack_contract=="windowpilot-command-ack-v2"
+            else None
+        )
+        self.last_command_request_id=request_id
         if target <= 0:
-            response=self._request_json("POST","/api/window/close",{})
+            request_payload={} if request_id is None else {"request_id":request_id}
+            response=self._request_json("POST","/api/window/close",request_payload)
             action="close"
             expected_target=0.0
         else:
-            response=self._request_json("POST","/api/window/open",{"target_pct":target})
+            request_payload={"target_pct":target}
+            if request_id is not None:
+                request_payload["request_id"]=request_id
+            response=self._request_json("POST","/api/window/open",request_payload)
             action="open"
             expected_target=target
 
@@ -274,6 +311,7 @@ class WindowPilotHTTPDriver(PhysicalWindowDriver):
                 expected_action=action,
                 expected_target=expected_target,
                 require_physical=True,
+                expected_request_id=request_id,
             )
         elif isinstance(response,dict) and isinstance(response.get("command_ack"),dict):
             self.last_command_ack=self._validate_command_ack(
@@ -281,6 +319,7 @@ class WindowPilotHTTPDriver(PhysicalWindowDriver):
                 expected_action=action,
                 expected_target=expected_target,
                 require_physical=False,
+                expected_request_id=request_id,
             )
 
         caps_payload=self._capability_payload()
@@ -294,8 +333,13 @@ class WindowPilotHTTPDriver(PhysicalWindowDriver):
                 if feedback.get("measured") is True and feedback.get("position_pct") is not None:
                     ts=float(feedback.get("timestamp") or 0)
                     pct=float(feedback["position_pct"])
+                    ack_accepted_at=float(
+                        (self.last_command_ack or {}).get("accepted_at") or 0
+                    )
                     if ts < command_started:
                         last_reason="feedback predates command"
+                    elif ack_accepted_at > 0 and ts < ack_accepted_at:
+                        last_reason="feedback predates command acknowledgement"
                     elif abs(pct-target) > self.position_tolerance_pct:
                         last_reason=f"measured position {pct:.2f}% has not reached target {target:.2f}%"
                     else:
@@ -309,7 +353,17 @@ class WindowPilotHTTPDriver(PhysicalWindowDriver):
             stop_note=""
             if self.stop_on_feedback_timeout:
                 try:
-                    ack=self._request_json("POST","/api/window/stop",{})
+                    stop_request_id=(
+                        str(uuid.uuid4())
+                        if ack_contract=="windowpilot-command-ack-v2"
+                        else None
+                    )
+                    stop_payload=(
+                        {}
+                        if stop_request_id is None
+                        else {"request_id":stop_request_id}
+                    )
+                    ack=self._request_json("POST","/api/window/stop",stop_payload)
                     if isinstance(ack,dict) and ack.get("ok") is True:
                         self.last_safety_stop_ack=None
                         if physical:
@@ -318,6 +372,7 @@ class WindowPilotHTTPDriver(PhysicalWindowDriver):
                                 expected_action="stop",
                                 expected_target=None,
                                 require_physical=True,
+                                expected_request_id=stop_request_id,
                             )
                         stop_note="; safety STOP acknowledged"
                     else:

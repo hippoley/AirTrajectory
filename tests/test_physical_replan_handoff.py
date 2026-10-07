@@ -10,6 +10,10 @@ from airtrajectory.physical_replan_handoff import (
 )
 
 
+REQUEST_ID="aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+COMMAND_ID="bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
+
+
 def sha(payload):
     raw=json.dumps(
         payload,
@@ -170,9 +174,11 @@ class PhysicalReplanHandoffTests(unittest.TestCase):
         )
         ack_payload={
             "schema_version":"0.1",
-            "receipt":"windowpilot-command-ack-v1",
+            "receipt":"windowpilot-command-ack-v2",
             "accepted":True,
             "accepted_at":20.0,
+            "request_id":REQUEST_ID,
+            "command_id":COMMAND_ID,
             "action":"open",
             "target_pct":5.0,
             "execution_backend":"cwds-ca01-thingmodel",
@@ -205,6 +211,7 @@ class PhysicalReplanHandoffTests(unittest.TestCase):
             previous_physical_origin_receipt=origin,
             authorization=authorization,
             command_ack=ack,
+            expected_request_id=REQUEST_ID,
             feedback={
                 "actuator_id":"W1",
                 "timestamp":21.0,
@@ -222,6 +229,126 @@ class PhysicalReplanHandoffTests(unittest.TestCase):
         self.assertIn("living",verified["measured_zones"])
         self.assertIn("W1",verified["measured_openings"])
 
+    def test_replanned_step_rejects_replayed_ack_from_other_request(self):
+        origin=physical_origin()
+        handoff=extract_replanned_physical_action(
+            planner_payload=planner(origin,target=5.0),
+            physical_origin_receipt=origin,
+            opening_id="W1",
+        )
+        authorization=authorize_replanned_physical_action(
+            handoff,
+            max_delta_pct=10.0,
+        )
+        ack_payload={
+            "schema_version":"0.1",
+            "receipt":"windowpilot-command-ack-v2",
+            "accepted":True,
+            "accepted_at":20.0,
+            "request_id":"cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+            "command_id":COMMAND_ID,
+            "action":"open",
+            "target_pct":5.0,
+            "execution_backend":"cwds-ca01-thingmodel",
+            "transport":"thingmodel-http",
+            "simulated":False,
+            "hardware_identity_sha256":"c"*64,
+            "physical_write_ready":True,
+            "write_contract_ready":True,
+            "motion_semantics_ready":True,
+            "write_blockers":[],
+            "evidence_kind":"physical-command-accepted",
+        }
+        ack={**ack_payload,"command_ack_sha256":sha(ack_payload)}
+        snapshot_payload={
+            "schema_version":"0.1",
+            "snapshot":"post-replanned-action-physical-v1",
+            "after_timestamp":21.0,
+            "co2_ppm":1320.0,
+            "co2_timestamp":22.0,
+            "rain":False,
+            "rain_timestamp":22.0,
+            "sensor_readings":[],
+            "fresh_after_action":True,
+        }
+        snapshot={**snapshot_payload,"snapshot_sha256":sha(snapshot_payload)}
+        with self.assertRaisesRegex(RuntimeError,"request_id does not match"):
+            build_replanned_physical_step_origin(
+                previous_physical_origin_receipt=origin,
+                authorization=authorization,
+                command_ack=ack,
+                expected_request_id=REQUEST_ID,
+                feedback={
+                    "actuator_id":"W1",
+                    "timestamp":21.0,
+                    "measured_position_pct":4.9,
+                    "estimated_position_pct":None,
+                    "quality":"encoder-measured",
+                },
+                sensor_snapshot=snapshot,
+                zone_id="living",
+            )
+
+    def test_replanned_step_rejects_feedback_before_ack(self):
+        origin=physical_origin()
+        handoff=extract_replanned_physical_action(
+            planner_payload=planner(origin,target=5.0),
+            physical_origin_receipt=origin,
+            opening_id="W1",
+        )
+        authorization=authorize_replanned_physical_action(
+            handoff,
+            max_delta_pct=10.0,
+        )
+        ack_payload={
+            "schema_version":"0.1",
+            "receipt":"windowpilot-command-ack-v2",
+            "accepted":True,
+            "accepted_at":21.5,
+            "request_id":REQUEST_ID,
+            "command_id":COMMAND_ID,
+            "action":"open",
+            "target_pct":5.0,
+            "execution_backend":"cwds-ca01-thingmodel",
+            "transport":"thingmodel-http",
+            "simulated":False,
+            "hardware_identity_sha256":"c"*64,
+            "physical_write_ready":True,
+            "write_contract_ready":True,
+            "motion_semantics_ready":True,
+            "write_blockers":[],
+            "evidence_kind":"physical-command-accepted",
+        }
+        ack={**ack_payload,"command_ack_sha256":sha(ack_payload)}
+        snapshot_payload={
+            "schema_version":"0.1",
+            "snapshot":"post-replanned-action-physical-v1",
+            "after_timestamp":21.0,
+            "co2_ppm":1320.0,
+            "co2_timestamp":22.0,
+            "rain":False,
+            "rain_timestamp":22.0,
+            "sensor_readings":[],
+            "fresh_after_action":True,
+        }
+        snapshot={**snapshot_payload,"snapshot_sha256":sha(snapshot_payload)}
+        with self.assertRaisesRegex(RuntimeError,"predates command acknowledgement"):
+            build_replanned_physical_step_origin(
+                previous_physical_origin_receipt=origin,
+                authorization=authorization,
+                command_ack=ack,
+                expected_request_id=REQUEST_ID,
+                feedback={
+                    "actuator_id":"W1",
+                    "timestamp":21.0,
+                    "measured_position_pct":4.9,
+                    "estimated_position_pct":None,
+                    "quality":"encoder-measured",
+                },
+                sensor_snapshot=snapshot,
+                zone_id="living",
+            )
+
     def test_replanned_step_rejects_stale_sensor_snapshot(self):
         origin=physical_origin()
         handoff=extract_replanned_physical_action(
@@ -235,9 +362,11 @@ class PhysicalReplanHandoffTests(unittest.TestCase):
         )
         ack_payload={
             "schema_version":"0.1",
-            "receipt":"windowpilot-command-ack-v1",
+            "receipt":"windowpilot-command-ack-v2",
             "accepted":True,
             "accepted_at":20.0,
+            "request_id":REQUEST_ID,
+            "command_id":COMMAND_ID,
             "action":"open",
             "target_pct":5.0,
             "execution_backend":"cwds-ca01-thingmodel",
@@ -271,6 +400,7 @@ class PhysicalReplanHandoffTests(unittest.TestCase):
                 previous_physical_origin_receipt=origin,
                 authorization=authorization,
                 command_ack=ack,
+                expected_request_id=REQUEST_ID,
                 feedback={
                     "actuator_id":"W1",
                     "timestamp":21.0,

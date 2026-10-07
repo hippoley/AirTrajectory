@@ -285,6 +285,22 @@ python examples/run_replanned_physical_step.py \
   --execute
 ```
 
+The execute path requires WindowPilot command acknowledgement v2. AirTrajectory
+creates a fresh UUID `request_id` for each command; WindowPilot must echo that
+challenge in the ACK and add its own UUID `command_id`. The ACK hash covers
+both identities. Legacy v1 acknowledgements remain readable as historical
+first-contact evidence, but they are not accepted for new replanned physical
+cycles.
+
+The command evidence must also be temporally monotonic:
+
+```text
+fresh request_id
+→ ACK accepted_at
+→ measured actuator feedback timestamp
+→ fresh CO₂/rain timestamps
+```
+
 The execute path requires measured actuator feedback and fresh CO₂/rain newer
 than that feedback. It then emits another verified physical-origin receipt:
 
