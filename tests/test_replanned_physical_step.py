@@ -448,7 +448,6 @@ class ReplannedPhysicalStepTests(unittest.TestCase):
                     lease_dir=root/"physical-origin-leases",
                     snapshot_fn=lambda **kwargs:snapshot(),
                     clock_fn=lambda:23.5,
-                    lease_dir=root/"physical-origin-leases",
                 )
             self.assertEqual(second_driver.commanded,[])
 
