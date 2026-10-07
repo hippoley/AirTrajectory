@@ -305,6 +305,28 @@ def verify_physical_origin_execution_lease(
         )
     ):
         raise RuntimeError("execution lease does not belong to expected physical origin")
+    owner_host=payload.get("owner_host")
+    owner_pid=payload.get("owner_pid")
+    if (owner_host is None)!=(owner_pid is None):
+        raise RuntimeError(
+            "physical origin execution lease owner metadata is incomplete"
+        )
+    if owner_host is not None:
+        if not str(owner_host):
+            raise RuntimeError(
+                "physical origin execution lease owner_host is invalid"
+            )
+        try:
+            parsed_owner_pid=int(owner_pid)
+        except (TypeError,ValueError) as exc:
+            raise RuntimeError(
+                "physical origin execution lease owner_pid is invalid"
+            ) from exc
+        if parsed_owner_pid<=0:
+            raise RuntimeError(
+                "physical origin execution lease owner_pid is invalid"
+            )
+
     status=str(payload.get("status") or "")
     if status not in {"IN_FLIGHT","ADVANCED","RECOVERY_REQUIRED"}:
         raise RuntimeError("physical origin execution lease status is invalid")
