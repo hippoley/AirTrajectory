@@ -124,6 +124,24 @@ def verify_persisted_physical_cycle(
     readiness_identity=str(
         step_summary.get("readiness_hardware_identity_sha256") or ""
     )
+    origin_identity=str(
+        step_summary.get("origin_hardware_identity_sha256") or ""
+    )
+    expected_origin_identity=str(
+        previous["opening_hardware_identities"].get(opening_id) or ""
+    )
+    if not expected_origin_identity:
+        raise RuntimeError(
+            "previous physical origin lacks hardware identity for executed opening"
+        )
+    if origin_identity!=expected_origin_identity:
+        raise RuntimeError(
+            "persisted origin hardware identity does not match previous physical origin"
+        )
+    if readiness_identity!=origin_identity:
+        raise RuntimeError(
+            "persisted readiness hardware identity does not match origin identity"
+        )
     if command_ack.get("hardware_identity_sha256")!=readiness_identity:
         raise RuntimeError(
             "persisted command ACK hardware identity does not match readiness identity"
@@ -132,6 +150,44 @@ def verify_persisted_physical_cycle(
         raise RuntimeError("persisted command ACK SHA field mismatch")
     if step_summary.get("sensor_snapshot_sha256")!=snapshot.get("snapshot_sha256"):
         raise RuntimeError("persisted sensor snapshot SHA field mismatch")
+
+    max_age=float(step_summary.get("max_origin_age_s") or 0)
+    checked_at=float(step_summary.get("origin_freshness_checked_at") or 0)
+    if max_age<=0 or checked_at<=0:
+        raise RuntimeError("persisted physical step missing freshness gate evidence")
+    opening_ts=previous["opening_observed_at"].get(opening_id)
+    zone_ts=previous["zone_observed_at"].get(zone_id)
+    rain_ts=previous.get("rain_observed_at")
+    if opening_ts is None or zone_ts is None or rain_ts is None:
+        raise RuntimeError(
+            "previous physical origin lacks timestamps required for freshness verification"
+        )
+    reconstructed_ages={
+        "opening":checked_at-float(opening_ts),
+        "zone":checked_at-float(zone_ts),
+        "rain":checked_at-float(rain_ts),
+    }
+    persisted_ages=step_summary.get("origin_evidence_age_s")
+    if not isinstance(persisted_ages,Mapping):
+        raise RuntimeError("persisted physical step missing origin evidence ages")
+    normalized_persisted={
+        str(key):float(value)
+        for key,value in persisted_ages.items()
+    }
+    if normalized_persisted!=dict(sorted(reconstructed_ages.items())):
+        raise RuntimeError(
+            "persisted physical-origin evidence ages do not match source timestamps"
+        )
+    future=[key for key,age in reconstructed_ages.items() if age < -1.0]
+    if future:
+        raise RuntimeError(
+            "persisted physical-origin freshness check accepted future observations"
+        )
+    stale=[key for key,age in reconstructed_ages.items() if age>max_age]
+    if stale:
+        raise RuntimeError(
+            "persisted physical-origin freshness check exceeded max age"
+        )
 
     reconstructed_next=build_replanned_physical_step_origin(
         previous_physical_origin_receipt=previous_origin_receipt,
@@ -180,6 +236,10 @@ def verify_persisted_physical_cycle(
         "opening_id":opening_id,
         "zone_id":zone_id,
         "authorized_target_pct":float(authorization["authorized_target_pct"]),
+        "origin_hardware_identity_sha256":origin_identity,
+        "origin_freshness_checked_at":checked_at,
+        "max_origin_age_s":max_age,
+        "origin_evidence_age_s":dict(sorted(reconstructed_ages.items())),
         "measured_position_pct":float(feedback["measured_position_pct"]),
         "intervention":authorization.get("intervention"),
         "evidence_boundary":(

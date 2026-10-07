@@ -131,6 +131,18 @@ def physical_next_origin_from_reconcile(
         "terminal_snapshot_sha256": str(
             reconcile.get("terminal_snapshot_sha256") or ""
         ),
+        "opening_hardware_identities": (
+            {
+                opening_id: str(
+                    reconcile.get("command_hardware_identity_sha256")
+                )
+            }
+            if reconcile.get("command_hardware_identity_sha256")
+            else {}
+        ),
+        "opening_observed_at": {opening_id: close_ts},
+        "zone_observed_at": {zone: co2_ts},
+        "rain_observed_at": rain_ts,
         "origin": origin,
         "evidence_boundary": (
             "single physical opening/zone updated from measured terminal state; "
@@ -302,6 +314,55 @@ def _validate_physical_origin_semantics(
                 "physical origin inherited_openings do not complement measured coverage"
             )
 
+    hardware_map=receipt.get("opening_hardware_identities")
+    if hardware_map is not None:
+        if not isinstance(hardware_map,Mapping):
+            raise RuntimeError("physical origin opening_hardware_identities must be an object")
+        unknown_identity_openings=sorted(set(hardware_map)-set(measured_openings))
+        if unknown_identity_openings:
+            raise RuntimeError(
+                "physical origin hardware identity references unmeasured openings: "
+                + ",".join(unknown_identity_openings)
+            )
+        for measured_opening,identity in hardware_map.items():
+            _require_sha256(identity,f"hardware identity for {measured_opening}")
+
+    opening_times=receipt.get("opening_observed_at")
+    if opening_times is not None:
+        if not isinstance(opening_times,Mapping):
+            raise RuntimeError("physical origin opening_observed_at must be an object")
+        unknown_time_openings=sorted(set(opening_times)-set(measured_openings))
+        if unknown_time_openings:
+            raise RuntimeError(
+                "physical origin opening timestamps reference unmeasured openings: "
+                + ",".join(unknown_time_openings)
+            )
+        for measured_opening,timestamp in opening_times.items():
+            if float(timestamp or 0)<=0:
+                raise RuntimeError(
+                    f"physical origin opening timestamp for {measured_opening} is invalid"
+                )
+
+    zone_times=receipt.get("zone_observed_at")
+    if zone_times is not None:
+        if not isinstance(zone_times,Mapping):
+            raise RuntimeError("physical origin zone_observed_at must be an object")
+        unknown_time_zones=sorted(set(zone_times)-set(measured_zones))
+        if unknown_time_zones:
+            raise RuntimeError(
+                "physical origin zone timestamps reference unmeasured zones: "
+                + ",".join(unknown_time_zones)
+            )
+        for measured_zone,timestamp in zone_times.items():
+            if float(timestamp or 0)<=0:
+                raise RuntimeError(
+                    f"physical origin zone timestamp for {measured_zone} is invalid"
+                )
+
+    rain_observed_at=receipt.get("rain_observed_at")
+    if rain_observed_at is not None and float(rain_observed_at or 0)<=0:
+        raise RuntimeError("physical origin rain_observed_at is invalid")
+
     expected_whole_home=not inherited_zones and not inherited_openings
     if "whole_home_physically_measured" in receipt:
         if bool(receipt.get("whole_home_physically_measured"))!=expected_whole_home:
@@ -390,6 +451,22 @@ def verify_physical_origin_receipt(receipt: Mapping[str, Any]) -> dict[str, Any]
         "measured_openings":semantics["measured_openings"],
         "inherited_zones":semantics["inherited_zones"],
         "inherited_openings":semantics["inherited_openings"],
+        "opening_hardware_identities":dict(
+            receipt.get("opening_hardware_identities") or {}
+        ),
+        "opening_observed_at":{
+            str(key):float(value)
+            for key,value in (receipt.get("opening_observed_at") or {}).items()
+        },
+        "zone_observed_at":{
+            str(key):float(value)
+            for key,value in (receipt.get("zone_observed_at") or {}).items()
+        },
+        "rain_observed_at":(
+            None
+            if receipt.get("rain_observed_at") is None
+            else float(receipt.get("rain_observed_at"))
+        ),
         "evidence_boundary":str(receipt.get("evidence_boundary") or ""),
     }
 
@@ -430,6 +507,10 @@ def merge_physical_next_origins(
     rain_value: float | None = None
     applied: list[dict[str, Any]] = []
     measurement_windows: list[dict[str, Any]] = []
+    opening_hardware_identities: dict[str,str] = {}
+    opening_observed_at: dict[str,float] = {}
+    zone_observed_at: dict[str,float] = {}
+    rain_observed_at: float | None = None
 
     for index, row in enumerate(measurements):
         if not isinstance(row, Mapping):
@@ -454,7 +535,24 @@ def merge_physical_next_origins(
             reconcile=reconcile,
             zone_id=zone_id,
         )
+        verified_child=verify_physical_origin_receipt(receipt)
         candidate = receipt["origin"]
+        child_identity=verified_child["opening_hardware_identities"].get(opening_id)
+        if child_identity:
+            opening_hardware_identities[opening_id]=child_identity
+        opening_observed_at[opening_id]=float(
+            verified_child["opening_observed_at"][opening_id]
+        )
+        zone_observed_at[zone_id]=float(
+            verified_child["zone_observed_at"][zone_id]
+        )
+        child_rain_ts=verified_child.get("rain_observed_at")
+        if child_rain_ts is not None:
+            rain_observed_at=(
+                float(child_rain_ts)
+                if rain_observed_at is None
+                else min(rain_observed_at,float(child_rain_ts))
+            )
         candidate_rain = candidate["scalar_values"].get("rain")
         if rain_value is None:
             rain_value = candidate_rain
@@ -520,6 +618,10 @@ def merge_physical_next_origins(
         "inherited_openings": inherited_openings,
         "applied_measurements": applied,
         "physical_measurement_count": len(applied),
+        "opening_hardware_identities": dict(sorted(opening_hardware_identities.items())),
+        "opening_observed_at": dict(sorted(opening_observed_at.items())),
+        "zone_observed_at": dict(sorted(zone_observed_at.items())),
+        "rain_observed_at": rain_observed_at,
         "measurement_windows": measurement_windows,
         "measurement_time_range": {
             "earliest_timestamp": earliest,
