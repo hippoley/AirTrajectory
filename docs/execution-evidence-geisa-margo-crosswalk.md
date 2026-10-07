@@ -33,6 +33,7 @@ edge conformance test, or another infrastructure operation:
 - operation identity, request identity, acknowledgement identity;
 - whether mutation is expected;
 - observations;
+- harness status (COMPLETED / ERROR / INTERRUPTED), separately from semantic result;
 - PASS / FAIL / BLOCKED / UNCERTAIN;
 - recovery requirement and outcome;
 - independent verification state;
@@ -57,6 +58,10 @@ test-runner/reporting transport while attaching a semantic sidecar.
 
 Potentially reusable core semantics:
 
+- GEISA conformance PR #50/#51 explicitly distinguishes a test that fails
+  because the target is non-conformant from a conformance runner that fails to
+  execute; the envelope therefore keeps `harness_status` orthogonal to
+  `result`;
 - acknowledgement is distinct from observation;
 - target identity remains stable across the operation;
 - replay/uncertain outcomes are not represented as ordinary PASS;
@@ -106,6 +111,11 @@ request sent
 
 The correct evidence state is not automatically FAIL and must never be inferred
 as PASS. It is UNCERTAIN, and it creates a recovery obligation.
+
+Separately, a test harness can fail before it has enough evidence to evaluate
+the target. That is a harness/execution failure, not proof that the target
+failed conformance. This distinction is already reflected in GEISA conformance
+CI behavior.
 
 That distinction is especially important when a later signed conformance report
 is expected to mean more than "the test runner exited zero."
