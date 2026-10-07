@@ -34,6 +34,8 @@ COMMAND_IDS=[
     "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
     "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
 ]
+SCOPE_ID="eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee"
+OTHER_SCOPE_ID="ffffffff-ffff-4fff-8fff-ffffffffffff"
 
 
 def sha(payload):
@@ -142,6 +144,7 @@ def command_ack(
     request_id=REQUEST_IDS[0],
     command_id=COMMAND_IDS[0],
     accepted_at=20.0,
+    idempotency_scope_id=SCOPE_ID,
 ):
     payload={
         "schema_version":"0.1",
@@ -150,6 +153,7 @@ def command_ack(
         "accepted_at":accepted_at,
         "request_id":request_id,
         "command_id":command_id,
+        "idempotency_scope_id":idempotency_scope_id,
         "action":"close" if float(target)<=0 else "open",
         "target_pct":target,
         "execution_backend":"cwds-ca01-thingmodel",
@@ -185,6 +189,7 @@ class FakeDriver:
         self.commanded=[]
         self.last_command_ack=None
         self.last_command_request_id=None
+        self.last_command_idempotency_scope_id=None
         self.identity=identity
 
     def capabilities(self):
@@ -206,6 +211,7 @@ class FakeDriver:
         self.commanded.append((opening_id,float(target_pct)))
         index=min(len(self.commanded)-1,len(REQUEST_IDS)-1)
         self.last_command_request_id=REQUEST_IDS[index]
+        self.last_command_idempotency_scope_id=SCOPE_ID
         self.last_command_ack=command_ack(
             float(target_pct),
             request_id=self.last_command_request_id,
@@ -527,6 +533,50 @@ class ReplannedPhysicalStepTests(unittest.TestCase):
             }
             summary["replanned_physical_step_sha256"]=sha(summary_payload)
             with self.assertRaisesRegex(RuntimeError,"request_id does not match"):
+                verify_persisted_physical_cycle(
+                    previous_origin_receipt=json.loads(
+                        physical.read_text(encoding="utf-8")
+                    ),
+                    planner_payload=json.loads(
+                        planner.read_text(encoding="utf-8")
+                    ),
+                    step_summary=summary,
+                    next_origin_receipt=json.loads(
+                        (root/"next.json").read_text(encoding="utf-8")
+                    ),
+                )
+
+    def test_hash_valid_summary_cannot_swap_command_idempotency_scope(self):
+        with tempfile.TemporaryDirectory() as d:
+            root=Path(d)
+            physical,planner=self._files(root)
+            driver=FakeDriver()
+            module.run_replanned_physical_step(
+                driver=driver,
+                physical_origin_receipt=physical,
+                planner_receipt=planner,
+                opening_id="W1",
+                zone_id="living",
+                max_delta_pct=10.0,
+                summary_out=root/"summary.json",
+                next_origin_out=root/"next.json",
+                execute=True,
+                lease_dir=root/"physical-origin-leases",
+                snapshot_fn=lambda **kwargs:snapshot(),
+                clock_fn=lambda:23.0,
+            )
+            summary=json.loads((root/"summary.json").read_text(encoding="utf-8"))
+            summary["command_idempotency_scope_id"]=OTHER_SCOPE_ID
+            summary_payload={
+                key:value
+                for key,value in summary.items()
+                if key!="replanned_physical_step_sha256"
+            }
+            summary["replanned_physical_step_sha256"]=sha(summary_payload)
+            with self.assertRaisesRegex(
+                RuntimeError,
+                "ACK idempotency scope does not match",
+            ):
                 verify_persisted_physical_cycle(
                     previous_origin_receipt=json.loads(
                         physical.read_text(encoding="utf-8")

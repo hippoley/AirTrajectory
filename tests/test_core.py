@@ -26,6 +26,9 @@ from airtrajectory.lineage import require_hardware_site_lineage, require_hardwar
 
 
 
+SCOPE_ID="cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+OTHER_SCOPE_ID="dddddddd-dddd-4ddd-8ddd-dddddddddddd"
+
 
 def _windowpilot_command_response(
     action,
@@ -35,6 +38,7 @@ def _windowpilot_command_response(
     contract="windowpilot-command-ack-v1",
     request_id=None,
     command_id="bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+    idempotency_scope_id=SCOPE_ID,
 ):
     payload={
         "schema_version":"0.1",
@@ -45,6 +49,7 @@ def _windowpilot_command_response(
             {
                 "request_id":request_id,
                 "command_id":command_id,
+                "idempotency_scope_id":idempotency_scope_id,
             }
             if contract=="windowpilot-command-ack-v2"
             else {}
@@ -660,6 +665,7 @@ class CoreTests(unittest.TestCase):
             "position_feedback":{"position_pct":40.5,"timestamp":now,"measured":True,"quality":"encoder-measured"},
             "command_ack_contract":"windowpilot-command-ack-v2",
             "command_idempotency_contract":"durable-request-ledger-v1",
+            "command_idempotency_scope_id":SCOPE_ID,
         }
         def request(method,path,payload):
             if path=="/api/capabilities": return caps
@@ -697,6 +703,7 @@ class CoreTests(unittest.TestCase):
             },
             "command_ack_contract":"windowpilot-command-ack-v2",
             "command_idempotency_contract":"durable-request-ledger-v1",
+            "command_idempotency_scope_id":SCOPE_ID,
         }
         def request(method,path,payload):
             if path=="/api/capabilities":
@@ -717,11 +724,145 @@ class CoreTests(unittest.TestCase):
         )
         feedback=driver.set_position("w1",40)
         self.assertIn("request_id",seen["payload"])
+        self.assertEqual(seen["payload"]["idempotency_scope_id"],SCOPE_ID)
+        self.assertEqual(driver.last_command_idempotency_scope_id,SCOPE_ID)
         self.assertEqual(
             driver.last_command_ack["request_id"],
             driver.last_command_request_id,
         )
         self.assertEqual(feedback.timestamp,1235.0)
+
+    def test_windowpilot_physical_write_requires_scope_before_post(self):
+        calls=[]
+        caps={
+            "execution":{
+                "transport":"verified",
+                "simulated":False,
+                "measured_position":True,
+            },
+            "position_feedback":{
+                "position_pct":0.0,
+                "timestamp":100.0,
+                "measured":True,
+            },
+            "command_ack_contract":"windowpilot-command-ack-v2",
+            "command_idempotency_contract":"durable-request-ledger-v1",
+        }
+        def request(method,path,payload):
+            calls.append((method,path,payload))
+            if path=="/api/capabilities":
+                return caps
+            raise AssertionError("physical POST must not occur without scope")
+        driver=WindowPilotHTTPDriver(request_json=request)
+        with self.assertRaisesRegex(
+            RuntimeError,
+            "command_idempotency_scope_id",
+        ):
+            driver.set_position("w1",5)
+        self.assertFalse(any(method=="POST" for method,_,_ in calls))
+
+    def test_windowpilot_rejects_ack_from_other_idempotency_scope(self):
+        caps={
+            "execution":{
+                "transport":"verified",
+                "simulated":False,
+                "measured_position":True,
+            },
+            "position_feedback":{
+                "position_pct":5.0,
+                "timestamp":1235.0,
+                "measured":True,
+                "quality":"encoder-measured",
+            },
+            "command_ack_contract":"windowpilot-command-ack-v2",
+            "command_idempotency_contract":"durable-request-ledger-v1",
+            "command_idempotency_scope_id":SCOPE_ID,
+        }
+        def request(method,path,payload):
+            if path=="/api/capabilities":
+                return caps
+            if path=="/api/window/open":
+                return _windowpilot_command_response(
+                    "open",
+                    5.0,
+                    contract="windowpilot-command-ack-v2",
+                    request_id=payload["request_id"],
+                    idempotency_scope_id=OTHER_SCOPE_ID,
+                )
+            return {}
+        driver=WindowPilotHTTPDriver(
+            request_json=request,
+            clock_fn=lambda:1234.0,
+            sleep_fn=lambda _:None,
+        )
+        with self.assertRaisesRegex(RuntimeError,"idempotency scope does not match"):
+            driver.set_position("w1",5)
+
+    def test_windowpilot_does_not_accept_feedback_from_other_scope(self):
+        clock={"now":100.0}
+        cap_reads={"count":0}
+        calls=[]
+        def capabilities(scope):
+            return {
+                "execution":{
+                    "transport":"verified",
+                    "simulated":False,
+                    "measured_position":True,
+                },
+                "position_feedback":{
+                    "position_pct":5.0,
+                    "timestamp":105.0,
+                    "measured":True,
+                    "quality":"encoder-measured",
+                },
+                "command_ack_contract":"windowpilot-command-ack-v2",
+                "command_idempotency_contract":"durable-request-ledger-v1",
+                "command_idempotency_scope_id":scope,
+            }
+        def request(method,path,payload):
+            calls.append((method,path,payload))
+            if path=="/api/capabilities":
+                cap_reads["count"]+=1
+                return capabilities(
+                    SCOPE_ID if cap_reads["count"]<=2 else OTHER_SCOPE_ID
+                )
+            if path=="/api/window/open":
+                return _windowpilot_command_response(
+                    "open",
+                    5.0,
+                    contract="windowpilot-command-ack-v2",
+                    request_id=payload["request_id"],
+                    idempotency_scope_id=SCOPE_ID,
+                )
+            if path=="/api/window/stop":
+                return _windowpilot_command_response(
+                    "stop",
+                    None,
+                    contract="windowpilot-command-ack-v2",
+                    request_id=payload["request_id"],
+                    idempotency_scope_id=SCOPE_ID,
+                )
+            return {}
+        def now():
+            value=clock["now"]
+            clock["now"]+=1.0
+            return value
+        driver=WindowPilotHTTPDriver(
+            request_json=request,
+            clock_fn=now,
+            sleep_fn=lambda _:None,
+            feedback_timeout_s=2.0,
+            feedback_poll_interval_s=0.0,
+        )
+        with self.assertRaisesRegex(RuntimeError,"idempotency scope drift"):
+            driver.set_position("w1",5)
+        stop_calls=[
+            payload
+            for method,path,payload in calls
+            if method=="POST" and path=="/api/window/stop"
+        ]
+        self.assertEqual(len(stop_calls),1)
+        self.assertEqual(stop_calls[0]["idempotency_scope_id"],SCOPE_ID)
 
     def test_windowpilot_v2_rejects_replayed_ack_for_other_request(self):
         caps={
@@ -738,6 +879,7 @@ class CoreTests(unittest.TestCase):
             },
             "command_ack_contract":"windowpilot-command-ack-v2",
             "command_idempotency_contract":"durable-request-ledger-v1",
+            "command_idempotency_scope_id":SCOPE_ID,
         }
         def request(method,path,payload):
             if path=="/api/capabilities":
@@ -773,6 +915,7 @@ class CoreTests(unittest.TestCase):
             "position_feedback":{"position_pct":40.0,"timestamp":99.0,"measured":True,"quality":"stale"},
             "command_ack_contract":"windowpilot-command-ack-v2",
             "command_idempotency_contract":"durable-request-ledger-v1",
+            "command_idempotency_scope_id":SCOPE_ID,
         }
         def request(method,path,payload):
             calls.append((method,path,payload))
@@ -897,6 +1040,7 @@ class CoreTests(unittest.TestCase):
             },
             "command_ack_contract":"windowpilot-command-ack-v1",
             "command_idempotency_contract":"durable-request-ledger-v1",
+            "command_idempotency_scope_id":SCOPE_ID,
         }
         def request(method,path,payload):
             calls.append((method,path,payload))
@@ -914,6 +1058,7 @@ class CoreTests(unittest.TestCase):
             "position_feedback":{"position_pct":5.0,"timestamp":101.0,"measured":True},
             "command_ack_contract":"windowpilot-command-ack-v2",
             "command_idempotency_contract":"durable-request-ledger-v1",
+            "command_idempotency_scope_id":SCOPE_ID,
         }
         def request(method,path,payload):
             if path=="/api/capabilities":

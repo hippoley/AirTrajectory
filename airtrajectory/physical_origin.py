@@ -254,9 +254,11 @@ def _validate_physical_origin_semantics(
         try:
             uuid.UUID(str(receipt.get("command_request_id") or ""))
             uuid.UUID(str(receipt.get("command_id") or ""))
+            if receipt.get("command_idempotency_scope_id") is not None:
+                uuid.UUID(str(receipt.get("command_idempotency_scope_id")))
         except (ValueError,TypeError,AttributeError) as exc:
             raise RuntimeError(
-                "replanned physical origin command request/command identity is invalid"
+                "replanned physical origin command request/command/scope identity is invalid"
             ) from exc
         command_accepted_at=float(receipt.get("command_accepted_at") or 0)
         actuator_feedback_at=float(

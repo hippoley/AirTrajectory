@@ -46,6 +46,7 @@ class WindowPilotHTTPDriver(PhysicalWindowDriver):
         self.last_command_ack=None
         self.last_safety_stop_ack=None
         self.last_command_request_id=None
+        self.last_command_idempotency_scope_id=None
 
     def _request_json(self, method: str, path: str, payload=None):
         raw=self._raw_request_json(method,path,payload)
@@ -80,6 +81,7 @@ class WindowPilotHTTPDriver(PhysicalWindowDriver):
         expected_target,
         require_physical: bool,
         expected_request_id: str | None = None,
+        expected_idempotency_scope_id: str | None = None,
     ):
         if not isinstance(response,dict):
             raise RuntimeError("WindowPilot command response is not an object")
@@ -104,6 +106,19 @@ class WindowPilotHTTPDriver(PhysicalWindowDriver):
                 raise RuntimeError(
                     "WindowPilot command_ack request_id does not match this command request"
                 )
+            ack_scope=ack.get("idempotency_scope_id")
+            if expected_idempotency_scope_id is not None:
+                try:
+                    normalized_ack_scope=str(uuid.UUID(str(ack_scope or "")))
+                except (ValueError,TypeError,AttributeError) as exc:
+                    raise RuntimeError(
+                        "WindowPilot command_ack idempotency scope is invalid"
+                    ) from exc
+                if normalized_ack_scope!=expected_idempotency_scope_id:
+                    raise RuntimeError(
+                        "WindowPilot command_ack idempotency scope does not "
+                        "match this command request"
+                    )
         elif expected_request_id is not None:
             raise RuntimeError(
                 "WindowPilot command_ack v1 cannot satisfy request-bound execution"
@@ -292,6 +307,19 @@ class WindowPilotHTTPDriver(PhysicalWindowDriver):
                 "durable-request-ledger-v1"
             )
 
+        idempotency_scope_id=None
+        if physical:
+            try:
+                idempotency_scope_id=str(uuid.UUID(str(
+                    pre_caps.get("command_idempotency_scope_id") or ""
+                )))
+            except (ValueError,TypeError,AttributeError) as exc:
+                raise RuntimeError(
+                    "WindowPilot physical writes require a valid "
+                    "command_idempotency_scope_id"
+                ) from exc
+        self.last_command_idempotency_scope_id=idempotency_scope_id
+
         command_started=self._clock()
         request_id=(
             str(uuid.uuid4())
@@ -300,7 +328,13 @@ class WindowPilotHTTPDriver(PhysicalWindowDriver):
         )
         self.last_command_request_id=request_id
         if target <= 0:
-            request_payload={} if request_id is None else {"request_id":request_id}
+            request_payload={} if request_id is None else {
+                "request_id":request_id,
+                **(
+                    {"idempotency_scope_id":idempotency_scope_id}
+                    if idempotency_scope_id is not None else {}
+                ),
+            }
             response=self._request_json("POST","/api/window/close",request_payload)
             action="close"
             expected_target=0.0
@@ -308,6 +342,8 @@ class WindowPilotHTTPDriver(PhysicalWindowDriver):
             request_payload={"target_pct":target}
             if request_id is not None:
                 request_payload["request_id"]=request_id
+            if idempotency_scope_id is not None:
+                request_payload["idempotency_scope_id"]=idempotency_scope_id
             response=self._request_json("POST","/api/window/open",request_payload)
             action="open"
             expected_target=target
@@ -320,6 +356,7 @@ class WindowPilotHTTPDriver(PhysicalWindowDriver):
                 expected_target=expected_target,
                 require_physical=True,
                 expected_request_id=request_id,
+                expected_idempotency_scope_id=idempotency_scope_id,
             )
         elif isinstance(response,dict) and isinstance(response.get("command_ack"),dict):
             self.last_command_ack=self._validate_command_ack(
@@ -337,6 +374,14 @@ class WindowPilotHTTPDriver(PhysicalWindowDriver):
             last_reason="no measured feedback"
             while self._clock() <= deadline:
                 caps_payload=self._capability_payload()
+                if physical:
+                    poll_scope=str(
+                        caps_payload.get("command_idempotency_scope_id") or ""
+                    )
+                    if poll_scope!=idempotency_scope_id:
+                        last_reason="idempotency scope drift during feedback polling"
+                        self._sleep(self.feedback_poll_interval_s)
+                        continue
                 feedback=caps_payload.get("position_feedback") if isinstance(caps_payload.get("position_feedback"),dict) else {}
                 if feedback.get("measured") is True and feedback.get("position_pct") is not None:
                     ts=float(feedback.get("timestamp") or 0)
@@ -369,7 +414,13 @@ class WindowPilotHTTPDriver(PhysicalWindowDriver):
                     stop_payload=(
                         {}
                         if stop_request_id is None
-                        else {"request_id":stop_request_id}
+                        else {
+                            "request_id":stop_request_id,
+                            **(
+                                {"idempotency_scope_id":idempotency_scope_id}
+                                if idempotency_scope_id is not None else {}
+                            ),
+                        }
                     )
                     ack=self._request_json("POST","/api/window/stop",stop_payload)
                     if isinstance(ack,dict) and ack.get("ok") is True:
@@ -381,6 +432,7 @@ class WindowPilotHTTPDriver(PhysicalWindowDriver):
                                 expected_target=None,
                                 require_physical=True,
                                 expected_request_id=stop_request_id,
+                                expected_idempotency_scope_id=idempotency_scope_id,
                             )
                         stop_note="; safety STOP acknowledged"
                     else:

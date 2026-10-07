@@ -215,6 +215,7 @@ def build_replanned_physical_step_origin(
     authorization: Mapping[str, Any],
     command_ack: Mapping[str, Any],
     expected_request_id: str,
+    expected_idempotency_scope_id: str | None = None,
     feedback: Mapping[str, Any],
     sensor_snapshot: Mapping[str, Any],
     zone_id: str,
@@ -279,6 +280,27 @@ def build_replanned_physical_step_origin(
         raise RuntimeError(
             "replanned physical command ACK request_id does not match the issued request"
         )
+    ack_scope_raw=command_ack.get("idempotency_scope_id")
+    ack_scope=None
+    if ack_scope_raw is not None or expected_idempotency_scope_id is not None:
+        try:
+            ack_scope=str(uuid.UUID(str(ack_scope_raw or "")))
+        except (ValueError,TypeError,AttributeError) as exc:
+            raise RuntimeError(
+                "replanned physical command idempotency scope is invalid"
+            ) from exc
+    if expected_idempotency_scope_id is not None:
+        try:
+            expected_scope=str(uuid.UUID(str(expected_idempotency_scope_id)))
+        except (ValueError,TypeError,AttributeError) as exc:
+            raise RuntimeError(
+                "expected replanned command idempotency scope is invalid"
+            ) from exc
+        if ack_scope!=expected_scope:
+            raise RuntimeError(
+                "replanned physical command idempotency scope does not match "
+                "the issued request"
+            )
     if command_ack.get("accepted") is not True:
         raise RuntimeError("replanned physical command was not accepted")
     if command_ack.get("simulated") is not False:
@@ -431,6 +453,10 @@ def build_replanned_physical_step_origin(
         "command_ack_sha256":provided_ack_hash,
         "command_request_id":ack_request_id,
         "command_id":command_id,
+        **(
+            {"command_idempotency_scope_id":ack_scope}
+            if ack_scope is not None else {}
+        ),
         "command_accepted_at":ack_ts,
         "sensor_snapshot_sha256":snapshot_hash,
         "opening_id":opening_id,
