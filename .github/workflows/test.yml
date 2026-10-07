@@ -35,8 +35,11 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: hippoley/SpatialRuntime
-          ref: main
+          ref: d123ab9a5310cb9ce15d9e82630828a0d32211f4
           path: _spatialruntime
+      - name: Verify pinned SpatialRuntime revision
+        shell: bash
+        run: test "$(git -C _spatialruntime rev-parse HEAD)" = "d123ab9a5310cb9ce15d9e82630828a0d32211f4"
       - name: Install official contamxpy runtime and SpatialRuntime
         run: |
           python -m pip install -e ".[contam]"
