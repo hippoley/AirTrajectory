@@ -123,7 +123,8 @@
         "PASS",
         "FAIL",
         "BLOCKED",
-        "UNCERTAIN"
+        "UNCERTAIN",
+        "NOT_EVALUATED"
       ]
     },
     "reason_code": {
@@ -327,6 +328,51 @@
         "properties": {
           "harness_status": {
             "const": "COMPLETED"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "harness_status": {
+            "enum": [
+              "ERROR",
+              "INTERRUPTED"
+            ]
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "result": {
+            "const": "NOT_EVALUATED"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "result": {
+            "const": "NOT_EVALUATED"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "harness_status": {
+            "enum": [
+              "ERROR",
+              "INTERRUPTED"
+            ]
+          },
+          "verification": {
+            "properties": {
+              "status": {
+                "const": "NOT_PERFORMED"
+              }
+            }
           }
         }
       }

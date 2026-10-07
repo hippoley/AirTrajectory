@@ -121,7 +121,19 @@ class ExecutionEvidenceEnvelopeTests(unittest.TestCase):
         validate_execution_evidence_envelope(payload)
         self.assertEqual(payload["harness_status"],"COMPLETED")
 
-    def test_harness_error_is_distinct_from_semantic_fail(self):
+    def test_harness_error_requires_not_evaluated(self):
+        payload=base_envelope()
+        payload["harness_status"]="ERROR"
+        payload["result"]="NOT_EVALUATED"
+        payload["verification"]={
+            "performed":False,
+            "status":"NOT_PERFORMED",
+            "verifier":None,
+            "evidence_refs":[],
+        }
+        validate_execution_evidence_envelope(payload)
+
+    def test_harness_error_cannot_assign_target_fail(self):
         payload=base_envelope()
         payload["harness_status"]="ERROR"
         payload["result"]="FAIL"
@@ -131,12 +143,25 @@ class ExecutionEvidenceEnvelopeTests(unittest.TestCase):
             "verifier":None,
             "evidence_refs":[],
         }
-        validate_execution_evidence_envelope(payload)
+        with self.assertRaisesRegex(RuntimeError,"cannot assign target result"):
+            validate_execution_evidence_envelope(payload)
+
+    def test_not_evaluated_requires_incomplete_harness(self):
+        payload=base_envelope()
+        payload["result"]="NOT_EVALUATED"
+        payload["verification"]={
+            "performed":False,
+            "status":"NOT_PERFORMED",
+            "verifier":None,
+            "evidence_refs":[],
+        }
+        with self.assertRaisesRegex(RuntimeError,"requires incomplete harness"):
+            validate_execution_evidence_envelope(payload)
 
     def test_pass_rejects_harness_error(self):
         payload=base_envelope()
         payload["harness_status"]="ERROR"
-        with self.assertRaisesRegex(RuntimeError,"completed harness"):
+        with self.assertRaisesRegex(RuntimeError,"cannot assign target result"):
             validate_execution_evidence_envelope(payload)
 
 
