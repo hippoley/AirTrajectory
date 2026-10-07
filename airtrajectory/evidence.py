@@ -50,6 +50,7 @@ def _validate_command_ack(
     *,
     expected_target,
     expected_hardware_identity_sha256,
+    expected_idempotency_scope_id=None,
 ):
     reasons=[]
     if not isinstance(ack,dict):
@@ -68,8 +69,29 @@ def _validate_command_ack(
         try:
             uuid.UUID(str(ack.get("request_id") or ""))
             uuid.UUID(str(ack.get("command_id") or ""))
+            ack_scope_raw=ack.get("idempotency_scope_id")
+            ack_scope=(
+                None
+                if ack_scope_raw is None
+                else str(uuid.UUID(str(ack_scope_raw)))
+            )
         except (ValueError,TypeError,AttributeError):
-            reasons.append("physical command acknowledgement v2 identity is invalid")
+            reasons.append(
+                "physical command acknowledgement v2 identity/scope is invalid"
+            )
+            ack_scope=None
+        if expected_idempotency_scope_id is not None:
+            try:
+                expected_scope=str(uuid.UUID(str(expected_idempotency_scope_id)))
+            except (ValueError,TypeError,AttributeError):
+                reasons.append(
+                    "tau0 expected command idempotency scope is invalid"
+                )
+                expected_scope=None
+            if expected_scope is not None and ack_scope!=expected_scope:
+                reasons.append(
+                    "physical command acknowledgement idempotency scope mismatch"
+                )
     if ack.get("accepted") is not True:
         reasons.append("physical command acknowledgement is not accepted")
     if ack.get("simulated") is not False:
@@ -167,6 +189,22 @@ def verify_physical_tau0_artifacts(*, trajectory_path, receipt_path, commission_
     if receipt.get("environment_kind")!="physical":
         reasons.append("tau0 receipt environment_kind is not physical")
 
+    expected_command_scope=receipt.get("command_idempotency_scope_id")
+    closeout_command_scope=receipt.get("closeout_idempotency_scope_id")
+    if expected_command_scope is not None or closeout_command_scope is not None:
+        try:
+            expected_command_scope=str(uuid.UUID(str(expected_command_scope or "")))
+            closeout_command_scope=str(uuid.UUID(str(closeout_command_scope or "")))
+        except (ValueError,TypeError,AttributeError):
+            reasons.append(
+                "tau0 receipt command idempotency scope lineage is invalid"
+            )
+        else:
+            if expected_command_scope!=closeout_command_scope:
+                reasons.append(
+                    "tau0 probe and closeout idempotency scopes do not match"
+                )
+
     physical_reconcile=receipt.get("physical_reconcile")
     if physical_reconcile is not None:
         if not isinstance(physical_reconcile,dict):
@@ -186,6 +224,14 @@ def verify_physical_tau0_artifacts(*, trajectory_path, receipt_path, commission_
                 reasons.append(
                     "tau0 receipt has physical reconcile but handoff is not verified"
                 )
+            reconcile_scope=physical_reconcile.get(
+                "command_idempotency_scope_id"
+            )
+            if expected_command_scope is not None:
+                if reconcile_scope!=expected_command_scope:
+                    reasons.append(
+                        "tau0 physical reconcile command idempotency scope mismatch"
+                    )
 
     receipt_capture_policy=receipt.get("tau0_capture_policy")
     capture_target=None
@@ -541,6 +587,7 @@ def verify_physical_tau0_artifacts(*, trajectory_path, receipt_path, commission_
                                 command_acks[0],
                                 expected_target=capture_target,
                                 expected_hardware_identity_sha256=runtime_id,
+                                expected_idempotency_scope_id=expected_command_scope,
                             )
                         )
                         ack_sha=str(
@@ -571,6 +618,7 @@ def verify_physical_tau0_artifacts(*, trajectory_path, receipt_path, commission_
                                 ack,
                                 expected_target=capture_target,
                                 expected_hardware_identity_sha256=runtime_id,
+                                expected_idempotency_scope_id=expected_command_scope,
                             )
                         )
                 pre_rows=[
