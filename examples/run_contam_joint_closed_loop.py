@@ -323,6 +323,7 @@ def main() -> int:
                     provenance=provenance,
                     case_id=profile.profile_id,
                     branch=branch,
+                    reseed_receipt=response.get("prj_reseed_receipt"),
                     source_step=step_index,
                     source_revision=branch_index,
                 )

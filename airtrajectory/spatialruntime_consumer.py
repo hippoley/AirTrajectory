@@ -11,7 +11,10 @@ import json
 import os
 import re
 from pathlib import Path
+import tempfile
 from typing import Any, Mapping
+
+from airtrajectory.contam_prj_reseed import reseed_initial_zone_mass_fractions
 
 
 SCHEMA = "airtrajectory_spatialruntime_contam_consumer_v1"
@@ -198,6 +201,44 @@ def native_branch_result_from_stable(
     }
 
 
+def reconstruct_reseeded_project_text(
+    *,
+    source_text: str,
+    reseed_receipt: Mapping[str, Any],
+) -> tuple[str, dict[str, Any]]:
+    if not isinstance(reseed_receipt, Mapping):
+        raise SpatialRuntimeConsumerError("CONTAM reseed receipt must be an object")
+    if reseed_receipt.get("operation") != "contam-prj-section15-reseed-v1":
+        raise SpatialRuntimeConsumerError("unsupported CONTAM reseed receipt operation")
+    replacements = reseed_receipt.get("replacements")
+    if not isinstance(replacements, Mapping) or not replacements:
+        raise SpatialRuntimeConsumerError("CONTAM reseed receipt replacements missing")
+
+    zone_mass_fractions = {}
+    for zone, row in replacements.items():
+        if not isinstance(row, Mapping) or "after_mass_fraction" not in row:
+            raise SpatialRuntimeConsumerError(
+                f"CONTAM reseed receipt missing after_mass_fraction for zone {zone}"
+            )
+        zone_mass_fractions[int(zone)] = float(row["after_mass_fraction"])
+
+    rebuilt = reseed_initial_zone_mass_fractions(
+        source_text,
+        zone_mass_fractions,
+    )
+    rebuilt_receipt = rebuilt["receipt"]
+    for key in ("source_prj_sha256", "reseeded_prj_sha256", "zone_count"):
+        if rebuilt_receipt.get(key) != reseed_receipt.get(key):
+            raise SpatialRuntimeConsumerError(
+                f"CONTAM reseed receipt drift for {key}"
+            )
+    if rebuilt_receipt.get("replacements") != dict(replacements):
+        raise SpatialRuntimeConsumerError(
+            "CONTAM reseed receipt replacement lineage drifted"
+        )
+    return rebuilt["text"], rebuilt_receipt
+
+
 def verify_branch_result_with_spatialruntime(
     *,
     project_path: str | Path,
@@ -206,6 +247,7 @@ def verify_branch_result_with_spatialruntime(
     branch: Mapping[str, Any],
     source_step: int = 0,
     source_revision: int = 0,
+    reseed_receipt: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     try:
         from spatialruntime.solver.contract import build_solver_request
@@ -224,115 +266,170 @@ def verify_branch_result_with_spatialruntime(
             "requesting SpatialRuntime result verification"
         ) from exc
 
-    project = Path(project_path)
-    if not project.is_file():
-        raise FileNotFoundError(project)
-    inventory = parse_prj_inventory(project)
-    mappings = stable_mappings_from_provenance(provenance, inventory)
-    registry = build_binding_registry(
-        case_id=case_id,
-        project_path=project,
-        inventory=inventory,
-        mappings=mappings,
-    )
-    project_sha = sha256_file(project)
+    source_project = Path(project_path)
+    if not source_project.is_file():
+        raise FileNotFoundError(source_project)
+
+    source_project_sha = sha256_file(source_project)
     provenance_sha = provenance.get("sha256")
-    if provenance_sha is not None and str(provenance_sha) != project_sha:
+    if provenance_sha is not None and str(provenance_sha) != source_project_sha:
         raise SpatialRuntimeConsumerError(
-            "AirTrajectory provenance PRJ sha256 does not match SpatialRuntime project hash"
+            "AirTrajectory provenance PRJ sha256 does not match source project hash"
         )
 
-    native = native_branch_result_from_stable(branch, provenance)
-
-    def result_provider(request, project_path, binding_registry):
-        return native
-
-    adapter = ContamProjectSolverAdapter(
-        project_path=project,
-        binding_registry=registry,
-        result_provider=result_provider,
-        strict_binding=True,
-    )
-    request = build_solver_request(
-        case_id=case_id,
-        source_step=int(source_step),
-        source_revision=int(source_revision),
-        world_state={"counterfactual_branch": str(branch.get("label") or "")},
-    )
-    feedback = adapter.solve(request)
-
-    expected_zones = {
-        str(key): float(value)
-        for key, value in (branch.get("end_co2_ppm_by_zone") or {}).items()
-    }
-    expected_paths = {
-        str(key): float(value)
-        for key, value in (branch.get("path_flow_kg_s") or {}).items()
-    }
-    actual_zones = {
-        key: float(value["co2_ppm"])
-        for key, value in feedback.get("zones", {}).items()
-    }
-    actual_paths = {
-        key: float(value["mass_flow_kg_s"])
-        for key, value in feedback.get("flow_paths", {}).items()
-    }
-    if set(actual_zones) != set(expected_zones):
-        raise SpatialRuntimeConsumerError("SpatialRuntime normalized zone IDs drifted")
-    if set(actual_paths) != set(expected_paths):
-        raise SpatialRuntimeConsumerError("SpatialRuntime normalized path IDs drifted")
-
-    zone_deltas = {
-        key: abs(actual_zones[key] - expected_zones[key])
-        for key in sorted(expected_zones)
-    }
-    path_deltas = {
-        key: abs(actual_paths[key] - expected_paths[key])
-        for key in sorted(expected_paths)
-    }
-    max_zone_delta = max(zone_deltas.values(), default=0.0)
-    max_path_delta = max(path_deltas.values(), default=0.0)
-    if max_zone_delta > 1e-9 or max_path_delta > 1e-12:
-        raise SpatialRuntimeConsumerError(
-            "SpatialRuntime normalized real CONTAM result changed AirTrajectory values"
+    temp_dir = None
+    execution_project = source_project
+    verified_reseed = None
+    if reseed_receipt is not None:
+        rebuilt_text, verified_reseed = reconstruct_reseeded_project_text(
+            source_text=source_project.read_text(encoding="utf-8"),
+            reseed_receipt=reseed_receipt,
+        )
+        temp_dir = tempfile.TemporaryDirectory()
+        execution_project = Path(temp_dir.name) / source_project.name
+        execution_project.write_text(
+            rebuilt_text,
+            encoding="utf-8",
+            newline="\n",
         )
 
-    solver_provenance = feedback.get("solver_provenance") or {}
-    metadata = feedback.get("metadata") or {}
-    unmapped = metadata.get("unmapped_native") or {}
-    if (unmapped.get("zones") or []) or (unmapped.get("paths") or []):
-        raise SpatialRuntimeConsumerError(
-            f"SpatialRuntime left native CONTAM results unmapped: {unmapped}"
+    try:
+        inventory = parse_prj_inventory(execution_project)
+        mappings = stable_mappings_from_provenance(provenance, inventory)
+        registry = build_binding_registry(
+            case_id=case_id,
+            project_path=execution_project,
+            inventory=inventory,
+            mappings=mappings,
         )
-
-    payload = {
-        "schema": RESULT_SCHEMA,
-        "verified": True,
-        "case_id": case_id,
-        "branch_label": str(branch.get("label") or ""),
-        "project_sha256": project_sha,
-        "binding_registry_fingerprint": registry_fingerprint(registry),
-        "adapter_id": solver_provenance.get("adapter_id"),
-        "adapter_fingerprint": solver_provenance.get("adapter_fingerprint"),
-        "request_hash": solver_provenance.get("request_hash"),
-        "result_hash": solver_provenance.get("result_hash"),
-        "feedback_sha256": _sha256(feedback),
-        "zone_count": len(actual_zones),
-        "flow_path_count": len(actual_paths),
-        "max_abs_co2_ppm_delta": max_zone_delta,
-        "max_abs_mass_flow_kg_s_delta": max_path_delta,
-        "native_result_source": metadata.get("native_result_source"),
-        "spatialruntime_commit_sha": _spatialruntime_commit_sha(),
-    }
-    for key in (
-        "binding_registry_fingerprint",
-        "adapter_fingerprint",
-        "request_hash",
-        "result_hash",
-        "feedback_sha256",
-    ):
-        if not isinstance(payload.get(key), str) or len(payload[key]) != 64:
+        execution_project_sha = sha256_file(execution_project)
+        if verified_reseed is not None and (
+            execution_project_sha != verified_reseed.get("reseeded_prj_sha256")
+        ):
             raise SpatialRuntimeConsumerError(
-                f"SpatialRuntime result evidence missing SHA-256 field: {key}"
+                "reconstructed execution PRJ hash does not match reseed receipt"
             )
-    return {**payload, "receipt_sha256": _sha256(payload)}
+
+        native = native_branch_result_from_stable(branch, provenance)
+
+        def result_provider(request, project_path, binding_registry):
+            return native
+
+        adapter = ContamProjectSolverAdapter(
+            project_path=execution_project,
+            binding_registry=registry,
+            result_provider=result_provider,
+            strict_binding=True,
+        )
+        request = build_solver_request(
+            case_id=case_id,
+            source_step=int(source_step),
+            source_revision=int(source_revision),
+            world_state={
+                "counterfactual_branch": str(branch.get("label") or ""),
+                "execution_project_sha256": execution_project_sha,
+            },
+        )
+        feedback = adapter.solve(request)
+
+        expected_zones = {
+            str(key): float(value)
+            for key, value in (branch.get("end_co2_ppm_by_zone") or {}).items()
+        }
+        expected_paths = {
+            str(key): float(value)
+            for key, value in (branch.get("path_flow_kg_s") or {}).items()
+        }
+        actual_zones = {
+            key: float(value["co2_ppm"])
+            for key, value in feedback.get("zones", {}).items()
+        }
+        actual_paths = {
+            key: float(value["mass_flow_kg_s"])
+            for key, value in feedback.get("flow_paths", {}).items()
+        }
+        if set(actual_zones) != set(expected_zones):
+            raise SpatialRuntimeConsumerError(
+                "SpatialRuntime normalized zone IDs drifted"
+            )
+        if set(actual_paths) != set(expected_paths):
+            raise SpatialRuntimeConsumerError(
+                "SpatialRuntime normalized path IDs drifted"
+            )
+
+        zone_deltas = {
+            key: abs(actual_zones[key] - expected_zones[key])
+            for key in sorted(expected_zones)
+        }
+        path_deltas = {
+            key: abs(actual_paths[key] - expected_paths[key])
+            for key in sorted(expected_paths)
+        }
+        max_zone_delta = max(zone_deltas.values(), default=0.0)
+        max_path_delta = max(path_deltas.values(), default=0.0)
+        if max_zone_delta > 1e-9 or max_path_delta > 1e-12:
+            raise SpatialRuntimeConsumerError(
+                "SpatialRuntime normalized real CONTAM result changed AirTrajectory values"
+            )
+
+        solver_provenance = feedback.get("solver_provenance") or {}
+        metadata = feedback.get("metadata") or {}
+        unmapped = metadata.get("unmapped_native") or {}
+        if (unmapped.get("zones") or []) or (unmapped.get("paths") or []):
+            raise SpatialRuntimeConsumerError(
+                f"SpatialRuntime left native CONTAM results unmapped: {unmapped}"
+            )
+
+        payload = {
+            "schema": RESULT_SCHEMA,
+            "verified": True,
+            "case_id": case_id,
+            "branch_label": str(branch.get("label") or ""),
+            "source_project_sha256": source_project_sha,
+            "execution_project_sha256": execution_project_sha,
+            "reseeded_execution": verified_reseed is not None,
+            "reseed_receipt_sha256": (
+                _sha256(verified_reseed) if verified_reseed is not None else None
+            ),
+            "binding_registry_fingerprint": registry_fingerprint(registry),
+            "adapter_id": solver_provenance.get("adapter_id"),
+            "adapter_fingerprint": solver_provenance.get("adapter_fingerprint"),
+            "request_hash": solver_provenance.get("request_hash"),
+            "result_hash": solver_provenance.get("result_hash"),
+            "feedback_sha256": _sha256(feedback),
+            "zone_count": len(actual_zones),
+            "flow_path_count": len(actual_paths),
+            "max_abs_co2_ppm_delta": max_zone_delta,
+            "max_abs_mass_flow_kg_s_delta": max_path_delta,
+            "native_result_source": metadata.get("native_result_source"),
+            "spatialruntime_commit_sha": _spatialruntime_commit_sha(),
+        }
+        # Keep the historical field as an alias for compatibility. It now points
+        # at the PRJ that actually produced the branch, not always the source template.
+        payload["project_sha256"] = execution_project_sha
+
+        for key in (
+            "source_project_sha256",
+            "execution_project_sha256",
+            "binding_registry_fingerprint",
+            "adapter_fingerprint",
+            "request_hash",
+            "result_hash",
+            "feedback_sha256",
+        ):
+            if not isinstance(payload.get(key), str) or len(payload[key]) != 64:
+                raise SpatialRuntimeConsumerError(
+                    f"SpatialRuntime result evidence missing SHA-256 field: {key}"
+                )
+        if verified_reseed is not None and (
+            payload["execution_project_sha256"]
+            != verified_reseed.get("reseeded_prj_sha256")
+        ):
+            raise SpatialRuntimeConsumerError(
+                "SpatialRuntime result evidence is not bound to reseeded execution PRJ"
+            )
+        return {**payload, "receipt_sha256": _sha256(payload)}
+    finally:
+        if temp_dir is not None:
+            temp_dir.cleanup()
+

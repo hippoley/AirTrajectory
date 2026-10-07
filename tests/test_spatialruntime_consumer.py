@@ -1,11 +1,14 @@
+import json
 import os
 import unittest
 from unittest.mock import patch
 
+from airtrajectory.contam_prj_reseed import reseed_initial_zone_mass_fractions
 from airtrajectory.spatialruntime_consumer import (
     SpatialRuntimeConsumerError,
     _spatialruntime_commit_sha,
     native_branch_result_from_stable,
+    reconstruct_reseeded_project_text,
     stable_mappings_from_provenance,
 )
 
@@ -151,6 +154,73 @@ class SpatialRuntimeConsumerMappingTests(unittest.TestCase):
                 "40-char git SHA",
             ):
                 _spatialruntime_commit_sha()
+
+
+    def test_reseed_receipt_reconstructs_exact_execution_project(self):
+        source = """ContamW 3.4.0.4 0
+case.prj
+-999
+2 ! initial zone concentrations:
+! Z# initial_mass_fraction
+1 1.00000000e-03
+2 2.00000000e-03
+-999
+"""
+        generated = reseed_initial_zone_mass_fractions(
+            source,
+            {1: 0.003, 2: 0.004},
+        )
+        rebuilt, receipt = reconstruct_reseeded_project_text(
+            source_text=source,
+            reseed_receipt=generated["receipt"],
+        )
+        self.assertEqual(rebuilt, generated["text"])
+        self.assertEqual(
+            receipt["reseeded_prj_sha256"],
+            generated["receipt"]["reseeded_prj_sha256"],
+        )
+
+    def test_reseed_receipt_hash_drift_fails_closed(self):
+        source = """ContamW 3.4.0.4 0
+case.prj
+-999
+1 ! initial zone concentrations:
+! Z# initial_mass_fraction
+1 1.00000000e-03
+-999
+"""
+        generated = reseed_initial_zone_mass_fractions(source, {1: 0.003})
+        broken = dict(generated["receipt"])
+        broken["reseeded_prj_sha256"] = "0" * 64
+        with self.assertRaisesRegex(
+            SpatialRuntimeConsumerError,
+            "reseed receipt drift for reseeded_prj_sha256",
+        ):
+            reconstruct_reseeded_project_text(
+                source_text=source,
+                reseed_receipt=broken,
+            )
+
+    def test_reseed_receipt_replacement_drift_fails_closed(self):
+        source = """ContamW 3.4.0.4 0
+case.prj
+-999
+1 ! initial zone concentrations:
+! Z# initial_mass_fraction
+1 1.00000000e-03
+-999
+"""
+        generated = reseed_initial_zone_mass_fractions(source, {1: 0.003})
+        broken = json.loads(json.dumps(generated["receipt"]))
+        broken["replacements"]["1"]["after_mass_fraction"] = 0.004
+        with self.assertRaisesRegex(
+            SpatialRuntimeConsumerError,
+            "reseed receipt drift",
+        ):
+            reconstruct_reseeded_project_text(
+                source_text=source,
+                reseed_receipt=broken,
+            )
 
 
 if __name__ == "__main__":

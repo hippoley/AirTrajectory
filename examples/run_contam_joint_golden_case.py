@@ -220,6 +220,7 @@ def main() -> int:
                 provenance=provenance,
                 case_id=case["golden_case_id"],
                 branch=branch,
+                reseed_receipt=response.get("prj_reseed_receipt"),
                 source_step=0,
                 source_revision=branch_index,
             )
