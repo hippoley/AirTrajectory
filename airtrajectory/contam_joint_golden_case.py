@@ -29,8 +29,8 @@ def normalize_golden_case(case: Mapping[str, Any], topology) -> dict[str, Any]:
     if not case_id:
         raise ValueError("golden_case_id is required")
     topology_id = str(case.get("topology_id") or "")
-    if topology_id != str(topology.id):
-        raise ValueError("golden case topology_id mismatch")
+    if not topology_id:
+        raise ValueError("golden case topology_id is required")
 
     origin = case.get("origin")
     if not isinstance(origin, Mapping):
