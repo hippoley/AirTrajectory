@@ -130,6 +130,22 @@ jobs:
           assert "after_step_1x" in e
           print("CONTAM_ZONE_ADD_MASS_BEHAVIOR_RECEIPT_VERIFIED", e["immediate_1x"], e["after_step_1x"], e["immediate_2x_over_1x"], e["after_step_2x_over_1x"])
           '@ | python -
+      - name: Verify PRJ Section 15 reseed continuity on real ContamX
+        shell: pwsh
+        run: |
+          python examples/contam_reseed_continuity_smoke.py artifacts/multispace-transient.prj --out artifacts/contam-reseed-continuity.json --reseeded-prj artifacts/multispace-transient.reseeded.prj | Tee-Object -FilePath contam-reseed-continuity.log
+          if (-not (Select-String -Path contam-reseed-continuity.log -Pattern "REAL_CONTAM_PRJ_RESEED_CONTINUITY_EXECUTED")) { exit 1 }
+          @'
+          import json
+          p=json.load(open("artifacts/contam-reseed-continuity.json",encoding="utf-8"))
+          c=p["comparison"]
+          assert c["status"]=="PASS", c
+          assert c["state_reinjection_verified"] is True
+          assert p["full_restart_verified"] is False
+          assert len(c["comparison_sha256"])==64
+          assert len(p["reseed_receipt"]["reseeded_prj_sha256"])==64
+          print("CONTAM_PRJ_RESEED_CONTINUITY_VERIFIED", c["errors"])
+          '@ | python -
       - name: Run transient counterfactual on real ContamX
         timeout-minutes: 3
         shell: pwsh
