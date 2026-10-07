@@ -161,7 +161,7 @@ class ExecutionEvidenceEnvelopeTests(unittest.TestCase):
     def test_pass_rejects_harness_error(self):
         payload=base_envelope()
         payload["harness_status"]="ERROR"
-        with self.assertRaisesRegex(RuntimeError,"completed harness"):
+        with self.assertRaisesRegex(RuntimeError,"cannot assign target result"):
             validate_execution_evidence_envelope(payload)
 
 
