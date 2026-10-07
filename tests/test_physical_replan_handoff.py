@@ -400,6 +400,7 @@ class PhysicalReplanHandoffTests(unittest.TestCase):
                 previous_physical_origin_receipt=origin,
                 authorization=authorization,
                 command_ack=ack,
+                expected_request_id=REQUEST_ID,
                 feedback={
                     "actuator_id":"W1",
                     "timestamp":21.0,
