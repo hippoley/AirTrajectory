@@ -1,3 +1,4 @@
+import hashlib
 import json
 import importlib.util
 import tempfile
@@ -23,6 +24,43 @@ from airtrajectory.commissioning import require_commissioning_behavior
 from airtrajectory.sensor_lineage import build_sensor_evidence
 from airtrajectory.lineage import require_hardware_site_lineage, require_hardware_thingmodel_lineage
 
+
+
+
+def _windowpilot_command_response(action, target_pct=None, *, simulated=False):
+    payload={
+        "schema_version":"0.1",
+        "receipt":"windowpilot-command-ack-v1",
+        "accepted":True,
+        "accepted_at":1234.0,
+        "action":action,
+        "target_pct":target_pct,
+        "execution_backend":"simulator" if simulated else "cwds-ca01-thingmodel",
+        "transport":"in-process" if simulated else "thingmodel-http",
+        "simulated":bool(simulated),
+        "hardware_identity_sha256":"f"*64,
+        "physical_write_ready":False if simulated else True,
+        "write_contract_ready":False if simulated else True,
+        "motion_semantics_ready":False if simulated else True,
+        "write_blockers":["execution backend is simulated"] if simulated else [],
+        "evidence_kind":"synthetic-command" if simulated else "physical-command-accepted",
+    }
+    raw=json.dumps(
+        payload,
+        sort_keys=True,
+        separators=(",",":"),
+        ensure_ascii=False,
+    ).encode("utf-8")
+    ack={
+        **payload,
+        "command_ack_sha256":hashlib.sha256(raw).hexdigest(),
+    }
+    return {
+        "ok":True,
+        "action":action,
+        "target_pct":target_pct,
+        "command_ack":ack,
+    }
 
 def _hardware_identity(identity_sha):
     return {
@@ -604,9 +642,12 @@ class CoreTests(unittest.TestCase):
         caps={
             "execution":{"transport":"rs485-verified","simulated":False,"measured_position":True},
             "position_feedback":{"position_pct":40.5,"timestamp":now,"measured":True,"quality":"encoder-measured"},
+            "command_ack_contract":"windowpilot-command-ack-v1",
         }
         def request(method,path,payload):
             if path=="/api/capabilities": return caps
+            if path=="/api/window/open":
+                return _windowpilot_command_response("open",40.0)
             return state
         driver=WindowPilotHTTPDriver(request_json=request,clock_fn=lambda: now,sleep_fn=lambda _:None)
         dc=driver.capabilities()
@@ -630,11 +671,15 @@ class CoreTests(unittest.TestCase):
         caps={
             "execution":{"transport":"verified","simulated":False,"measured_position":True},
             "position_feedback":{"position_pct":40.0,"timestamp":99.0,"measured":True,"quality":"stale"},
+            "command_ack_contract":"windowpilot-command-ack-v1",
         }
         def request(method,path,payload):
             calls.append((method,path,payload))
             if path=="/api/capabilities": return caps
-            if path=="/api/window/stop": return {"ok":True,"action":"stop"}
+            if path=="/api/window/open":
+                return _windowpilot_command_response("open",40.0)
+            if path=="/api/window/stop":
+                return _windowpilot_command_response("stop",None)
             return state
         def now():
             value=clock["now"]
@@ -650,6 +695,41 @@ class CoreTests(unittest.TestCase):
             calls.count(("POST","/api/window/stop",{})),
             1,
         )
+
+
+    def test_windowpilot_physical_write_requires_command_ack_contract_before_post(self):
+        calls=[]
+        caps={
+            "execution":{"transport":"verified","simulated":False,"measured_position":True},
+            "position_feedback":{"position_pct":0.0,"timestamp":100.0,"measured":True},
+        }
+        def request(method,path,payload):
+            calls.append((method,path,payload))
+            if path=="/api/capabilities":
+                return caps
+            raise AssertionError("physical POST must not occur without command_ack contract")
+        driver=WindowPilotHTTPDriver(request_json=request)
+        with self.assertRaisesRegex(RuntimeError,"acknowledgement contract is unavailable"):
+            driver.set_position("w1",5)
+        self.assertFalse(any(method=="POST" for method,_,_ in calls))
+
+    def test_windowpilot_rejects_tampered_physical_command_ack(self):
+        caps={
+            "execution":{"transport":"verified","simulated":False,"measured_position":True},
+            "position_feedback":{"position_pct":5.0,"timestamp":101.0,"measured":True},
+            "command_ack_contract":"windowpilot-command-ack-v1",
+        }
+        bad=_windowpilot_command_response("open",5.0)
+        bad["command_ack"]["target_pct"]=6.0
+        def request(method,path,payload):
+            if path=="/api/capabilities":
+                return caps
+            if path=="/api/window/open":
+                return bad
+            return {}
+        driver=WindowPilotHTTPDriver(request_json=request)
+        with self.assertRaisesRegex(RuntimeError,"target mismatch|SHA-256 mismatch"):
+            driver.set_position("w1",5)
 
     def test_windowpilot_hardware_sensor_requires_measured_provenance_for_tau0_sensors(self):
         now=100.0

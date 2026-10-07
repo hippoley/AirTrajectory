@@ -5,6 +5,7 @@ Only a WindowPilot backend that explicitly reports non-simulated execution and
 measured position feedback can become eligible for physical tau0 evidence.
 """
 from __future__ import annotations
+import hashlib
 import json
 import time
 from typing import Callable
@@ -41,6 +42,8 @@ class WindowPilotHTTPDriver(PhysicalWindowDriver):
         self._headers=dict(headers or {})
         self._sleep=sleep_fn
         self._clock=clock_fn
+        self.last_command_ack=None
+        self.last_safety_stop_ack=None
 
     def _request_json(self, method: str, path: str, payload=None):
         raw=self._raw_request_json(method,path,payload)
@@ -55,6 +58,64 @@ class WindowPilotHTTPDriver(PhysicalWindowDriver):
         ):
             return self._response_adapter(path, raw)
         return raw
+
+
+    @staticmethod
+    def _ack_sha256(payload):
+        raw=json.dumps(
+            payload,
+            sort_keys=True,
+            separators=(",",":"),
+            ensure_ascii=False,
+        ).encode("utf-8")
+        return hashlib.sha256(raw).hexdigest()
+
+    def _validate_command_ack(
+        self,
+        response,
+        *,
+        expected_action: str,
+        expected_target,
+        require_physical: bool,
+    ):
+        if not isinstance(response,dict):
+            raise RuntimeError("WindowPilot command response is not an object")
+        ack=response.get("command_ack")
+        if not isinstance(ack,dict):
+            raise RuntimeError("WindowPilot command response missing command_ack")
+        if ack.get("receipt")!="windowpilot-command-ack-v1":
+            raise RuntimeError("WindowPilot command_ack contract is unsupported")
+        if ack.get("accepted") is not True:
+            raise RuntimeError("WindowPilot command was not acknowledged as accepted")
+        if str(ack.get("action") or "")!=str(expected_action):
+            raise RuntimeError("WindowPilot command_ack action mismatch")
+        actual_target=ack.get("target_pct")
+        if expected_target is None:
+            if actual_target is not None:
+                raise RuntimeError("WindowPilot STOP command_ack unexpectedly has target_pct")
+        elif actual_target is None or abs(float(actual_target)-float(expected_target))>1e-9:
+            raise RuntimeError("WindowPilot command_ack target mismatch")
+        if float(ack.get("accepted_at") or 0)<=0:
+            raise RuntimeError("WindowPilot command_ack accepted_at is invalid")
+        identity=str(ack.get("hardware_identity_sha256") or "")
+        if len(identity)!=64 or any(ch not in "0123456789abcdef" for ch in identity.lower()):
+            raise RuntimeError("WindowPilot command_ack hardware identity is invalid")
+        provided=str(ack.get("command_ack_sha256") or "")
+        payload={key:value for key,value in ack.items() if key!="command_ack_sha256"}
+        if provided!=self._ack_sha256(payload):
+            raise RuntimeError("WindowPilot command_ack SHA-256 mismatch")
+        if require_physical:
+            if ack.get("simulated") is not False:
+                raise RuntimeError("WindowPilot physical command_ack is marked simulated")
+            if ack.get("physical_write_ready") is not True:
+                raise RuntimeError("WindowPilot physical command_ack lacks write authorization")
+            if ack.get("write_contract_ready") is not True:
+                raise RuntimeError("WindowPilot physical command_ack lacks write contract")
+            if ack.get("motion_semantics_ready") is not True:
+                raise RuntimeError("WindowPilot physical command_ack lacks motion semantics")
+            if ack.get("evidence_kind")!="physical-command-accepted":
+                raise RuntimeError("WindowPilot physical command_ack evidence kind is invalid")
+        return dict(ack)
 
     def contract_mapping_identity(self):
         adapter=self._response_adapter
@@ -184,11 +245,44 @@ class WindowPilotHTTPDriver(PhysicalWindowDriver):
         target=float(target_pct)
         if not 0 <= target <= 100:
             raise ValueError("target_pct must be in [0,100]")
+        pre_caps=self._capability_payload()
+        pre_execution=(
+            pre_caps.get("execution")
+            if isinstance(pre_caps.get("execution"),dict)
+            else {}
+        )
+        physical=pre_execution.get("simulated") is False
+        if physical and pre_caps.get("command_ack_contract")!="windowpilot-command-ack-v1":
+            raise RuntimeError(
+                "WindowPilot physical command acknowledgement contract is unavailable"
+            )
+
         command_started=self._clock()
         if target <= 0:
-            self._request_json("POST","/api/window/close",{})
+            response=self._request_json("POST","/api/window/close",{})
+            action="close"
+            expected_target=0.0
         else:
-            self._request_json("POST","/api/window/open",{"target_pct":target})
+            response=self._request_json("POST","/api/window/open",{"target_pct":target})
+            action="open"
+            expected_target=target
+
+        self.last_command_ack=None
+        if physical:
+            self.last_command_ack=self._validate_command_ack(
+                response,
+                expected_action=action,
+                expected_target=expected_target,
+                require_physical=True,
+            )
+        elif isinstance(response,dict) and isinstance(response.get("command_ack"),dict):
+            self.last_command_ack=self._validate_command_ack(
+                response,
+                expected_action=action,
+                expected_target=expected_target,
+                require_physical=False,
+            )
+
         caps_payload=self._capability_payload()
         execution=caps_payload.get("execution") if isinstance(caps_payload.get("execution"),dict) else {}
         if execution.get("simulated") is False and execution.get("measured_position") is True:
@@ -217,6 +311,14 @@ class WindowPilotHTTPDriver(PhysicalWindowDriver):
                 try:
                     ack=self._request_json("POST","/api/window/stop",{})
                     if isinstance(ack,dict) and ack.get("ok") is True:
+                        self.last_safety_stop_ack=None
+                        if physical:
+                            self.last_safety_stop_ack=self._validate_command_ack(
+                                ack,
+                                expected_action="stop",
+                                expected_target=None,
+                                require_physical=True,
+                            )
                         stop_note="; safety STOP acknowledged"
                     else:
                         stop_note="; safety STOP was not acknowledged"

@@ -1,3 +1,5 @@
+import hashlib
+import json
 import unittest
 
 from airtrajectory.physical_handoff import (
@@ -46,6 +48,52 @@ class PhysicalHandoffTests(unittest.TestCase):
             "max_first_excursion_pct": 5.0,
         }
 
+    def command_ack(self, target_pct=5.0):
+        payload = {
+            "schema_version": "0.1",
+            "receipt": "windowpilot-command-ack-v1",
+            "accepted": True,
+            "accepted_at": 9.0,
+            "action": "open",
+            "target_pct": float(target_pct),
+            "execution_backend": "cwds-ca01-thingmodel",
+            "transport": "thingmodel-http",
+            "simulated": False,
+            "hardware_identity_sha256": "c" * 64,
+            "physical_write_ready": True,
+            "write_contract_ready": True,
+            "motion_semantics_ready": True,
+            "write_blockers": [],
+            "evidence_kind": "physical-command-accepted",
+        }
+        raw = json.dumps(
+            payload,
+            sort_keys=True,
+            separators=(",", ":"),
+            ensure_ascii=False,
+        ).encode("utf-8")
+        return {
+            **payload,
+            "command_ack_sha256": hashlib.sha256(raw).hexdigest(),
+        }
+
+    def trajectory_step(self, measured_position=4.8):
+        return {
+            "observation": {"co2_ppm": 1400.0},
+            "next_observation": {"co2_ppm": 1392.0},
+            "actuator_feedback": [
+                {
+                    "actuator_id": "W1",
+                    "timestamp": 10.0,
+                    "measured_position_pct": float(measured_position),
+                    "quality": "encoder-measured",
+                }
+            ],
+            "info": {
+                "command_acks": [self.command_ack(5.0)],
+            },
+        }
+
     def test_extracts_exact_planner_action_with_lineage(self):
         out = extract_closed_loop_opening_action(
             self.closed_loop(),
@@ -88,18 +136,7 @@ class PhysicalHandoffTests(unittest.TestCase):
         out = build_physical_handoff_reconcile(
             planner_handoff=handoff,
             authorization=authorization,
-            trajectory_step={
-                "observation": {"co2_ppm": 1400.0},
-                "next_observation": {"co2_ppm": 1392.0},
-                "actuator_feedback": [
-                    {
-                        "actuator_id": "W1",
-                        "timestamp": 10.0,
-                        "measured_position_pct": 4.8,
-                        "quality": "encoder-measured",
-                    }
-                ],
-            },
+            trajectory_step=self.trajectory_step(4.8),
             zone_id="living",
         )
         self.assertEqual(out["action_feedback_position_pct"], 4.8)
@@ -126,18 +163,7 @@ class PhysicalHandoffTests(unittest.TestCase):
         out = build_physical_handoff_reconcile(
             planner_handoff=handoff,
             authorization=authorization,
-            trajectory_step={
-                "observation": {"co2_ppm": 1400.0},
-                "next_observation": {"co2_ppm": 1392.0},
-                "actuator_feedback": [
-                    {
-                        "actuator_id": "W1",
-                        "timestamp": 10.0,
-                        "measured_position_pct": 4.8,
-                        "quality": "encoder-measured",
-                    }
-                ],
-            },
+            trajectory_step=self.trajectory_step(4.8),
             zone_id="living",
             closeout={
                 "confirmed_closed": True,
@@ -170,18 +196,7 @@ class PhysicalHandoffTests(unittest.TestCase):
         out = build_physical_handoff_reconcile(
             planner_handoff=handoff,
             authorization=authorization,
-            trajectory_step={
-                "observation": {"co2_ppm": 1400.0},
-                "next_observation": {"co2_ppm": 1392.0},
-                "actuator_feedback": [
-                    {
-                        "actuator_id": "W1",
-                        "timestamp": 10.0,
-                        "measured_position_pct": 4.9,
-                        "quality": "encoder-measured",
-                    }
-                ],
-            },
+            trajectory_step=self.trajectory_step(4.9),
             zone_id="living",
             closeout={
                 "confirmed_closed": True,
@@ -207,6 +222,26 @@ class PhysicalHandoffTests(unittest.TestCase):
         self.assertTrue(out["next_origin_position_verified"])
         self.assertTrue(out["next_origin_sensor_verified"])
         self.assertTrue(out["physical_next_origin_ready"])
+
+    def test_reconcile_rejects_tampered_command_ack(self):
+        handoff = extract_closed_loop_opening_action(
+            self.closed_loop(),
+            step_index=0,
+            opening_id="W1",
+        )
+        authorization = authorize_tau0_from_planner(
+            handoff,
+            acceptance_policy=self.policy(),
+        )
+        step = self.trajectory_step(4.9)
+        step["info"]["command_acks"][0]["target_pct"] = 6.0
+        with self.assertRaisesRegex(RuntimeError, "acknowledgement SHA-256 mismatch"):
+            build_physical_handoff_reconcile(
+                planner_handoff=handoff,
+                authorization=authorization,
+                trajectory_step=step,
+                zone_id="living",
+            )
 
     def test_too_small_planner_target_fails_before_motion(self):
         payload = self.closed_loop()
