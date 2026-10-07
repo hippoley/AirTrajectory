@@ -162,14 +162,19 @@ class PhysicalWindowEnvironment:
         return self._observe(),{"backend":"physical-window","driver":type(self.driver).__name__,"driver_capabilities":asdict(caps),"evidence_kind":"synthetic" if caps.simulated else "physical"}
     def step(self, actions):
         feedback=[]
+        command_acks=[]
         for a in actions:
             if a.opening_id!=self.opening_id:raise KeyError(f"unknown physical opening: {a.opening_id}")
             f=self.driver.set_position(a.opening_id,a.target_pct);self._validate_feedback(f);feedback.append(f);self.last_feedback=f
+            ack=getattr(self.driver,"last_command_ack",None)
+            if isinstance(ack,dict):
+                command_acks.append(dict(ack))
         min_feedback_ts=max((f.timestamp for f in feedback),default=0.0)
         nxt=self._observe_after(min_feedback_ts) if feedback else self._observe()
         return nxt,RewardVector(),False,False,{
             "backend":"physical-window",
             "actuator_feedback":feedback,
+            "command_acks":command_acks,
             "next_sensor_readings":list(nxt.get("sensor_readings",[])),
         }
 
@@ -184,7 +189,7 @@ def record_physical_trajectory(env,policy,resolver,topology_id,store,steps=1,con
     for index in range(steps):
         semantic=policy.semantic_action(observation);decision=resolver.resolve(observation,policy(observation))
         nxt,reward,terminated,truncated,info=env.step(decision.executed)
-        trajectory.append(TrajectoryStep(index=index,observation={k:v for k,v in observation.items() if k!="sensor_readings"},proposed_actions=decision.proposed,executed_actions=decision.executed,next_observation={k:v for k,v in nxt.items() if k!="sensor_readings"},reward=reward,semantic_actions=[semantic],sensor_readings=list(observation.get("sensor_readings",[])),next_sensor_readings=list(info.get("next_sensor_readings",[])),actuator_feedback=list(info.get("actuator_feedback",[])),intervention=decision.intervention,terminated=terminated or truncated,info={"backend":info.get("backend")}))
+        trajectory.append(TrajectoryStep(index=index,observation={k:v for k,v in observation.items() if k!="sensor_readings"},proposed_actions=decision.proposed,executed_actions=decision.executed,next_observation={k:v for k,v in nxt.items() if k!="sensor_readings"},reward=reward,semantic_actions=[semantic],sensor_readings=list(observation.get("sensor_readings",[])),next_sensor_readings=list(info.get("next_sensor_readings",[])),actuator_feedback=list(info.get("actuator_feedback",[])),intervention=decision.intervention,terminated=terminated or truncated,info={"backend":info.get("backend"),"command_acks":list(info.get("command_acks",[]))}))
         observation=nxt
     store.append(trajectory);return trajectory
 
