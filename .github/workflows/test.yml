@@ -241,9 +241,16 @@ jobs:
           assert p["physical_origin_evidence"]["origin_sha256"]==fixture["origin_sha256"]
           assert r["initial_origin_sha256"]==fixture["origin_sha256"]
           assert r["steps"][0]["origin_sha256"]==fixture["origin_sha256"]
+          evidence=r["steps"][0]["evaluation_evidence"]
+          projection=evidence["scalar_projection"]
+          assert evidence["controller_origin_sha256"]==fixture["origin_sha256"]
+          assert projection["scalar_projection_applied"] is True
+          assert projection["controller_scalar_values"]=={"rain":0.0}
+          assert projection["contam_scalar_values"]=={}
+          assert projection["dropped_scalar_values"]=={"rain":0.0}
           assert r["control_steps"]==1
           assert r["closed_loop_replanning_executed"] is False
-          print("REAL_CONTAM_PHYSICAL_ORIGIN_REPLAN_VERIFIED",r["steps"][0]["selected_label"],fixture["origin_sha256"])
+          print("REAL_CONTAM_PHYSICAL_ORIGIN_REPLAN_VERIFIED",r["steps"][0]["selected_label"],fixture["origin_sha256"],projection)
           '@ | python -
       - name: Compare adaptive vs Independent closed-loop on real ContamX
         timeout-minutes: 8
