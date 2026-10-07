@@ -658,12 +658,18 @@ class CoreTests(unittest.TestCase):
         caps={
             "execution":{"transport":"rs485-verified","simulated":False,"measured_position":True},
             "position_feedback":{"position_pct":40.5,"timestamp":now,"measured":True,"quality":"encoder-measured"},
-            "command_ack_contract":"windowpilot-command-ack-v1",
+            "command_ack_contract":"windowpilot-command-ack-v2",
+            "command_idempotency_contract":"process-local-fail-closed-v1",
         }
         def request(method,path,payload):
             if path=="/api/capabilities": return caps
             if path=="/api/window/open":
-                return _windowpilot_command_response("open",40.0)
+                return _windowpilot_command_response(
+                    "open",
+                    40.0,
+                    contract="windowpilot-command-ack-v2",
+                    request_id=payload["request_id"],
+                )
             return state
         driver=WindowPilotHTTPDriver(request_json=request,clock_fn=lambda: now,sleep_fn=lambda _:None)
         dc=driver.capabilities()
@@ -690,6 +696,7 @@ class CoreTests(unittest.TestCase):
                 "quality":"encoder-measured",
             },
             "command_ack_contract":"windowpilot-command-ack-v2",
+            "command_idempotency_contract":"process-local-fail-closed-v1",
         }
         def request(method,path,payload):
             if path=="/api/capabilities":
@@ -730,6 +737,7 @@ class CoreTests(unittest.TestCase):
                 "quality":"encoder-measured",
             },
             "command_ack_contract":"windowpilot-command-ack-v2",
+            "command_idempotency_contract":"process-local-fail-closed-v1",
         }
         def request(method,path,payload):
             if path=="/api/capabilities":
@@ -763,15 +771,26 @@ class CoreTests(unittest.TestCase):
         caps={
             "execution":{"transport":"verified","simulated":False,"measured_position":True},
             "position_feedback":{"position_pct":40.0,"timestamp":99.0,"measured":True,"quality":"stale"},
-            "command_ack_contract":"windowpilot-command-ack-v1",
+            "command_ack_contract":"windowpilot-command-ack-v2",
+            "command_idempotency_contract":"process-local-fail-closed-v1",
         }
         def request(method,path,payload):
             calls.append((method,path,payload))
             if path=="/api/capabilities": return caps
             if path=="/api/window/open":
-                return _windowpilot_command_response("open",40.0)
+                return _windowpilot_command_response(
+                    "open",
+                    40.0,
+                    contract="windowpilot-command-ack-v2",
+                    request_id=payload["request_id"],
+                )
             if path=="/api/window/stop":
-                return _windowpilot_command_response("stop",None)
+                return _windowpilot_command_response(
+                    "stop",
+                    None,
+                    contract="windowpilot-command-ack-v2",
+                    request_id=payload["request_id"],
+                )
             return state
         def now():
             value=clock["now"]
@@ -783,10 +802,13 @@ class CoreTests(unittest.TestCase):
         )
         with self.assertRaisesRegex(RuntimeError,"safety STOP acknowledged"):
             driver.set_position("w1",40)
-        self.assertEqual(
-            calls.count(("POST","/api/window/stop",{})),
-            1,
-        )
+        stop_calls=[
+            payload
+            for method,path,payload in calls
+            if method=="POST" and path=="/api/window/stop"
+        ]
+        self.assertEqual(len(stop_calls),1)
+        self.assertIn("request_id",stop_calls[0])
 
 
     def test_windowpilot_physical_write_requires_command_ack_contract_before_post(self):
@@ -801,7 +823,60 @@ class CoreTests(unittest.TestCase):
                 return caps
             raise AssertionError("physical POST must not occur without command_ack contract")
         driver=WindowPilotHTTPDriver(request_json=request)
-        with self.assertRaisesRegex(RuntimeError,"acknowledgement contract is unavailable"):
+        with self.assertRaisesRegex(RuntimeError,"require windowpilot-command-ack-v2"):
+            driver.set_position("w1",5)
+        self.assertFalse(any(method=="POST" for method,_,_ in calls))
+
+    def test_windowpilot_physical_write_requires_idempotency_contract_before_post(self):
+        calls=[]
+        caps={
+            "execution":{
+                "transport":"verified",
+                "simulated":False,
+                "measured_position":True,
+            },
+            "position_feedback":{
+                "position_pct":0.0,
+                "timestamp":100.0,
+                "measured":True,
+            },
+            "command_ack_contract":"windowpilot-command-ack-v2",
+        }
+        def request(method,path,payload):
+            calls.append((method,path,payload))
+            if path=="/api/capabilities":
+                return caps
+            raise AssertionError(
+                "physical POST must not occur without idempotency contract"
+            )
+        driver=WindowPilotHTTPDriver(request_json=request)
+        with self.assertRaisesRegex(RuntimeError,"idempotency contract"):
+            driver.set_position("w1",5)
+        self.assertFalse(any(method=="POST" for method,_,_ in calls))
+
+    def test_windowpilot_rejects_legacy_ack_v1_before_post(self):
+        calls=[]
+        caps={
+            "execution":{
+                "transport":"verified",
+                "simulated":False,
+                "measured_position":True,
+            },
+            "position_feedback":{
+                "position_pct":0.0,
+                "timestamp":100.0,
+                "measured":True,
+            },
+            "command_ack_contract":"windowpilot-command-ack-v1",
+            "command_idempotency_contract":"process-local-fail-closed-v1",
+        }
+        def request(method,path,payload):
+            calls.append((method,path,payload))
+            if path=="/api/capabilities":
+                return caps
+            raise AssertionError("legacy physical endpoint must not receive POST")
+        driver=WindowPilotHTTPDriver(request_json=request)
+        with self.assertRaisesRegex(RuntimeError,"require windowpilot-command-ack-v2"):
             driver.set_position("w1",5)
         self.assertFalse(any(method=="POST" for method,_,_ in calls))
 
@@ -809,14 +884,20 @@ class CoreTests(unittest.TestCase):
         caps={
             "execution":{"transport":"verified","simulated":False,"measured_position":True},
             "position_feedback":{"position_pct":5.0,"timestamp":101.0,"measured":True},
-            "command_ack_contract":"windowpilot-command-ack-v1",
+            "command_ack_contract":"windowpilot-command-ack-v2",
+            "command_idempotency_contract":"process-local-fail-closed-v1",
         }
-        bad=_windowpilot_command_response("open",5.0)
-        bad["command_ack"]["target_pct"]=6.0
         def request(method,path,payload):
             if path=="/api/capabilities":
                 return caps
             if path=="/api/window/open":
+                bad=_windowpilot_command_response(
+                    "open",
+                    5.0,
+                    contract="windowpilot-command-ack-v2",
+                    request_id=payload["request_id"],
+                )
+                bad["command_ack"]["target_pct"]=6.0
                 return bad
             return {}
         driver=WindowPilotHTTPDriver(request_json=request)
