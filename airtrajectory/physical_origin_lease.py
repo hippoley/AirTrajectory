@@ -188,6 +188,62 @@ def finalize_physical_origin_execution(
     return {**final,"lease_path":str(path)}
 
 
+def record_physical_origin_recovery(
+    *,
+    lease_path,
+    recovered_at,
+    recovery_origin_sha256,
+    recovery_origin_receipt_sha256,
+    recovery_summary_sha256=None,
+) -> dict[str, Any]:
+    path=Path(lease_path)
+    if not path.exists():
+        raise RuntimeError("physical origin execution lease is missing")
+    current=json.loads(path.read_text(encoding="utf-8"))
+    provided=str(current.get("lease_sha256") or "")
+    body={key:value for key,value in current.items() if key!="lease_sha256"}
+    if provided!=_sha256(body):
+        raise RuntimeError("physical origin execution lease SHA-256 mismatch")
+    if current.get("status")!="RECOVERY_REQUIRED":
+        raise RuntimeError(
+            "only a RECOVERY_REQUIRED physical origin lease can be recovered"
+        )
+    ts=float(recovered_at)
+    finalized_at=float(current.get("finalized_at") or 0)
+    if ts<=finalized_at:
+        raise ValueError("recovered_at must be newer than lease finalized_at")
+
+    payload=dict(body)
+    payload["status"]="RECOVERED"
+    payload["recovered_at"]=ts
+    payload["recovery_origin_sha256"]=_require_sha(
+        recovery_origin_sha256,
+        "recovery physical origin state",
+    )
+    payload["recovery_origin_receipt_sha256"]=_require_sha(
+        recovery_origin_receipt_sha256,
+        "recovery physical origin receipt",
+    )
+    payload["recovery_summary_sha256"]=(
+        None
+        if recovery_summary_sha256 is None
+        else _require_sha(
+            recovery_summary_sha256,
+            "physical recovery summary",
+        )
+    )
+    final={**payload,"lease_sha256":_sha256(payload)}
+    temp=path.with_suffix(path.suffix+".tmp")
+    temp.write_text(
+        json.dumps(final,ensure_ascii=False,indent=2,sort_keys=True)+"\n",
+        encoding="utf-8",
+    )
+    with temp.open("rb") as fh:
+        os.fsync(fh.fileno())
+    os.replace(temp,path)
+    return {**final,"lease_path":str(path)}
+
+
 def verify_physical_origin_execution_lease(
     *,
     lease_path,
@@ -214,6 +270,6 @@ def verify_physical_origin_execution_lease(
     ):
         raise RuntimeError("execution lease does not belong to expected physical origin")
     status=str(payload.get("status") or "")
-    if status not in {"IN_FLIGHT","ADVANCED","RECOVERY_REQUIRED"}:
+    if status not in {"IN_FLIGHT","ADVANCED","RECOVERY_REQUIRED","RECOVERED"}:
         raise RuntimeError("physical origin execution lease status is invalid")
     return {**payload,"lease_path":str(path)}
