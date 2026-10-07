@@ -131,6 +131,14 @@ def classify_continuation_surface(engine: Any) -> dict[str, Any]:
             )
         )
     )
+    zone_mass_adjusters = sorted(
+        name for name in names
+        if (
+            "set" in name.lower()
+            and "zone" in name.lower()
+            and "addmass" in name.lower()
+        )
+    )
     restart_methods = sorted(
         name for name in names
         if "restart" in name.lower()
@@ -151,6 +159,18 @@ def classify_continuation_surface(engine: Any) -> dict[str, Any]:
             + ",".join(zone_mass_setters + state_methods)
             if zone_mass_setters or state_methods
             else "no zone contaminant setter or generic state setter detected"
+        ),
+    )
+    mass_adjustment = ContinuationStrategy(
+        strategy_id="native-zone-mass-adjustment",
+        available=bool(zone_mass_adjusters),
+        verified=False,
+        evidence=(
+            "candidate zone contaminant mass-adjustment methods exposed by contamxpy: "
+            + ",".join(zone_mass_adjusters)
+            + "; semantics and continuity equivalence are not yet verified"
+            if zone_mass_adjusters
+            else "no zone contaminant mass-adjustment method detected"
         ),
     )
     restart = ContinuationStrategy(
@@ -178,6 +198,7 @@ def classify_continuation_surface(engine: Any) -> dict[str, Any]:
 
     strategies = [
         native_runtime.as_dict(),
+        mass_adjustment.as_dict(),
         restart.as_dict(),
         prj_reseed.as_dict(),
     ]
@@ -190,6 +211,7 @@ def classify_continuation_surface(engine: Any) -> dict[str, Any]:
         "interesting_callables": _matching_names(callables),
         "zone_mass_getters": zone_mass_getters,
         "zone_mass_setters": zone_mass_setters,
+        "zone_mass_adjusters": zone_mass_adjusters,
         "restart_methods": restart_methods,
         "state_methods": state_methods,
         "strategies": strategies,
