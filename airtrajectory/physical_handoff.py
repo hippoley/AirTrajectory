@@ -24,7 +24,12 @@ def _sha256(payload: Any) -> str:
 
 
 
-def _verify_command_ack(ack: Mapping[str, Any], *, expected_target: float) -> dict[str, Any]:
+def _verify_command_ack(
+    ack: Mapping[str, Any],
+    *,
+    expected_target: float,
+    expected_scope_id: str | None = None,
+) -> dict[str, Any]:
     if not isinstance(ack, Mapping):
         raise RuntimeError("physical handoff missing command acknowledgement")
     provided = str(ack.get("command_ack_sha256") or "")
@@ -45,10 +50,27 @@ def _verify_command_ack(ack: Mapping[str, Any], *, expected_target: float) -> di
         try:
             uuid.UUID(str(ack.get("request_id") or ""))
             uuid.UUID(str(ack.get("command_id") or ""))
+            ack_scope_raw=ack.get("idempotency_scope_id")
+            ack_scope=(
+                None
+                if ack_scope_raw is None
+                else str(uuid.UUID(str(ack_scope_raw)))
+            )
         except (ValueError,TypeError,AttributeError) as exc:
             raise RuntimeError(
-                "physical command acknowledgement v2 identity is invalid"
+                "physical command acknowledgement v2 identity/scope is invalid"
             ) from exc
+        if expected_scope_id is not None:
+            try:
+                expected_scope=str(uuid.UUID(str(expected_scope_id)))
+            except (ValueError,TypeError,AttributeError) as exc:
+                raise RuntimeError(
+                    "physical command expected idempotency scope is invalid"
+                ) from exc
+            if ack_scope!=expected_scope:
+                raise RuntimeError(
+                    "physical command acknowledgement idempotency scope mismatch"
+                )
     if ack.get("accepted") is not True:
         raise RuntimeError("physical command was not acknowledged as accepted")
     if ack.get("simulated") is not False:
@@ -186,6 +208,7 @@ def build_physical_handoff_reconcile(
     zone_id: str | None = None,
     closeout: Mapping[str, Any] | None = None,
     terminal_snapshot: Mapping[str, Any] | None = None,
+    expected_command_scope_id: str | None = None,
 ) -> dict[str, Any]:
     feedback_rows = trajectory_step.get("actuator_feedback")
     if not isinstance(feedback_rows, list) or len(feedback_rows) != 1:
@@ -260,6 +283,7 @@ def build_physical_handoff_reconcile(
     command_ack = _verify_command_ack(
         command_acks[0],
         expected_target=authorized,
+        expected_scope_id=expected_command_scope_id,
     )
 
     position_error = measured - authorized
@@ -298,6 +322,9 @@ def build_physical_handoff_reconcile(
         "physical_intervention": authorization.get("intervention"),
         "command_ack_sha256": command_ack["command_ack_sha256"],
         "command_hardware_identity_sha256": command_ack["hardware_identity_sha256"],
+        "command_idempotency_scope_id": (
+            command_ack.get("idempotency_scope_id")
+        ),
         "command_write_gate_verified": True,
         "pre_action_co2_ppm": (
             None if pre_co2 is None else float(pre_co2)
