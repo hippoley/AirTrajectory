@@ -390,7 +390,6 @@ def run_replanned_physical_step(
             ),
         }
         final={**payload,"replanned_physical_step_sha256":_sha256(payload)}
-        _write(summary_out,final)
         written_summary_sha=final["replanned_physical_step_sha256"]
         finalize_physical_origin_execution(
             lease_path=lease_claim["lease_path"],
@@ -401,6 +400,7 @@ def run_replanned_physical_step(
             ],
             step_summary_sha256=written_summary_sha,
         )
+        _write(summary_out,final)
         return final
 
     except Exception as exc:
