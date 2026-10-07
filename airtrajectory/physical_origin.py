@@ -292,10 +292,53 @@ def _validate_physical_origin_semantics(
             receipt.get("recovery_execution_lease_sha256"),
             "recovery execution lease",
         )
-        _require_sha256(
+        snapshot_hash=_require_sha256(
             receipt.get("recovery_snapshot_sha256"),
             "recovery physical snapshot",
         )
+        snapshot=receipt.get("recovery_snapshot")
+        if not isinstance(snapshot,Mapping):
+            raise RuntimeError(
+                "recovery physical origin requires complete recovery snapshot"
+            )
+        if _sha256(snapshot)!=snapshot_hash:
+            raise RuntimeError(
+                "recovery physical snapshot SHA-256 mismatch"
+            )
+        if str(snapshot.get("opening_id") or "")!=opening_id:
+            raise RuntimeError(
+                "recovery physical snapshot opening does not match receipt"
+            )
+        if str(snapshot.get("zone_id") or "")!=zone_id:
+            raise RuntimeError(
+                "recovery physical snapshot zone does not match receipt"
+            )
+        if (
+            receipt.get("opening_hardware_identities") or {}
+        ).get(opening_id)!=snapshot.get("hardware_identity_sha256"):
+            raise RuntimeError(
+                "recovery physical snapshot hardware identity does not match receipt"
+            )
+        opening_times=receipt.get("opening_observed_at") or {}
+        zone_times=receipt.get("zone_observed_at") or {}
+        if float(opening_times.get(opening_id) or 0)!=float(
+            snapshot.get("position_timestamp") or 0
+        ):
+            raise RuntimeError(
+                "recovery physical snapshot position timestamp does not match receipt"
+            )
+        if float(zone_times.get(zone_id) or 0)!=float(
+            snapshot.get("co2_timestamp") or 0
+        ):
+            raise RuntimeError(
+                "recovery physical snapshot CO2 timestamp does not match receipt"
+            )
+        if float(receipt.get("rain_observed_at") or 0)!=float(
+            snapshot.get("rain_timestamp") or 0
+        ):
+            raise RuntimeError(
+                "recovery physical snapshot rain timestamp does not match receipt"
+            )
     elif source=="windowpilot-multi-physical-origin-v1":
         applied=receipt.get("applied_measurements")
         if not isinstance(applied,list) or not applied:
