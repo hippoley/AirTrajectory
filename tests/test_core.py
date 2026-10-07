@@ -27,12 +27,28 @@ from airtrajectory.lineage import require_hardware_site_lineage, require_hardwar
 
 
 
-def _windowpilot_command_response(action, target_pct=None, *, simulated=False):
+def _windowpilot_command_response(
+    action,
+    target_pct=None,
+    *,
+    simulated=False,
+    contract="windowpilot-command-ack-v1",
+    request_id=None,
+    command_id="bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+):
     payload={
         "schema_version":"0.1",
-        "receipt":"windowpilot-command-ack-v1",
+        "receipt":contract,
         "accepted":True,
         "accepted_at":1234.0,
+        **(
+            {
+                "request_id":request_id,
+                "command_id":command_id,
+            }
+            if contract=="windowpilot-command-ack-v2"
+            else {}
+        ),
         "action":action,
         "target_pct":target_pct,
         "execution_backend":"simulator" if simulated else "cwds-ca01-thingmodel",
@@ -657,6 +673,82 @@ class CoreTests(unittest.TestCase):
         self.assertEqual(feedback.measured_position_pct,40.5)
         self.assertIsNone(feedback.estimated_position_pct)
         self.assertEqual(feedback.timestamp,now)
+
+    def test_windowpilot_v2_binds_ack_to_fresh_request_challenge(self):
+        now=1234.0
+        seen={}
+        caps={
+            "execution":{
+                "transport":"rs485-verified",
+                "simulated":False,
+                "measured_position":True,
+            },
+            "position_feedback":{
+                "position_pct":40.5,
+                "timestamp":1235.0,
+                "measured":True,
+                "quality":"encoder-measured",
+            },
+            "command_ack_contract":"windowpilot-command-ack-v2",
+        }
+        def request(method,path,payload):
+            if path=="/api/capabilities":
+                return caps
+            if path=="/api/window/open":
+                seen["payload"]=dict(payload)
+                return _windowpilot_command_response(
+                    "open",
+                    40.0,
+                    contract="windowpilot-command-ack-v2",
+                    request_id=payload["request_id"],
+                )
+            return {}
+        driver=WindowPilotHTTPDriver(
+            request_json=request,
+            clock_fn=lambda:now,
+            sleep_fn=lambda _:None,
+        )
+        feedback=driver.set_position("w1",40)
+        self.assertIn("request_id",seen["payload"])
+        self.assertEqual(
+            driver.last_command_ack["request_id"],
+            driver.last_command_request_id,
+        )
+        self.assertEqual(feedback.timestamp,1235.0)
+
+    def test_windowpilot_v2_rejects_replayed_ack_for_other_request(self):
+        caps={
+            "execution":{
+                "transport":"verified",
+                "simulated":False,
+                "measured_position":True,
+            },
+            "position_feedback":{
+                "position_pct":5.0,
+                "timestamp":1235.0,
+                "measured":True,
+                "quality":"encoder-measured",
+            },
+            "command_ack_contract":"windowpilot-command-ack-v2",
+        }
+        def request(method,path,payload):
+            if path=="/api/capabilities":
+                return caps
+            if path=="/api/window/open":
+                return _windowpilot_command_response(
+                    "open",
+                    5.0,
+                    contract="windowpilot-command-ack-v2",
+                    request_id="eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+                )
+            return {}
+        driver=WindowPilotHTTPDriver(
+            request_json=request,
+            clock_fn=lambda:1234.0,
+            sleep_fn=lambda _:None,
+        )
+        with self.assertRaisesRegex(RuntimeError,"request_id does not match"):
+            driver.set_position("w1",5)
 
     def test_windowpilot_rejects_pre_command_measured_feedback(self):
         clock={"now":100.0}
