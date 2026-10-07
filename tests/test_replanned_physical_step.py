@@ -58,6 +58,10 @@ def physical_origin_payload():
         "opening_id":"W1",
         "physical_reconcile_sha256":"a"*64,
         "terminal_snapshot_sha256":"b"*64,
+        "opening_hardware_identities":{"W1":"c"*64},
+        "opening_observed_at":{"W1":21.0},
+        "zone_observed_at":{"living":22.0},
+        "rain_observed_at":22.0,
         "origin":origin,
         "evidence_boundary":"single physical opening/zone updated from measured terminal state",
     }
@@ -176,10 +180,11 @@ def snapshot():
 
 
 class FakeDriver:
-    def __init__(self):
+    def __init__(self, identity="c"*64):
         self.commanded=[]
         self.last_command_ack=None
         self.last_command_request_id=None
+        self.identity=identity
 
     def capabilities(self):
         return DriverCapabilities(
@@ -193,7 +198,7 @@ class FakeDriver:
         return {
             "physical_write_ready":True,
             "write_blockers":[],
-            "hardware_identity":{"identity_sha256":"c"*64},
+            "hardware_identity":{"identity_sha256":self.identity},
         }
 
     def set_position(self,opening_id,target_pct):
@@ -206,6 +211,17 @@ class FakeDriver:
             command_id=COMMAND_IDS[index],
             accepted_at=20.0 + index,
         )
+        if self.identity!="c"*64:
+            ack_payload={
+                key:value
+                for key,value in self.last_command_ack.items()
+                if key!="command_ack_sha256"
+            }
+            ack_payload["hardware_identity_sha256"]=self.identity
+            self.last_command_ack={
+                **ack_payload,
+                "command_ack_sha256":sha(ack_payload),
+            }
         return ActuatorFeedback(
             actuator_id=opening_id,
             timestamp=21.0 + len(self.commanded) - 1,
@@ -240,6 +256,7 @@ class ReplannedPhysicalStepTests(unittest.TestCase):
                 summary_out=root/"summary.json",
                 next_origin_out=root/"next.json",
                 execute=False,
+                clock_fn=lambda:23.0,
             )
             self.assertEqual(out["status"],"READY_FOR_EXPLICIT_EXECUTION")
             self.assertFalse(out["motion_performed"])
@@ -262,6 +279,7 @@ class ReplannedPhysicalStepTests(unittest.TestCase):
                 next_origin_out=root/"next.json",
                 execute=True,
                 snapshot_fn=lambda **kwargs:snapshot(),
+                clock_fn=lambda:23.0,
             )
             self.assertEqual(out["status"],"PASS")
             self.assertTrue(out["motion_performed"])
@@ -464,6 +482,88 @@ class ReplannedPhysicalStepTests(unittest.TestCase):
             verified=verify_physical_origin_receipt(next_payload)
             self.assertEqual(verified["origin"]["opening_pct"]["W1"],0.0)
 
+    def test_stale_physical_origin_is_rejected_before_motion(self):
+        with tempfile.TemporaryDirectory() as d:
+            root=Path(d)
+            physical,planner=self._files(root)
+            driver=FakeDriver()
+            with self.assertRaisesRegex(RuntimeError,"physical origin is stale"):
+                module.run_replanned_physical_step(
+                    driver=driver,
+                    physical_origin_receipt=physical,
+                    planner_receipt=planner,
+                    opening_id="W1",
+                    zone_id="living",
+                    max_delta_pct=10.0,
+                    max_origin_age_s=5.0,
+                    summary_out=root/"summary.json",
+                    next_origin_out=root/"next.json",
+                    execute=True,
+                    clock_fn=lambda:40.0,
+                )
+            self.assertEqual(driver.commanded,[])
+
+    def test_origin_hardware_identity_mismatch_is_rejected_before_motion(self):
+        with tempfile.TemporaryDirectory() as d:
+            root=Path(d)
+            physical,planner=self._files(root)
+            driver=FakeDriver(identity="d"*64)
+            with self.assertRaisesRegex(RuntimeError,"does not match.*physical-origin identity"):
+                module.run_replanned_physical_step(
+                    driver=driver,
+                    physical_origin_receipt=physical,
+                    planner_receipt=planner,
+                    opening_id="W1",
+                    zone_id="living",
+                    max_delta_pct=10.0,
+                    summary_out=root/"summary.json",
+                    next_origin_out=root/"next.json",
+                    execute=True,
+                    clock_fn=lambda:23.0,
+                )
+            self.assertEqual(driver.commanded,[])
+
+    def test_legacy_origin_without_execution_lineage_is_readable_but_not_executable(self):
+        with tempfile.TemporaryDirectory() as d:
+            root=Path(d)
+            origin=physical_origin_payload()
+            for key in (
+                "opening_hardware_identities",
+                "opening_observed_at",
+                "zone_observed_at",
+                "rain_observed_at",
+            ):
+                origin.pop(key,None)
+            payload={
+                key:value
+                for key,value in origin.items()
+                if key not in {"origin_sha256","physical_origin_receipt_sha256"}
+            }
+            origin["physical_origin_receipt_sha256"]=sha(payload)
+            physical=root/"legacy-origin.json"
+            planner=root/"planner.json"
+            physical.write_text(json.dumps(origin),encoding="utf-8")
+            planner.write_text(json.dumps(planner_payload(origin)),encoding="utf-8")
+            self.assertEqual(
+                verify_physical_origin_receipt(origin)["opening_hardware_identities"],
+                {},
+            )
+            driver=FakeDriver()
+            with self.assertRaisesRegex(RuntimeError,"lacks hardware identity"):
+                module.run_replanned_physical_step(
+                    driver=driver,
+                    physical_origin_receipt=physical,
+                    planner_receipt=planner,
+                    opening_id="W1",
+                    zone_id="living",
+                    max_delta_pct=10.0,
+                    summary_out=root/"summary.json",
+                    next_origin_out=root/"next.json",
+                    execute=True,
+                    clock_fn=lambda:23.0,
+                )
+            self.assertEqual(driver.commanded,[])
+
     def test_sensor_failure_persists_partial_execution_receipt(self):
         with tempfile.TemporaryDirectory() as d:
             root=Path(d)
@@ -483,6 +583,7 @@ class ReplannedPhysicalStepTests(unittest.TestCase):
                     snapshot_fn=lambda **kwargs:(_ for _ in ()).throw(
                         RuntimeError("sensor timeout")
                     ),
+                    clock_fn=lambda:23.0,
                 )
             partial=json.loads((root/"summary.json").read_text(encoding="utf-8"))
             self.assertEqual(
