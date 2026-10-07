@@ -75,6 +75,7 @@ class PhysicalOriginTests(unittest.TestCase):
             "measured_minus_predicted_zone_co2_ppm": 482.26,
             "planner_handoff_sha256": "a" * 64,
             "physical_authorization_sha256": "b" * 64,
+            "command_hardware_identity_sha256": "c" * 64,
             "evidence_boundary": (
                 "bounded first-contact physical handoff; planner target may be safety-limited "
                 "and therefore is not claimed as full closed-loop field execution"
@@ -98,6 +99,10 @@ class PhysicalOriginTests(unittest.TestCase):
         self.assertEqual(origin["opening_pct"]["W2"], 35.0)
         self.assertEqual(origin["scalar_values"]["rain"], 0.0)
         self.assertEqual(len(out["origin_sha256"]), 64)
+        self.assertEqual(out["opening_hardware_identities"],{"W1":"c"*64})
+        self.assertEqual(out["opening_observed_at"],{"W1":12.0})
+        self.assertEqual(out["zone_observed_at"],{"living":13.0})
+        self.assertEqual(out["rain_observed_at"],13.0)
         self.assertIn("single physical opening/zone", out["evidence_boundary"])
 
     def test_controller_replans_from_measured_physical_origin(self):
