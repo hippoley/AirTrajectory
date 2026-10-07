@@ -270,6 +270,53 @@ def _validate_physical_origin_semantics(
             raise RuntimeError(
                 "replanned physical origin actuator feedback predates command acceptance"
             )
+    elif source=="windowpilot-recovery-observation-v1":
+        if not zone_id or not opening_id:
+            raise RuntimeError(
+                "recovery physical origin requires zone_id and opening_id"
+            )
+        if measured_zones!=[zone_id] or measured_openings!=[opening_id]:
+            raise RuntimeError(
+                "recovery physical origin must reset current measured coverage "
+                "to exactly the recovered zone/opening"
+            )
+        _require_sha256(
+            receipt.get("parent_physical_origin_sha256"),
+            "recovery parent physical origin state",
+        )
+        _require_sha256(
+            receipt.get("parent_physical_origin_receipt_sha256"),
+            "recovery parent physical origin receipt",
+        )
+        _require_sha256(
+            receipt.get("recovery_lease_sha256"),
+            "physical recovery lease",
+        )
+        _require_sha256(
+            receipt.get("sensor_snapshot_sha256"),
+            "physical recovery sensor snapshot",
+        )
+        position_timestamp=float(
+            receipt.get("recovery_position_timestamp") or 0
+        )
+        if position_timestamp<=0:
+            raise RuntimeError(
+                "recovery physical origin position timestamp is invalid"
+            )
+        recovered_position=float(
+            receipt.get("recovery_position_pct") or 0
+        )
+        if not 0<=recovered_position<=1.0:
+            raise RuntimeError(
+                "recovery physical origin is not confirmed safely closed"
+            )
+        if (
+            abs(float(origin["opening_pct"][opening_id])-recovered_position)
+            >1e-9
+        ):
+            raise RuntimeError(
+                "recovery physical origin opening state does not match measured position"
+            )
     elif source=="windowpilot-multi-physical-origin-v1":
         applied=receipt.get("applied_measurements")
         if not isinstance(applied,list) or not applied:
@@ -464,6 +511,7 @@ def verify_physical_origin_receipt(receipt: Mapping[str, Any]) -> dict[str, Any]
     if source in {
         "windowpilot-physical-reconcile-v1",
         "windowpilot-replanned-physical-step-v1",
+        "windowpilot-recovery-observation-v1",
     }:
         receipt_hash_field="physical_origin_receipt_sha256"
     elif source=="windowpilot-multi-physical-origin-v1":
