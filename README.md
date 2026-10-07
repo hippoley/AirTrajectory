@@ -451,9 +451,11 @@ read-only preflight PASS
    zero actuator/window commands during staging
 → sensor evidence SHA-256
 → real window command
-→ post-command measured position
+→ durable WindowPilot ledger scope frozen for the probe command
+→ scoped ACK v2 + measured post-command position
 → newer post-action CO₂/rain with the same ThingModel + site-instance provenance
 → measured safe closeout to 0% after the trajectory
+→ safe closeout remains on the same durable WindowPilot ledger scope
 → closeout timestamp newer than the final trajectory actuator feedback
 → τ₀ audit PASS
 ```
@@ -481,6 +483,13 @@ preflight measured baseline <= commissioning tolerance
 → measured position reaches the bounded target within tolerance
 → independent measured safe-closeout back to 0%
 ```
+
+For WindowPilot-backed first contact, the probe and mandatory safe-closeout
+commands are also bound to one `command_idempotency_scope_id`. The capture
+freezes the probe scope before closeout, records the closeout scope separately,
+and refuses to emit a valid τ₀ receipt if the scopes differ. Offline artifact
+verification independently requires the persisted trajectory ACK, audit receipt,
+and physical reconcile to agree on that same scope.
 
 The probe target is also bounded by the excursion already approved by the
 commissioning contract. AirTrajectory will not silently weaken the minimum
