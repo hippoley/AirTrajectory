@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import uuid
 from pathlib import Path
 
 from .commissioning import (
@@ -57,8 +58,18 @@ def _validate_command_ack(
     payload={key:value for key,value in ack.items() if key!="command_ack_sha256"}
     if provided!=_canonical_sha256(payload):
         reasons.append("physical command acknowledgement SHA-256 mismatch")
-    if ack.get("receipt")!="windowpilot-command-ack-v1":
+    contract=str(ack.get("receipt") or "")
+    if contract not in {
+        "windowpilot-command-ack-v1",
+        "windowpilot-command-ack-v2",
+    }:
         reasons.append("physical command acknowledgement contract is unsupported")
+    elif contract=="windowpilot-command-ack-v2":
+        try:
+            uuid.UUID(str(ack.get("request_id") or ""))
+            uuid.UUID(str(ack.get("command_id") or ""))
+        except (ValueError,TypeError,AttributeError):
+            reasons.append("physical command acknowledgement v2 identity is invalid")
     if ack.get("accepted") is not True:
         reasons.append("physical command acknowledgement is not accepted")
     if ack.get("simulated") is not False:
