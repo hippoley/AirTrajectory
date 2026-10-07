@@ -58,19 +58,68 @@ def run_verified_replanned_physical_cycle(
     max_origin_age_s=30.0,
     lease_dir=None,
 ):
-    step=run_replanned_physical_step(
-        driver=driver,
-        physical_origin_receipt=previous_origin_receipt,
-        planner_receipt=planner_receipt,
-        opening_id=opening_id,
-        zone_id=zone_id,
-        max_delta_pct=max_delta_pct,
-        max_origin_age_s=max_origin_age_s,
-        summary_out=step_summary_out,
-        next_origin_out=next_origin_out,
-        execute=execute,
-        lease_dir=lease_dir,
-    )
+    try:
+        step=run_replanned_physical_step(
+            driver=driver,
+            physical_origin_receipt=previous_origin_receipt,
+            planner_receipt=planner_receipt,
+            opening_id=opening_id,
+            zone_id=zone_id,
+            max_delta_pct=max_delta_pct,
+            max_origin_age_s=max_origin_age_s,
+            summary_out=step_summary_out,
+            next_origin_out=next_origin_out,
+            execute=execute,
+            lease_dir=lease_dir,
+        )
+    except Exception as exc:
+        persisted_step=None
+        step_path=Path(step_summary_out)
+        if step_path.exists():
+            try:
+                candidate=_load(step_path)
+                if isinstance(candidate,dict):
+                    persisted_step=candidate
+            except Exception:
+                persisted_step=None
+        payload={
+            "schema_version":"0.1",
+            "workflow":"verified-replanned-physical-cycle-v1",
+            "mode":"execute" if execute else "read-only",
+            "status":"BLOCKED_STEP_FAILED",
+            "motion_performed":bool(
+                (persisted_step or {}).get("motion_performed")
+            ),
+            "cycle_verified":False,
+            "previous_origin_receipt":str(previous_origin_receipt),
+            "planner_receipt":str(planner_receipt),
+            "step_summary":str(step_summary_out),
+            "next_origin":str(next_origin_out),
+            "verification_receipt":str(verification_out),
+            "opening_id":str(opening_id),
+            "zone_id":str(zone_id),
+            "max_delta_pct":float(max_delta_pct),
+            "step_status":(
+                (persisted_step or {}).get("status")
+            ),
+            "replanned_physical_step_sha256":(
+                (persisted_step or {}).get(
+                    "replanned_physical_step_sha256"
+                )
+            ),
+            "step_error":str(exc),
+            "evidence_boundary":(
+                "the lower-level replanned physical step failed; persisted "
+                "step evidence is reflected here when available, including "
+                "whether physical motion had already occurred"
+            ),
+        }
+        final={**payload,"verified_physical_cycle_sha256":_sha256(payload)}
+        _write(cycle_summary_out,final)
+        raise RuntimeError(
+            "replanned physical step failed; see persisted cycle summary: "
+            +str(exc)
+        ) from exc
 
     base={
         "schema_version":"0.1",
