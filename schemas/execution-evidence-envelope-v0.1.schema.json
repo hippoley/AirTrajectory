@@ -12,6 +12,7 @@
     "subject",
     "target",
     "operation",
+    "harness_status",
     "result",
     "observations",
     "recovery",
@@ -260,6 +261,14 @@
     "extensions": {
       "type": "object",
       "description": "Domain-specific profile data. Core consumers must not infer semantics they do not understand."
+    },
+    "harness_status": {
+      "enum": [
+        "COMPLETED",
+        "ERROR",
+        "INTERRUPTED"
+      ],
+      "description": "Status of the test/execution harness itself, orthogonal to the conformance result."
     }
   },
   "allOf": [
@@ -302,6 +311,22 @@
                 "const": true
               }
             }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "result": {
+            "const": "PASS"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "harness_status": {
+            "const": "COMPLETED"
           }
         }
       }
