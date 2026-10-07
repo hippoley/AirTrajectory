@@ -28,6 +28,11 @@ class SetterEngine(ReadOnlyEngine):
         return None
 
 
+class MassAdjustEngine(ReadOnlyEngine):
+    def setZoneAddMass(self, zone, contaminant, mass):
+        return 0
+
+
 class RestartEngine(ReadOnlyEngine):
     def resget(self, date, time):
         return None
@@ -56,6 +61,14 @@ class ContamContinuationTests(unittest.TestCase):
         by_id = {row["strategy_id"]: row for row in result["strategies"]}
         self.assertTrue(by_id["native-runtime-state-api"]["available"])
         self.assertFalse(by_id["native-runtime-state-api"]["verified"])
+        self.assertFalse(result["state_reinjection_verified"])
+
+    def test_zone_mass_adjustment_is_detected_but_not_auto_promoted(self):
+        result = classify_continuation_surface(MassAdjustEngine())
+        self.assertEqual(result["zone_mass_adjusters"], ["setZoneAddMass"])
+        by_id = {row["strategy_id"]: row for row in result["strategies"]}
+        self.assertTrue(by_id["native-zone-mass-adjustment"]["available"])
+        self.assertFalse(by_id["native-zone-mass-adjustment"]["verified"])
         self.assertFalse(result["state_reinjection_verified"])
 
     def test_restart_surface_is_detected_but_still_needs_continuity_test(self):
