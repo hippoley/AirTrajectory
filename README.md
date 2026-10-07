@@ -165,6 +165,67 @@ docs/
 4. Add topology compilation from the real ThingModel/floor-plan source rather than generated chain scenarios.
 5. Expand the learning stack and quantify sim→real transfer on held-out structural families.
 
+## One-command physical field handoff
+
+The safest field entry point is now a single orchestrator. It is **read-only by
+default**:
+
+```bash
+python examples/run_physical_field_handoff.py \
+  --windowpilot http://127.0.0.1:8001 \
+  --commission-bundle /path/to/physical-bringup.json \
+  --opening-id W1 \
+  --topology-id physical-single-window
+```
+
+Without `--execute`, it performs the zero-motion WindowPilot/AirTrajectory
+preflight, persists a summary receipt with
+`status=READY_FOR_EXPLICIT_EXECUTION`, and performs no actuator motion.
+
+After reviewing that receipt, the bounded first-contact run must be explicitly
+authorized:
+
+```bash
+python examples/run_physical_field_handoff.py \
+  --windowpilot http://127.0.0.1:8001 \
+  --commission-bundle /path/to/physical-bringup.json \
+  --opening-id W1 \
+  --topology-id physical-single-window \
+  --execute
+```
+
+The execute path runs:
+
+```text
+zero-motion preflight
+→ bounded τ₀ motion
+→ verified WindowPilot command acknowledgement
+→ measured actuator feedback
+→ mandatory safe closeout
+→ persisted-artifact independent verification
+```
+
+To bind a real-ContamX planner action and immediately produce a controller-ready
+physical origin:
+
+```bash
+python examples/run_physical_field_handoff.py \
+  --windowpilot http://127.0.0.1:8001 \
+  --commission-bundle /path/to/physical-bringup.json \
+  --opening-id W1 \
+  --topology-id physical-single-window \
+  --closed-loop-receipt artifacts/contam-closed-loop.json \
+  --closed-loop-step-index 0 \
+  --predicted-zone-id living \
+  --current-origin artifacts/current-origin.json \
+  --physical-origin-out artifacts/physical-next-origin.json \
+  --execute
+```
+
+This still does **not** claim field validation until the artifacts come from a
+real WindowPilot endpoint. The summary explicitly distinguishes read-only
+readiness, executed physical evidence, and controller-ready physical origin.
+
 ## Physical τ₀ evidence chain
 
 AirTrajectory now accepts a commissioning bundle only when it carries the WindowPilot read-only preflight lineage:
