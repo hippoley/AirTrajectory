@@ -4,7 +4,7 @@ from __future__ import annotations
 from typing import Any, Mapping
 
 
-_RESULTS={"PASS","FAIL","BLOCKED","UNCERTAIN"}
+_RESULTS={"PASS","FAIL","BLOCKED","UNCERTAIN","NOT_EVALUATED"}
 
 
 def _as_mapping(value: Any, label: str) -> Mapping[str, Any]:
@@ -174,6 +174,13 @@ def validate_execution_evidence_envelope(envelope: Mapping[str, Any]) -> None:
     verification=_as_mapping(payload["verification"],"verification")
     recovery=_as_mapping(payload["recovery"],"recovery")
 
+    if harness_status in {"ERROR","INTERRUPTED"} and result!="NOT_EVALUATED":
+        raise RuntimeError("incomplete harness cannot assign target result")
+    if result=="NOT_EVALUATED":
+        if harness_status=="COMPLETED":
+            raise RuntimeError("NOT_EVALUATED requires incomplete harness")
+        if verification.get("status")!="NOT_PERFORMED":
+            raise RuntimeError("NOT_EVALUATED cannot claim verification")
     if result=="PASS":
         if harness_status!="COMPLETED":
             raise RuntimeError("PASS envelope requires completed harness")
