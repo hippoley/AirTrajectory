@@ -1,6 +1,9 @@
 import unittest
 
-from airtrajectory.execution_evidence import validate_execution_evidence_envelope
+from airtrajectory.execution_evidence import (
+    build_execution_evidence_envelope,
+    validate_execution_evidence_envelope,
+)
 
 
 def base_envelope():
@@ -45,6 +48,70 @@ class ExecutionEvidenceEnvelopeTests(unittest.TestCase):
         self.assertNotIn("opening_id",payload["target"])
         self.assertNotIn("zone_id",payload["target"])
         self.assertEqual(payload["extensions"]["physical"]["opening_id"],"W1")
+
+    def test_blocked_write_preserves_mutation_intent_without_claiming_motion(self):
+        field_record={
+            "schema_version":"0.1",
+            "record_type":"field-execution-record-v0.1",
+            "execution_id":"a"*64,
+            "parent_execution_id":None,
+            "test_case_id":"blocked-write",
+            "spec_clause_refs":[],
+            "result":"BLOCKED",
+            "reason_code":"READINESS_BLOCKED",
+            "detail":"write gate closed",
+            "motion_performed":False,
+            "cycle_verified":False,
+            "started_at":1.0,
+            "completed_at":None,
+            "target":{
+                "target_identity":"b"*64,
+                "opening_id":"W1",
+                "zone_id":"living",
+                "idempotency_scope_id":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+            },
+            "request":{
+                "request_id":"req-1",
+                "command_id":None,
+                "command_ack_sha256":None,
+                "authorized_target_pct":10.0,
+            },
+            "observation":{
+                "measured_position_pct":None,
+                "sensor_snapshot_sha256":None,
+                "fresh_after_action":None,
+            },
+            "phases":[
+                {
+                    "phase":"PRECHECK",
+                    "result":"BLOCKED",
+                    "reason_code":"READINESS_BLOCKED",
+                    "detail":"write gate closed",
+                    "evidence_refs":[],
+                },
+                {
+                    "phase":"EXECUTE",
+                    "result":"BLOCKED",
+                    "reason_code":"READINESS_BLOCKED",
+                    "detail":None,
+                    "evidence_refs":[],
+                },
+                {
+                    "phase":"VERIFY",
+                    "result":"BLOCKED",
+                    "reason_code":"READINESS_BLOCKED",
+                    "detail":None,
+                    "evidence_refs":[],
+                },
+            ],
+            "artifact_refs":[],
+            "evidence_boundary":"test fixture",
+        }
+        envelope=build_execution_evidence_envelope(field_record)
+        self.assertTrue(envelope["operation"]["mutation_expected"])
+        self.assertFalse(envelope["extensions"]["physical"]["motion_performed"])
+        self.assertFalse(envelope["extensions"]["physical"]["mutation_observed"])
+        self.assertEqual(envelope["result"],"BLOCKED")
 
 
 if __name__=="__main__":
