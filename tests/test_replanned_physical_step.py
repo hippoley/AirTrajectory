@@ -265,6 +265,70 @@ class ReplannedPhysicalStepTests(unittest.TestCase):
             self.assertFalse((root/"next.json").exists())
             self.assertFalse((root/"physical-origin-leases").exists())
 
+    def test_execute_requires_explicit_lease_namespace_before_motion(self):
+        with tempfile.TemporaryDirectory() as d:
+            root=Path(d)
+            physical,planner=self._files(root)
+            driver=FakeDriver()
+            with self.assertRaisesRegex(
+                RuntimeError,
+                "requires an explicit durable lease_dir",
+            ):
+                module.run_replanned_physical_step(
+                    driver=driver,
+                    physical_origin_receipt=physical,
+                    planner_receipt=planner,
+                    opening_id="W1",
+                    zone_id="living",
+                    max_delta_pct=10.0,
+                    summary_out=root/"a"/"summary.json",
+                    next_origin_out=root/"a"/"next.json",
+                    execute=True,
+                    snapshot_fn=lambda **kwargs:snapshot(),
+                    clock_fn=lambda:23.0,
+                )
+            self.assertEqual(driver.commanded,[])
+            self.assertFalse((root/"a"/"summary.json").exists())
+
+    def test_same_origin_cannot_replay_across_different_output_directories(self):
+        with tempfile.TemporaryDirectory() as d:
+            root=Path(d)
+            physical,planner=self._files(root)
+            lease_dir=root/"shared-leases"
+            first_driver=FakeDriver()
+            module.run_replanned_physical_step(
+                driver=first_driver,
+                physical_origin_receipt=physical,
+                planner_receipt=planner,
+                opening_id="W1",
+                zone_id="living",
+                max_delta_pct=10.0,
+                summary_out=root/"run-a"/"summary.json",
+                next_origin_out=root/"run-a"/"next.json",
+                execute=True,
+                lease_dir=lease_dir,
+                snapshot_fn=lambda **kwargs:snapshot(),
+                clock_fn=lambda:23.0,
+            )
+            second_driver=FakeDriver()
+            with self.assertRaisesRegex(RuntimeError,"already been claimed"):
+                module.run_replanned_physical_step(
+                    driver=second_driver,
+                    physical_origin_receipt=physical,
+                    planner_receipt=planner,
+                    opening_id="W1",
+                    zone_id="living",
+                    max_delta_pct=10.0,
+                    summary_out=root/"run-b"/"summary.json",
+                    next_origin_out=root/"run-b"/"next.json",
+                    execute=True,
+                    lease_dir=lease_dir,
+                    snapshot_fn=lambda **kwargs:snapshot(),
+                    clock_fn=lambda:23.5,
+                )
+            self.assertEqual(second_driver.commanded,[])
+            self.assertFalse((root/"run-b"/"summary.json").exists())
+
     def test_execute_emits_verified_next_physical_origin(self):
         with tempfile.TemporaryDirectory() as d:
             root=Path(d)
@@ -280,6 +344,7 @@ class ReplannedPhysicalStepTests(unittest.TestCase):
                 summary_out=root/"summary.json",
                 next_origin_out=root/"next.json",
                 execute=True,
+                lease_dir=root/"physical-origin-leases",
                 snapshot_fn=lambda **kwargs:snapshot(),
                 clock_fn=lambda:23.0,
             )
@@ -324,6 +389,7 @@ class ReplannedPhysicalStepTests(unittest.TestCase):
                 summary_out=root/"first-summary.json",
                 next_origin_out=root/"first-next.json",
                 execute=True,
+                lease_dir=root/"physical-origin-leases",
                 snapshot_fn=lambda **kwargs:snapshot(),
                 clock_fn=lambda:23.0,
             )
@@ -339,9 +405,9 @@ class ReplannedPhysicalStepTests(unittest.TestCase):
                     summary_out=root/"second-summary.json",
                     next_origin_out=root/"second-next.json",
                     execute=True,
+                    lease_dir=root/"physical-origin-leases",
                     snapshot_fn=lambda **kwargs:snapshot(),
                     clock_fn=lambda:23.5,
-                    lease_dir=root/"physical-origin-leases",
                 )
             self.assertEqual(second_driver.commanded,[])
 
@@ -361,6 +427,7 @@ class ReplannedPhysicalStepTests(unittest.TestCase):
                     summary_out=root/"failed-summary.json",
                     next_origin_out=root/"failed-next.json",
                     execute=True,
+                    lease_dir=root/"physical-origin-leases",
                     snapshot_fn=lambda **kwargs:(_ for _ in ()).throw(
                         RuntimeError("sensor timeout")
                     ),
@@ -378,9 +445,9 @@ class ReplannedPhysicalStepTests(unittest.TestCase):
                     summary_out=root/"retry-summary.json",
                     next_origin_out=root/"retry-next.json",
                     execute=True,
+                    lease_dir=root/"physical-origin-leases",
                     snapshot_fn=lambda **kwargs:snapshot(),
                     clock_fn=lambda:23.5,
-                    lease_dir=root/"physical-origin-leases",
                 )
             self.assertEqual(second_driver.commanded,[])
 
@@ -399,6 +466,7 @@ class ReplannedPhysicalStepTests(unittest.TestCase):
                 summary_out=root/"summary.json",
                 next_origin_out=root/"next.json",
                 execute=True,
+                lease_dir=root/"physical-origin-leases",
                 snapshot_fn=lambda **kwargs:snapshot(),
                 clock_fn=lambda:23.0,
             )
@@ -437,6 +505,7 @@ class ReplannedPhysicalStepTests(unittest.TestCase):
                 summary_out=root/"summary.json",
                 next_origin_out=root/"next.json",
                 execute=True,
+                lease_dir=root/"physical-origin-leases",
                 snapshot_fn=lambda **kwargs:snapshot(),
                 clock_fn=lambda:23.0,
             )
@@ -486,6 +555,7 @@ class ReplannedPhysicalStepTests(unittest.TestCase):
                 summary_out=root/"summary.json",
                 next_origin_out=root/"next.json",
                 execute=True,
+                lease_dir=root/"physical-origin-leases",
                 snapshot_fn=lambda **kwargs:snapshot(),
                 clock_fn=lambda:23.0,
             )
@@ -529,6 +599,7 @@ class ReplannedPhysicalStepTests(unittest.TestCase):
                 summary_out=root/"summary.json",
                 next_origin_out=root/"next.json",
                 execute=True,
+                lease_dir=root/"physical-origin-leases",
                 snapshot_fn=lambda **kwargs:snapshot(),
                 clock_fn=lambda:23.0,
             )
@@ -572,6 +643,7 @@ class ReplannedPhysicalStepTests(unittest.TestCase):
                 summary_out=root/"summary.json",
                 next_origin_out=root/"next.json",
                 execute=True,
+                lease_dir=root/"physical-origin-leases",
                 snapshot_fn=lambda **kwargs:snapshot(),
                 clock_fn=lambda:23.0,
             )
@@ -617,6 +689,7 @@ class ReplannedPhysicalStepTests(unittest.TestCase):
                 summary_out=root/"summary.json",
                 next_origin_out=root/"next.json",
                 execute=True,
+                lease_dir=root/"physical-origin-leases",
                 snapshot_fn=lambda **kwargs:snapshot(),
                 clock_fn=lambda:23.0,
             )
@@ -657,6 +730,7 @@ class ReplannedPhysicalStepTests(unittest.TestCase):
                 summary_out=root/"summary.json",
                 next_origin_out=root/"next.json",
                 execute=True,
+                lease_dir=root/"physical-origin-leases",
                 snapshot_fn=lambda **kwargs:snapshot(),
                 clock_fn=lambda:23.0,
             )
@@ -684,6 +758,7 @@ class ReplannedPhysicalStepTests(unittest.TestCase):
                     summary_out=root/"summary.json",
                     next_origin_out=root/"next.json",
                     execute=True,
+                    lease_dir=root/"physical-origin-leases",
                     clock_fn=lambda:40.0,
                 )
             self.assertEqual(driver.commanded,[])
@@ -704,6 +779,7 @@ class ReplannedPhysicalStepTests(unittest.TestCase):
                     summary_out=root/"summary.json",
                     next_origin_out=root/"next.json",
                     execute=True,
+                    lease_dir=root/"physical-origin-leases",
                     clock_fn=lambda:23.0,
                 )
             self.assertEqual(driver.commanded,[])
@@ -745,6 +821,7 @@ class ReplannedPhysicalStepTests(unittest.TestCase):
                     summary_out=root/"summary.json",
                     next_origin_out=root/"next.json",
                     execute=True,
+                    lease_dir=root/"physical-origin-leases",
                     clock_fn=lambda:23.0,
                 )
             self.assertEqual(driver.commanded,[])
@@ -765,6 +842,7 @@ class ReplannedPhysicalStepTests(unittest.TestCase):
                     summary_out=root/"summary.json",
                     next_origin_out=root/"next.json",
                     execute=True,
+                    lease_dir=root/"physical-origin-leases",
                     snapshot_fn=lambda **kwargs:(_ for _ in ()).throw(
                         RuntimeError("sensor timeout")
                     ),

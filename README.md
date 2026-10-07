@@ -273,6 +273,11 @@ physical-origin receipt hash
 
 Only after review should the same command be repeated with `--execute`.
 
+Real execution also consumes the physical origin through a durable local
+single-use lease. Keep the lease namespace stable across runs and output
+directories. The CLI default is `artifacts/physical-origin-leases`; changing
+`--summary-out` or `--next-origin-out` must not create a new lease namespace.
+
 ```bash
 python examples/run_replanned_physical_step.py \
   --windowpilot http://127.0.0.1:8001 \
@@ -281,6 +286,7 @@ python examples/run_replanned_physical_step.py \
   --opening-id W1 \
   --zone-id living \
   --max-delta-pct 10 \
+  --lease-dir artifacts/physical-origin-leases \
   --next-origin-out artifacts/physical-next-origin-2.json \
   --execute
 ```
@@ -291,6 +297,13 @@ challenge in the ACK and add its own UUID `command_id`. The ACK hash covers
 both identities. Legacy v1 acknowledgements remain readable as historical
 first-contact evidence, but they are not accepted for new replanned physical
 cycles.
+
+The Python API requires an explicit `lease_dir` whenever
+`execute=True`; it will not infer a lease directory from an output path.
+Claiming is atomic on one filesystem, so two local processes sharing the same
+lease namespace cannot both consume the same physical-origin receipt. This is
+still a local orchestration guarantee, not a distributed gateway/device
+transaction guarantee.
 
 The command evidence must also be temporally monotonic:
 

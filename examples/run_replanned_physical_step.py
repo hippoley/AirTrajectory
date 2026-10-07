@@ -262,11 +262,12 @@ def run_replanned_physical_step(
         _write(summary_out,final)
         return final
 
-    resolved_lease_dir=(
-        Path(lease_dir)
-        if lease_dir is not None
-        else Path(summary_out).parent/"physical-origin-leases"
-    )
+    if lease_dir is None:
+        raise RuntimeError(
+            "real physical execution requires an explicit durable lease_dir; "
+            "the lease namespace must not depend on summary/output paths"
+        )
+    resolved_lease_dir=Path(lease_dir)
     lease_claim=claim_physical_origin_execution(
         lease_dir=resolved_lease_dir,
         origin_receipt_sha256=handoff["physical_origin_receipt_sha256"],
