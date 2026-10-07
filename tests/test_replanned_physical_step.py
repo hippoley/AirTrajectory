@@ -6,6 +6,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from airtrajectory.physical import DriverCapabilities
 from airtrajectory.trajectory import ActuatorFeedback
 from airtrajectory.physical_origin import verify_physical_origin_receipt
 
@@ -159,6 +160,14 @@ class FakeDriver:
     def __init__(self):
         self.commanded=[]
         self.last_command_ack=None
+
+    def capabilities(self):
+        return DriverCapabilities(
+            transport="thingmodel-http",
+            simulated=False,
+            measured_position=True,
+            sensor_types=("co2","rain"),
+        )
 
     def physical_readiness(self):
         return {
