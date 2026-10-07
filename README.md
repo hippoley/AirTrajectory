@@ -354,6 +354,36 @@ This path makes repeated physical closed-loop execution possible, but repository
 CI still uses synthetic contract fixtures and does not claim real field
 validation.
 
+For field use, prefer the verified-cycle wrapper so execution and independent
+artifact verification cannot be accidentally separated:
+
+```bash
+python examples/run_verified_replanned_physical_cycle.py \
+  --windowpilot http://127.0.0.1:8001 \
+  --previous-origin artifacts/physical-next-origin.json \
+  --planner-receipt artifacts/contam-replan-from-physical-origin.json \
+  --opening-id W1 \
+  --zone-id living \
+  --max-delta-pct 10 \
+  --lease-dir artifacts/physical-origin-leases
+```
+
+The wrapper is also read-only by default. After review, add `--execute`.
+A final `status=PASS` is written only after the bounded physical action emits
+its next origin **and** `verify_persisted_physical_cycle()` independently
+reconstructs the transition from the persisted source artifacts.
+
+If the actuator already moved but the independent verifier fails, the wrapper
+persists:
+
+```text
+status = BLOCKED_VERIFICATION_FAILED
+motion_performed = true
+cycle_verified = false
+```
+
+and raises instead of treating the transition as verified.
+
 A claimed physical origin is never auto-unlocked by timeout. If the local
 process dies after the lease becomes `IN_FLIGHT`, seal that abandoned lease
 explicitly:
