@@ -231,3 +231,103 @@ def probe_contamxpy_engine(prj_path: str | Path) -> dict[str, Any]:
     finally:
         if started:
             engine.endSimulation()
+
+
+def compare_continuation_observations(
+    *,
+    continuous: dict[str, Any],
+    resumed: dict[str, Any],
+    co2_tolerance_ppm: float = 1.0,
+    flow_tolerance_kg_s: float = 1e-6,
+    opening_tolerance_pct: float = 1e-6,
+) -> dict[str, Any]:
+    """Compare the physical end state of continuous and resumed runs.
+
+    This receipt is method-agnostic: native setters, restart files, and PRJ
+    re-seeding can all be tested against the same acceptance contract.
+    """
+    if co2_tolerance_ppm < 0 or flow_tolerance_kg_s < 0 or opening_tolerance_pct < 0:
+        raise ValueError("continuation tolerances must be non-negative")
+
+    def mapping(name: str, row: dict[str, Any]) -> dict[str, float]:
+        value = row.get(name)
+        if not isinstance(value, dict):
+            raise ValueError(f"{name} must be a mapping")
+        return {str(key): float(raw) for key, raw in value.items()}
+
+    continuous_co2 = mapping("co2_ppm", continuous)
+    resumed_co2 = mapping("co2_ppm", resumed)
+    continuous_flows = mapping("path_flow_kg_s", continuous)
+    resumed_flows = mapping("path_flow_kg_s", resumed)
+    continuous_openings = mapping("opening_pct", continuous)
+    resumed_openings = mapping("opening_pct", resumed)
+
+    if set(continuous_co2) != set(resumed_co2):
+        raise ValueError("continuation CO2 zone sets differ")
+    if set(continuous_flows) != set(resumed_flows):
+        raise ValueError("continuation path-flow sets differ")
+    if set(continuous_openings) != set(resumed_openings):
+        raise ValueError("continuation opening sets differ")
+
+    co2_error = {
+        key: abs(continuous_co2[key] - resumed_co2[key])
+        for key in sorted(continuous_co2)
+    }
+    flow_error = {
+        key: abs(continuous_flows[key] - resumed_flows[key])
+        for key in sorted(continuous_flows)
+    }
+    opening_error = {
+        key: abs(continuous_openings[key] - resumed_openings[key])
+        for key in sorted(continuous_openings)
+    }
+
+    continuous_time = continuous.get("simulation_time")
+    resumed_time = resumed.get("simulation_time")
+    time_continuity = (
+        continuous_time == resumed_time
+        if continuous_time is not None or resumed_time is not None
+        else None
+    )
+
+    checks = {
+        "co2_within_tolerance": all(
+            value <= co2_tolerance_ppm for value in co2_error.values()
+        ),
+        "flow_within_tolerance": all(
+            value <= flow_tolerance_kg_s for value in flow_error.values()
+        ),
+        "opening_within_tolerance": all(
+            value <= opening_tolerance_pct for value in opening_error.values()
+        ),
+        "time_continuity": time_continuity,
+    }
+    comparable_time_pass = True if time_continuity is None else bool(time_continuity)
+    passed = (
+        checks["co2_within_tolerance"]
+        and checks["flow_within_tolerance"]
+        and checks["opening_within_tolerance"]
+        and comparable_time_pass
+    )
+
+    payload = {
+        "schema_version": "0.1",
+        "comparison": "contam-continuation-equivalence-v1",
+        "status": "PASS" if passed else "FAIL",
+        "tolerances": {
+            "co2_ppm": float(co2_tolerance_ppm),
+            "path_flow_kg_s": float(flow_tolerance_kg_s),
+            "opening_pct": float(opening_tolerance_pct),
+        },
+        "errors": {
+            "co2_ppm": co2_error,
+            "path_flow_kg_s": flow_error,
+            "opening_pct": opening_error,
+        },
+        "checks": checks,
+        "state_reinjection_verified": bool(passed),
+    }
+    return {
+        **payload,
+        "comparison_sha256": _sha256(payload),
+    }
