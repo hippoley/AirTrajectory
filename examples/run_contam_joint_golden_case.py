@@ -17,6 +17,9 @@ from airtrajectory.contam_joint_golden_case import (
 )
 from airtrajectory.demo_runtime import DemoRuntimeSnapshot
 from airtrajectory.layout import LayoutContract
+from airtrajectory.ventilation_path_candidates import (
+    inject_ventilation_path_candidates,
+)
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -41,6 +44,16 @@ def main() -> int:
         default=ROOT / "web" / "data" / "home_topology.fixed.json",
     )
     parser.add_argument("--out", type=Path)
+    parser.add_argument(
+        "--derive-path-candidates",
+        action="store_true",
+        help="replace manual joint candidates with topology-derived VentilationPath candidates",
+    )
+    parser.add_argument(
+        "--path-intensities",
+        default="35,55,75",
+        help="comma-separated opening percentages for topology-derived path candidates",
+    )
     args = parser.parse_args()
 
     provenance = _load(args.provenance)
@@ -51,6 +64,24 @@ def main() -> int:
     topology = layout.to_building_topology()
     snapshot = DemoRuntimeSnapshot.resolve(layout)
     raw_case = _load(args.golden_case)
+    candidate_source = "manual-golden-case"
+    path_candidate_metadata = []
+    if args.derive_path_candidates:
+        try:
+            intensities = tuple(
+                float(item.strip())
+                for item in args.path_intensities.split(",")
+                if item.strip()
+            )
+        except ValueError as exc:
+            raise RuntimeError("--path-intensities must be numeric") from exc
+        raw_case = inject_ventilation_path_candidates(
+            raw_case,
+            topology,
+            intensities=intensities,
+        )
+        candidate_source = raw_case["candidate_source"]
+        path_candidate_metadata = list(raw_case["ventilation_path_candidates"])
     if str(raw_case.get("topology_id") or "") != layout.topology_id:
         raise RuntimeError("Golden Case topology_id does not match layout")
     case = normalize_golden_case(raw_case, topology)
@@ -174,6 +205,8 @@ def main() -> int:
         "evidence_level": response.get("evidence_level"),
         "trusted_for_promotion": response.get("trusted_for_promotion"),
         "golden_case": case,
+        "candidate_source": candidate_source,
+        "ventilation_path_candidates": path_candidate_metadata,
         "comparison": receipt,
         "branches": response["branches"],
     }
