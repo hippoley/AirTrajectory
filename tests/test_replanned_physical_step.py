@@ -10,6 +10,7 @@ from airtrajectory.physical import DriverCapabilities
 from airtrajectory.physical_cycle_verify import verify_persisted_physical_cycle
 from airtrajectory.trajectory import ActuatorFeedback
 from airtrajectory.physical_origin import verify_physical_origin_receipt
+from airtrajectory.physical_origin_lease import verify_physical_origin_execution_lease
 
 
 ROOT=Path(__file__).resolve().parents[1]
@@ -262,6 +263,7 @@ class ReplannedPhysicalStepTests(unittest.TestCase):
             self.assertFalse(out["motion_performed"])
             self.assertEqual(driver.commanded,[])
             self.assertFalse((root/"next.json").exists())
+            self.assertFalse((root/"physical-origin-leases").exists())
 
     def test_execute_emits_verified_next_physical_origin(self):
         with tempfile.TemporaryDirectory() as d:
@@ -289,6 +291,98 @@ class ReplannedPhysicalStepTests(unittest.TestCase):
             verified=verify_physical_origin_receipt(next_payload)
             self.assertEqual(verified["origin"]["co2_ppm"]["living"],1320.0)
             self.assertAlmostEqual(verified["origin"]["opening_pct"]["W1"],4.9)
+            leases=list((root/"physical-origin-leases").glob("*.json"))
+            self.assertEqual(len(leases),1)
+            lease=verify_physical_origin_execution_lease(
+                lease_path=leases[0],
+                expected_origin_receipt_sha256=out[
+                    "physical_origin_receipt_sha256"
+                ],
+            )
+            self.assertEqual(lease["status"],"ADVANCED")
+            self.assertEqual(
+                lease["next_physical_origin_receipt_sha256"],
+                next_payload["physical_origin_receipt_sha256"],
+            )
+            self.assertEqual(
+                lease["step_summary_sha256"],
+                out["replanned_physical_step_sha256"],
+            )
+
+    def test_successfully_consumed_origin_cannot_execute_twice(self):
+        with tempfile.TemporaryDirectory() as d:
+            root=Path(d)
+            physical,planner=self._files(root)
+            first_driver=FakeDriver()
+            module.run_replanned_physical_step(
+                driver=first_driver,
+                physical_origin_receipt=physical,
+                planner_receipt=planner,
+                opening_id="W1",
+                zone_id="living",
+                max_delta_pct=10.0,
+                summary_out=root/"first-summary.json",
+                next_origin_out=root/"first-next.json",
+                execute=True,
+                snapshot_fn=lambda **kwargs:snapshot(),
+                clock_fn=lambda:23.0,
+            )
+            second_driver=FakeDriver()
+            with self.assertRaisesRegex(RuntimeError,"already been claimed"):
+                module.run_replanned_physical_step(
+                    driver=second_driver,
+                    physical_origin_receipt=physical,
+                    planner_receipt=planner,
+                    opening_id="W1",
+                    zone_id="living",
+                    max_delta_pct=10.0,
+                    summary_out=root/"second-summary.json",
+                    next_origin_out=root/"second-next.json",
+                    execute=True,
+                    snapshot_fn=lambda **kwargs:snapshot(),
+                    clock_fn=lambda:23.5,
+                    lease_dir=root/"physical-origin-leases",
+                )
+            self.assertEqual(second_driver.commanded,[])
+
+    def test_recovery_required_origin_cannot_be_replayed(self):
+        with tempfile.TemporaryDirectory() as d:
+            root=Path(d)
+            physical,planner=self._files(root)
+            first_driver=FakeDriver()
+            with self.assertRaisesRegex(RuntimeError,"fresh sensor capture failed"):
+                module.run_replanned_physical_step(
+                    driver=first_driver,
+                    physical_origin_receipt=physical,
+                    planner_receipt=planner,
+                    opening_id="W1",
+                    zone_id="living",
+                    max_delta_pct=10.0,
+                    summary_out=root/"failed-summary.json",
+                    next_origin_out=root/"failed-next.json",
+                    execute=True,
+                    snapshot_fn=lambda **kwargs:(_ for _ in ()).throw(
+                        RuntimeError("sensor timeout")
+                    ),
+                    clock_fn=lambda:23.0,
+                )
+            second_driver=FakeDriver()
+            with self.assertRaisesRegex(RuntimeError,"already been claimed"):
+                module.run_replanned_physical_step(
+                    driver=second_driver,
+                    physical_origin_receipt=physical,
+                    planner_receipt=planner,
+                    opening_id="W1",
+                    zone_id="living",
+                    max_delta_pct=10.0,
+                    summary_out=root/"retry-summary.json",
+                    next_origin_out=root/"retry-next.json",
+                    execute=True,
+                    snapshot_fn=lambda **kwargs:snapshot(),
+                    clock_fn=lambda:23.5,
+                    lease_dir=root/"physical-origin-leases",
+                )
+            self.assertEqual(second_driver.commanded,[])
 
     def test_persisted_success_cycle_independently_verifies(self):
         with tempfile.TemporaryDirectory() as d:
@@ -688,6 +782,18 @@ class ReplannedPhysicalStepTests(unittest.TestCase):
             self.assertTrue(partial["safe_closeout"]["confirmed_closed"])
             self.assertEqual(driver.commanded,[("W1",5.0),("W1",0.0)])
             self.assertFalse((root/"next.json").exists())
+            leases=list((root/"physical-origin-leases").glob("*.json"))
+            self.assertEqual(len(leases),1)
+            lease=verify_physical_origin_execution_lease(
+                lease_path=leases[0],
+                expected_origin_receipt_sha256=partial[
+                    "physical_origin_receipt_sha256"
+                ],
+            )
+            self.assertEqual(lease["status"],"RECOVERY_REQUIRED")
+            self.assertTrue(
+                lease["recovery"]["requires_new_physical_origin"]
+            )
 
 
 if __name__=="__main__":
