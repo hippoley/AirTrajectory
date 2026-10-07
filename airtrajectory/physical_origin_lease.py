@@ -215,6 +215,7 @@ def record_physical_origin_recovery(
 
     payload=dict(body)
     payload["status"]="RECOVERED"
+    payload["recovery_required_lease_sha256"]=provided
     payload["recovered_at"]=ts
     payload["recovery_origin_sha256"]=_require_sha(
         recovery_origin_sha256,
