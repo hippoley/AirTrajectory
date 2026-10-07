@@ -141,6 +141,41 @@ signed conformance statement
 Each layer loses detail. A higher layer must not claim authenticity or certainty
 that the lower evidence does not establish.
 
+## Signed-claim membership binding
+
+Margo sandbox #298 now explicitly asks for report signing, signature metadata,
+and verification-friendly output for audit/evidence usage.
+
+That creates a second layer beyond one execution record:
+
+```text
+ExecutionEvidenceEnvelope[]
+        ↓
+deterministic membership binding
+        ↓
+signed report / conformance claim
+```
+
+The membership layer must remain separate from the signature mechanism. Its job
+is only to freeze which execution records are covered by the higher-level
+claim, preserve aggregate result semantics, and make omission or substitution
+detectable.
+
+AirTrajectory therefore provides the exploratory
+`ExecutionEvidenceSet v0.1` reference model:
+
+- deterministic ordering by execution ID;
+- SHA-256 binding to each member record;
+- duplicate execution IDs rejected;
+- aggregate counts for PASS / BLOCKED / FAIL / NOT_EVALUATED / UNCERTAIN;
+- UNCERTAIN dominates aggregation so a possible remote/physical mutation cannot
+  disappear behind another suite state;
+- a manifest digest suitable as an input to a future signing layer.
+
+This is intentionally **not** a digital-signature implementation and does not
+claim to be Margo's report schema. It models only the object that a signing layer
+could choose to attest to.
+
 ## Current status
 
 AirTrajectory currently implements:
