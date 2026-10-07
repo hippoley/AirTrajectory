@@ -165,6 +165,20 @@ docs/
 4. Add topology compilation from the real ThingModel/floor-plan source rather than generated chain scenarios.
 5. Expand the learning stack and quantify sim→real transfer on held-out structural families.
 
+## Standards and conformance exploration
+
+AirTrajectory also maintains an exploratory, non-normative mapping between its
+tested physical field-control semantics and open GEISA specification/conformance
+questions:
+
+- [GEISA field-tool and conformance mapping note](docs/geisa-field-tool-conformance-note.md)
+
+The note is implementation evidence, not a claim of official GEISA alignment.
+It focuses on transport-neutral behaviors such as observe-only readiness,
+explicit mutation boundaries, request idempotency, target identity continuity,
+acknowledgement-versus-feedback separation, uncertain-outcome recovery, and
+independently verifiable execution evidence.
+
 ## One-command physical field handoff
 
 The safest field entry point is now a single orchestrator. It is **read-only by
