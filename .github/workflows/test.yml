@@ -157,3 +157,27 @@ jobs:
           assert all(all(len(v)==3 for v in b["co2_series_by_zone"].values()) for b in p["branches"])
           print("JOINT_GOLDEN_CASE_RECEIPT_VERIFIED", c["joint_vs_independent_outcome"], c["objective_improvement"])
           '@ | python -
+
+      - name: Rank topology-derived VentilationPaths on real ContamX
+        timeout-minutes: 4
+        shell: pwsh
+        run: |
+          python examples/run_contam_joint_golden_case.py artifacts/multispace-transient.prj artifacts/multispace-transient.prj.json --derive-path-candidates --path-intensities 35,55,75 --out artifacts/contam-ventilation-path-ranking.json | Tee-Object -FilePath contam-ventilation-path-ranking.log
+          if (-not (Select-String -Path contam-ventilation-path-ranking.log -Pattern "REAL_CONTAM_JOINT_GOLDEN_CASE_EXECUTED")) { exit 1 }
+          @'
+          import json
+          p=json.load(open("artifacts/contam-ventilation-path-ranking.json",encoding="utf-8"))
+          assert p["candidate_source"]=="topology-derived-ventilation-paths"
+          rows=p["ventilation_path_candidates"]
+          assert len(rows)==9
+          labels={row["label"] for row in rows}
+          assert "ventpath:W1->W2@35" in labels
+          assert "ventpath:W1->W3@55" in labels
+          assert "ventpath:W2->W3@75" in labels
+          c=p["comparison"]
+          assert c["status"]=="PASS"
+          assert c["non_regression"] is True
+          assert len(c["comparison_sha256"])==64
+          ranked=sorted(c["all_candidates"], key=lambda row:(row["objective_score"],row["label"]))
+          print("REAL_CONTAM_VENTILATION_PATH_RANKING_VERIFIED", ranked[0]["label"], ranked[0]["objective_score"])
+          '@ | python -
