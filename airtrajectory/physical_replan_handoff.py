@@ -393,6 +393,34 @@ def build_replanned_physical_step_origin(
     opening_observed_at[opening_id]=feedback_ts
     zone_observed_at[zone]=co2_ts
 
+    whole_home_measurement_max_skew_s=10.0
+    coverage_complete=(
+        all_zones<=prior_measured_zones
+        and all_openings<=prior_measured_openings
+    )
+    timestamp_coverage_complete=(
+        all(zone_id in zone_observed_at for zone_id in all_zones)
+        and all(
+            measured_opening in opening_observed_at
+            for measured_opening in all_openings
+        )
+    )
+    whole_home_measurement_skew_s=None
+    whole_home_physically_measured=False
+    if coverage_complete and timestamp_coverage_complete:
+        timestamps=[
+            float(zone_observed_at[zone_id])
+            for zone_id in sorted(all_zones)
+        ] + [
+            float(opening_observed_at[measured_opening])
+            for measured_opening in sorted(all_openings)
+        ] + [rain_ts]
+        whole_home_measurement_skew_s=max(timestamps)-min(timestamps)
+        whole_home_physically_measured=(
+            whole_home_measurement_skew_s
+            <=whole_home_measurement_max_skew_s
+        )
+
     payload={
         "schema_version":"0.1",
         "source":"windowpilot-replanned-physical-step-v1",
@@ -421,17 +449,20 @@ def build_replanned_physical_step_origin(
             for key,value in zone_observed_at.items()
         )),
         "rain_observed_at":rain_ts,
+        "current_step_measured_zones":[zone],
+        "current_step_measured_openings":[opening_id],
         "measured_zones":sorted(prior_measured_zones),
         "measured_openings":sorted(prior_measured_openings),
         "inherited_zones":sorted(all_zones-prior_measured_zones),
         "inherited_openings":sorted(all_openings-prior_measured_openings),
-        "whole_home_physically_measured":(
-            all_zones<=prior_measured_zones
-            and all_openings<=prior_measured_openings
-        ),
+        "whole_home_measurement_skew_s":whole_home_measurement_skew_s,
+        "whole_home_measurement_max_skew_s":whole_home_measurement_max_skew_s,
+        "whole_home_physically_measured":whole_home_physically_measured,
         "evidence_boundary":(
-            "origin refreshed from one bounded replanned physical action plus "
-            "fresh post-action measured CO2/rain; untouched state remains inherited"
+            "measured_zones/measured_openings are cumulative physical-lineage "
+            "coverage across cycles, not a contemporaneous whole-home claim; "
+            "whole_home_physically_measured is true only when complete coverage "
+            "also satisfies the whole-home observation-time coherence bound"
         ),
     }
     return {
