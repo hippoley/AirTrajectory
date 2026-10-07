@@ -22,6 +22,45 @@ def _sha256(payload: Any) -> str:
     ).hexdigest()
 
 
+
+def _verify_command_ack(ack: Mapping[str, Any], *, expected_target: float) -> dict[str, Any]:
+    if not isinstance(ack, Mapping):
+        raise RuntimeError("physical handoff missing command acknowledgement")
+    provided = str(ack.get("command_ack_sha256") or "")
+    payload = {
+        key: value
+        for key, value in ack.items()
+        if key != "command_ack_sha256"
+    }
+    if provided != _sha256(payload):
+        raise RuntimeError("physical command acknowledgement SHA-256 mismatch")
+    if ack.get("receipt") != "windowpilot-command-ack-v1":
+        raise RuntimeError("physical command acknowledgement contract is unsupported")
+    if ack.get("accepted") is not True:
+        raise RuntimeError("physical command was not acknowledged as accepted")
+    if ack.get("simulated") is not False:
+        raise RuntimeError("physical command acknowledgement is marked simulated")
+    if ack.get("physical_write_ready") is not True:
+        raise RuntimeError("physical command acknowledgement lacks write authorization")
+    if ack.get("write_contract_ready") is not True:
+        raise RuntimeError("physical command acknowledgement lacks write contract")
+    if ack.get("motion_semantics_ready") is not True:
+        raise RuntimeError("physical command acknowledgement lacks motion semantics")
+    if ack.get("evidence_kind") != "physical-command-accepted":
+        raise RuntimeError("physical command acknowledgement evidence kind is invalid")
+    if str(ack.get("action") or "") != "open":
+        raise RuntimeError("physical first-contact acknowledgement action must be open")
+    target = ack.get("target_pct")
+    if target is None or abs(float(target) - float(expected_target)) > 1e-9:
+        raise RuntimeError("physical command acknowledgement target mismatch")
+    identity = str(ack.get("hardware_identity_sha256") or "")
+    if len(identity) != 64 or any(
+        ch not in "0123456789abcdef" for ch in identity.lower()
+    ):
+        raise RuntimeError("physical command acknowledgement hardware identity is invalid")
+    return dict(ack)
+
+
 def extract_closed_loop_opening_action(
     closed_loop_payload: Mapping[str, Any],
     *,
@@ -194,6 +233,22 @@ def build_physical_handoff_reconcile(
             raise RuntimeError("terminal sensors must be newer than closeout feedback")
 
     authorized = float(authorization["authorized_target_pct"])
+
+    step_info = trajectory_step.get("info") or {}
+    command_acks = (
+        step_info.get("command_acks")
+        if isinstance(step_info, Mapping)
+        else None
+    )
+    if not isinstance(command_acks, list) or len(command_acks) != 1:
+        raise RuntimeError(
+            "physical handoff requires exactly one verified command acknowledgement"
+        )
+    command_ack = _verify_command_ack(
+        command_acks[0],
+        expected_target=authorized,
+    )
+
     position_error = measured - authorized
     payload = {
         "schema_version": "0.1",
@@ -228,6 +283,9 @@ def build_physical_handoff_reconcile(
             and abs(position_error) <= 1.0
         ),
         "physical_intervention": authorization.get("intervention"),
+        "command_ack_sha256": command_ack["command_ack_sha256"],
+        "command_hardware_identity_sha256": command_ack["hardware_identity_sha256"],
+        "command_write_gate_verified": True,
         "pre_action_co2_ppm": (
             None if pre_co2 is None else float(pre_co2)
         ),
