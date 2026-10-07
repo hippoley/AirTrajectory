@@ -247,6 +247,36 @@ class ReplannedPhysicalStepTests(unittest.TestCase):
             self.assertEqual(driver.commanded,[])
             self.assertFalse((root/"next.json").exists())
 
+    def test_cross_device_origin_is_rejected_before_motion(self):
+        class WrongHardwareDriver(FakeDriver):
+            def physical_readiness(self):
+                payload=super().physical_readiness()
+                payload["hardware_identity"]["identity_sha256"]="d"*64
+                return payload
+
+        with tempfile.TemporaryDirectory() as d:
+            root=Path(d)
+            physical,planner=self._files(root)
+            driver=WrongHardwareDriver()
+            with self.assertRaisesRegex(
+                RuntimeError,
+                "hardware identity does not match physical origin",
+            ):
+                module.run_replanned_physical_step(
+                    driver=driver,
+                    physical_origin_receipt=physical,
+                    planner_receipt=planner,
+                    opening_id="W1",
+                    zone_id="living",
+                    max_delta_pct=10.0,
+                    summary_out=root/"summary.json",
+                    next_origin_out=root/"next.json",
+                    execute=True,
+                    snapshot_fn=lambda **kwargs:snapshot(),
+                )
+            self.assertEqual(driver.commanded,[])
+            self.assertFalse((root/"next.json").exists())
+
     def test_execute_emits_verified_next_physical_origin(self):
         with tempfile.TemporaryDirectory() as d:
             root=Path(d)
