@@ -282,10 +282,101 @@ class PhysicalReplanHandoffTests(unittest.TestCase):
                 zone_id="living",
             )
 
-    def test_planner_origin_mismatch_is_rejected(self):
+    def test_rain_overrides_replanned_open_to_safe_close(self):
+        origin=physical_origin()
+        origin_payload={
+            **origin,
+            "origin":{
+                **origin["origin"],
+                "scalar_values":{"rain":1.0},
+            },
+        }
+        raw_payload={
+            key:value
+            for key,value in origin_payload.items()
+            if key not in {"origin_sha256","physical_origin_receipt_sha256"}
+        }
+        origin_payload["origin_sha256"]=sha(origin_payload["origin"])
+        origin_payload["physical_origin_receipt_sha256"]=sha(raw_payload)
+        plan=planner(origin_payload,target=75.0)
+        handoff=extract_replanned_physical_action(
+            planner_payload=plan,
+            physical_origin_receipt=origin_payload,
+            opening_id="W1",
+        )
+        authorization=authorize_replanned_physical_action(
+            handoff,
+            max_delta_pct=10.0,
+        )
+        self.assertTrue(handoff["current_rain"])
+        self.assertEqual(authorization["authorized_target_pct"],0.0)
+        self.assertEqual(authorization["intervention"],"RAIN_SAFE_CLOSE")
+        self.assertFalse(authorization["planner_action_fully_authorized"])
+
+    def test_tampered_planner_step_without_outer_rehash_is_rejected(self):
         origin=physical_origin()
         payload=planner(origin)
-        payload["receipt"]["steps"][0]["origin_sha256"]="f"*64
+        payload["receipt"]["steps"][0]["objective_score"]=999.0
+        with self.assertRaisesRegex(
+            RuntimeError,
+            "planner closed-loop receipt SHA-256 mismatch",
+        ):
+            extract_replanned_physical_action(
+                planner_payload=payload,
+                physical_origin_receipt=origin,
+                opening_id="W1",
+            )
+
+    def test_tampered_planner_step_hash_is_rejected_after_outer_rehash(self):
+        origin=physical_origin()
+        payload=planner(origin)
+        receipt=payload["receipt"]
+        receipt["steps"][0]["objective_score"]=999.0
+        receipt_payload={
+            key:value
+            for key,value in receipt.items()
+            if key!="receipt_sha256"
+        }
+        receipt["receipt_sha256"]=sha(receipt_payload)
+        with self.assertRaisesRegex(
+            RuntimeError,
+            "planner closed-loop step SHA-256 mismatch",
+        ):
+            extract_replanned_physical_action(
+                planner_payload=payload,
+                physical_origin_receipt=origin,
+                opening_id="W1",
+            )
+
+    def test_tampered_planner_receipt_hash_is_rejected(self):
+        origin=physical_origin()
+        payload=planner(origin)
+        payload["receipt"]["prediction_horizon_steps"]=99
+        with self.assertRaisesRegex(RuntimeError,"planner closed-loop receipt SHA-256 mismatch"):
+            extract_replanned_physical_action(
+                planner_payload=payload,
+                physical_origin_receipt=origin,
+                opening_id="W1",
+            )
+
+    def test_planner_origin_mismatch_is_rejected_even_with_valid_hashes(self):
+        origin=physical_origin()
+        payload=planner(origin)
+        receipt=payload["receipt"]
+        step=receipt["steps"][0]
+        step["origin_sha256"]="f"*64
+        step_payload={
+            key:value
+            for key,value in step.items()
+            if key!="step_sha256"
+        }
+        step["step_sha256"]=sha(step_payload)
+        receipt_payload={
+            key:value
+            for key,value in receipt.items()
+            if key!="receipt_sha256"
+        }
+        receipt["receipt_sha256"]=sha(receipt_payload)
         with self.assertRaisesRegex(RuntimeError,"step origin"):
             extract_replanned_physical_action(
                 planner_payload=payload,

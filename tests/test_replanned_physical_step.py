@@ -181,8 +181,8 @@ class FakeDriver:
         self.last_command_ack=command_ack(float(target_pct))
         return ActuatorFeedback(
             actuator_id=opening_id,
-            timestamp=21.0,
-            measured_position_pct=float(target_pct)-0.1,
+            timestamp=21.0 + len(self.commanded) - 1,
+            measured_position_pct=max(0.0,float(target_pct)-0.1),
             quality="encoder-measured",
         )
 
@@ -269,6 +269,45 @@ class ReplannedPhysicalStepTests(unittest.TestCase):
                 "REPLANNED_ACTION_BOUNDED_BY_FIELD_RAMP_LIMIT",
             )
 
+    def test_rainy_physical_origin_forces_close_even_when_planner_opens(self):
+        with tempfile.TemporaryDirectory() as d:
+            root=Path(d)
+            origin=physical_origin_payload()
+            origin["origin"]["scalar_values"]["rain"]=1.0
+            payload={
+                key:value
+                for key,value in origin.items()
+                if key not in {"origin_sha256","physical_origin_receipt_sha256"}
+            }
+            origin["origin_sha256"]=sha(origin["origin"])
+            origin["physical_origin_receipt_sha256"]=sha(payload)
+            physical=root/"physical-origin.json"
+            planner=root/"planner.json"
+            physical.write_text(json.dumps(origin),encoding="utf-8")
+            planner.write_text(
+                json.dumps(planner_payload(origin,target=75.0)),
+                encoding="utf-8",
+            )
+            driver=FakeDriver()
+            out=module.run_replanned_physical_step(
+                driver=driver,
+                physical_origin_receipt=physical,
+                planner_receipt=planner,
+                opening_id="W1",
+                zone_id="living",
+                max_delta_pct=10.0,
+                summary_out=root/"summary.json",
+                next_origin_out=root/"next.json",
+                execute=True,
+                snapshot_fn=lambda **kwargs:snapshot(),
+            )
+            self.assertEqual(out["authorized_target_pct"],0.0)
+            self.assertEqual(out["intervention"],"RAIN_SAFE_CLOSE")
+            self.assertEqual(driver.commanded,[("W1",0.0)])
+            next_payload=json.loads((root/"next.json").read_text(encoding="utf-8"))
+            verified=verify_physical_origin_receipt(next_payload)
+            self.assertEqual(verified["origin"]["opening_pct"]["W1"],0.0)
+
     def test_sensor_failure_persists_partial_execution_receipt(self):
         with tempfile.TemporaryDirectory() as d:
             root=Path(d)
@@ -290,10 +329,17 @@ class ReplannedPhysicalStepTests(unittest.TestCase):
                     ),
                 )
             partial=json.loads((root/"summary.json").read_text(encoding="utf-8"))
-            self.assertEqual(partial["status"],"BLOCKED_POST_ACTION_SENSORS")
+            self.assertEqual(
+                partial["status"],
+                "SAFE_CLOSED_POST_ACTION_SENSORS_BLOCKED",
+            )
             self.assertTrue(partial["motion_performed"])
             self.assertFalse(partial["next_origin_ready"])
-            self.assertIn("sensor timeout",partial["error"])
+            self.assertIn("sensor timeout",partial["sensor_failure"])
+            self.assertTrue(partial["safe_closeout"]["attempted"])
+            self.assertTrue(partial["safe_closeout"]["confirmed_closed"])
+            self.assertEqual(driver.commanded,[("W1",5.0),("W1",0.0)])
+            self.assertFalse((root/"next.json").exists())
 
 
 if __name__=="__main__":
