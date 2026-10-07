@@ -217,6 +217,26 @@ def _validate_physical_origin_semantics(
             raise RuntimeError(
                 "replanned physical origin measured coverage omits current field step"
             )
+        if (
+            "current_step_measured_zones" in receipt
+            or "current_step_measured_openings" in receipt
+        ):
+            current_step_zones=_normalized_unique_strings(
+                receipt.get("current_step_measured_zones"),
+                "replanned physical origin current_step_measured_zones",
+            )
+            current_step_openings=_normalized_unique_strings(
+                receipt.get("current_step_measured_openings"),
+                "replanned physical origin current_step_measured_openings",
+            )
+            if current_step_zones!=[zone_id]:
+                raise RuntimeError(
+                    "replanned physical origin current-step zone coverage is invalid"
+                )
+            if current_step_openings!=[opening_id]:
+                raise RuntimeError(
+                    "replanned physical origin current-step opening coverage is invalid"
+                )
         _require_sha256(
             receipt.get("parent_physical_origin_sha256"),
             "parent physical origin state",
@@ -363,11 +383,61 @@ def _validate_physical_origin_semantics(
     if rain_observed_at is not None and float(rain_observed_at or 0)<=0:
         raise RuntimeError("physical origin rain_observed_at is invalid")
 
-    expected_whole_home=not inherited_zones and not inherited_openings
+    coverage_complete=not inherited_zones and not inherited_openings
+    expected_whole_home=coverage_complete
+    calculated_whole_home_skew_s=None
+
+    if (
+        source=="windowpilot-replanned-physical-step-v1"
+        and "whole_home_measurement_max_skew_s" in receipt
+    ):
+        max_skew=float(receipt.get("whole_home_measurement_max_skew_s") or 0)
+        if max_skew<=0:
+            raise RuntimeError(
+                "replanned physical origin whole-home coherence bound is invalid"
+            )
+        expected_whole_home=False
+        if coverage_complete:
+            if not isinstance(opening_times,Mapping) or set(opening_times)!=openings:
+                raise RuntimeError(
+                    "whole-home physical claim requires timestamps for every opening"
+                )
+            if not isinstance(zone_times,Mapping) or set(zone_times)!=zones:
+                raise RuntimeError(
+                    "whole-home physical claim requires timestamps for every zone"
+                )
+            if rain_observed_at is None:
+                raise RuntimeError(
+                    "whole-home physical claim requires rain observation timestamp"
+                )
+            timestamps=[
+                float(zone_times[key])
+                for key in sorted(zones)
+            ] + [
+                float(opening_times[key])
+                for key in sorted(openings)
+            ] + [float(rain_observed_at)]
+            calculated_whole_home_skew_s=max(timestamps)-min(timestamps)
+            expected_whole_home=calculated_whole_home_skew_s<=max_skew
+
+        declared_skew=receipt.get("whole_home_measurement_skew_s")
+        if calculated_whole_home_skew_s is None:
+            if declared_skew is not None:
+                raise RuntimeError(
+                    "replanned physical origin declares whole-home skew without complete coverage"
+                )
+        elif (
+            declared_skew is None
+            or abs(float(declared_skew)-calculated_whole_home_skew_s)>1e-9
+        ):
+            raise RuntimeError(
+                "replanned physical origin whole-home measurement skew is inconsistent"
+            )
+
     if "whole_home_physically_measured" in receipt:
         if bool(receipt.get("whole_home_physically_measured"))!=expected_whole_home:
             raise RuntimeError(
-                "whole_home_physically_measured contradicts measured/inherited coverage"
+                "whole_home_physically_measured contradicts physical coverage/coherence"
             )
 
     return {
@@ -376,6 +446,7 @@ def _validate_physical_origin_semantics(
         "inherited_zones":inherited_zones,
         "inherited_openings":inherited_openings,
         "whole_home_physically_measured":expected_whole_home,
+        "whole_home_measurement_skew_s":calculated_whole_home_skew_s,
     }
 
 
@@ -466,6 +537,9 @@ def verify_physical_origin_receipt(receipt: Mapping[str, Any]) -> dict[str, Any]
             None
             if receipt.get("rain_observed_at") is None
             else float(receipt.get("rain_observed_at"))
+        ),
+        "whole_home_measurement_skew_s":semantics.get(
+            "whole_home_measurement_skew_s"
         ),
         "evidence_boundary":str(receipt.get("evidence_boundary") or ""),
     }
