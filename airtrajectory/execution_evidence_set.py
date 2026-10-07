@@ -10,8 +10,8 @@ _RESULT_ORDER = {
     "PASS": 0,
     "BLOCKED": 1,
     "FAIL": 2,
-    "UNCERTAIN": 3,
-    "NOT_EVALUATED": 4,
+    "NOT_EVALUATED": 3,
+    "UNCERTAIN": 4,
 }
 
 
