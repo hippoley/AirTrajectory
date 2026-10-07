@@ -8,9 +8,12 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
+import tempfile
 from typing import Any, Dict, Mapping, Optional
 
 from .contam import CONTAMEnvironment, ContamControl, ContamScalarControl
+from .contam_prj_profile import ppmv_to_mass_fraction
+from .contam_prj_reseed import reseed_initial_zone_mass_fractions
 from .trajectory import TransitionAction, ScalarControlAction
 
 
@@ -32,6 +35,8 @@ class ContamForkProfile:
     trusted_for_promotion: bool = False
     prj_initial_co2_ppm: Mapping[str, float] = field(default_factory=dict)
     origin_state_mode: str = "declared-only"
+    prj_reseed_continuation_verified: bool = False
+    contaminant_molecular_weight_g_mol: float = 44.0095
 
 
 def _validate_origin(profile: ContamForkProfile, origin: dict) -> tuple[dict, dict, dict]:
@@ -53,7 +58,7 @@ def _validate_origin(profile: ContamForkProfile, origin: dict) -> tuple[dict, di
             k for k in sorted(zones)
             if abs(float(co2[k])-expected[k])>1e-6
         ]
-        if mismatched:
+        if mismatched and not profile.prj_reseed_continuation_verified:
             raise ValueError(
                 "CONTAM real-origin CO2 must match PRJ initial state until runtime state injection is verified: "
                 + ",".join(mismatched)
@@ -133,9 +138,29 @@ def _run_actions_branch(
     horizon_steps: int,
     binding_factory=None,
 ):
+    temp_dir=None
+    prj_path=Path(profile.prj_path)
+    reseed_receipt=None
+    if profile.prj_reseed_continuation_verified:
+        zone_mass_fractions={
+            int(profile.zone_numbers[zone]): ppmv_to_mass_fraction(
+                origin_co2[zone],
+                profile.contaminant_molecular_weight_g_mol,
+            )
+            for zone in sorted(profile.zone_numbers)
+        }
+        reseeded=reseed_initial_zone_mass_fractions(
+            prj_path.read_text(encoding="utf-8"),
+            zone_mass_fractions,
+        )
+        temp_dir=tempfile.TemporaryDirectory()
+        prj_path=Path(temp_dir.name)/prj_path.name
+        prj_path.write_text(reseeded["text"],encoding="utf-8",newline="\n")
+        reseed_receipt=reseeded["receipt"]
+
     env=CONTAMEnvironment(
         profile.topology,
-        profile.prj_path,
+        prj_path,
         dict(profile.zone_numbers),
         dict(profile.opening_controls),
         co2_contaminant_index=profile.co2_contaminant_index,
@@ -163,6 +188,8 @@ def _run_actions_branch(
                 env.session.set_input_control(control.control_number,value)
         meta=dict(meta)
         meta["fork_origin_opening_controls_applied"]=True
+        meta["prj_reseed_continuation_verified"]=bool(profile.prj_reseed_continuation_verified)
+        meta["prj_reseed_receipt"]=reseed_receipt
         normalized=_normalize_actions(profile,actions)
         for _ in range(max(1,int(horizon_steps))):
             obs,reward,done,truncated,_=env.step(normalized)
@@ -172,6 +199,8 @@ def _run_actions_branch(
                 break
     finally:
         env.close()
+        if temp_dir is not None:
+            temp_dir.cleanup()
     if not observations:
         raise RuntimeError("CONTAM fork produced no solved observations")
     return observations,total_return,meta
@@ -257,7 +286,9 @@ def contam_fork_request(
         "topology_id":str(payload.get("topology_id",profile_id)),
         "opening_id":opening_id,
         "origin_kind":(
-            "prj-initial-verified"
+            "prj-reseed-verified"
+            if profile.prj_reseed_continuation_verified
+            else "prj-initial-verified"
             if profile.prj_initial_co2_ppm
             else profile.origin_state_mode
         ),
@@ -269,6 +300,12 @@ def contam_fork_request(
         "contam":meta.get("contam") if isinstance(meta,dict) else None,
         "origin_opening_controls_applied":bool(
             isinstance(meta,dict) and meta.get("fork_origin_opening_controls_applied")
+        ),
+        "prj_reseed_continuation_verified":bool(
+            isinstance(meta,dict) and meta.get("prj_reseed_continuation_verified")
+        ),
+        "prj_reseed_receipt":(
+            meta.get("prj_reseed_receipt") if isinstance(meta,dict) else None
         ),
         "branches":branches,
     }
