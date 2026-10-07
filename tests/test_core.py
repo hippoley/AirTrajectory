@@ -878,7 +878,7 @@ class CoreTests(unittest.TestCase):
                 "physical POST must not occur without idempotency contract"
             )
         driver=WindowPilotHTTPDriver(request_json=request)
-        with self.assertRaisesRegex(RuntimeError,"idempotency contract"):
+        with self.assertRaisesRegex(RuntimeError,"durable-request-ledger-v1"):
             driver.set_position("w1",5)
         self.assertFalse(any(method=="POST" for method,_,_ in calls))
 
