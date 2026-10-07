@@ -148,6 +148,15 @@ def build_recovery_physical_origin(
             raise RuntimeError("physical recovery closeout target is not 0%")
         if closeout_command_ack.get("hardware_identity_sha256")!=identity:
             raise RuntimeError("physical recovery closeout hardware identity mismatch")
+        accepted_at=float(closeout_command_ack.get("accepted_at") or 0)
+        if accepted_at<=0:
+            raise RuntimeError(
+                "physical recovery closeout acknowledgement accepted_at is invalid"
+            )
+        if position_ts < accepted_at:
+            raise RuntimeError(
+                "physical recovery closed-position feedback predates command acceptance"
+            )
         closeout_request_id=str(closeout_command_ack.get("request_id") or "")
         closeout_command_id=str(closeout_command_ack.get("command_id") or "")
         if not closeout_request_id or not closeout_command_id:
