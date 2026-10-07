@@ -291,11 +291,24 @@ python examples/run_replanned_physical_step.py \
   --execute
 ```
 
-The execute path requires both WindowPilot command acknowledgement v2 and the
-gateway capability `command_idempotency_contract=durable-request-ledger-v1`.
-AirTrajectory creates a fresh UUID `request_id` for each command; WindowPilot
-must durably claim that request before hardware motion, echo it in the ACK, and
-add its own UUID `command_id`. The ACK hash covers both identities.
+The execute path requires WindowPilot command acknowledgement v2 plus:
+
+```text
+command_idempotency_contract = durable-request-ledger-v1
+command_idempotency_scope_id = <stable durable-ledger UUID>
+```
+
+AirTrajectory reads that scope before motion, creates a fresh UUID `request_id`,
+and sends both values with the physical command. WindowPilot must reject a scope
+that does not belong to its active durable ledger before hardware motion,
+durably claim the request, and echo both the request and ledger scope in the
+ACK together with its own UUID `command_id`. The ACK hash covers all three
+identities.
+
+Feedback polling remains bound to the same ledger scope. If a load balancer
+moves later capability/feedback reads to a WindowPilot replica with another
+scope, AirTrajectory does not accept that feedback as evidence for the command.
+Safety STOP requests also carry the original scope.
 
 A process-local idempotency registry is no longer sufficient for new real
 physical writes because a gateway restart could otherwise forget a consumed
@@ -404,11 +417,12 @@ python examples/verify_replanned_physical_cycle.py \
 ```
 
 The verifier re-derives the planner handoff and bounded authorization, checks
-the complete command acknowledgement, measured actuator feedback and fresh
-sensor snapshot, reconstructs the next physical origin, and requires it to
-match the persisted next-origin receipt exactly. This proves persisted-artifact
-contract continuity; it is still not a substitute for authenticated hardware
-attestation.
+the complete command acknowledgement, verifies that the persisted expected
+`command_idempotency_scope_id` matches the ACK scope, checks measured actuator
+feedback and the fresh sensor snapshot, reconstructs the next physical origin,
+and requires it to match the persisted next-origin receipt exactly. This proves
+persisted-artifact contract continuity; it is still not a substitute for
+authenticated hardware attestation.
 
 ## Physical τ₀ evidence chain
 
