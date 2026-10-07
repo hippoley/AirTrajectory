@@ -71,6 +71,12 @@ def main() -> int:
     )
     parser.add_argument("--control-steps", type=int, default=2)
     parser.add_argument("--prediction-horizon-steps", type=int, default=3)
+    parser.add_argument(
+        "--candidate-mode",
+        choices=("adaptive", "independent-only"),
+        default="adaptive",
+        help="adaptive searches Independent + Joint candidates; independent-only replans only the rule baseline",
+    )
     parser.add_argument("--out", type=Path)
     args = parser.parse_args()
 
@@ -143,7 +149,16 @@ def main() -> int:
     def candidate_provider(origin, step_index):
         step_case = _case_for_origin(base_case, origin, topology)
         step_cases[step_index] = step_case
-        return build_strategy_candidates(step_case, topology)
+        candidates = build_strategy_candidates(step_case, topology)
+        if args.candidate_mode == "independent-only":
+            candidates = [
+                candidate
+                for candidate in candidates
+                if candidate["label"] == "independent-reference"
+            ]
+        if not candidates:
+            raise RuntimeError("closed-loop candidate set is empty")
+        return candidates
 
     def evaluator(origin, candidates, horizon, step_index):
         step_case = step_cases[step_index]
@@ -237,6 +252,7 @@ def main() -> int:
 
     payload = {
         "marker": "REAL_CONTAM_RECEDING_HORIZON_JOINT_EXECUTED",
+        "candidate_mode": args.candidate_mode,
         "physics_fidelity": "CONTAM",
         "evidence_level": profile.evidence_level,
         "engineering_truth": False,
