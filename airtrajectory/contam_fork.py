@@ -224,6 +224,22 @@ def contam_fork_request(
             "path_flow_kg_s":dict(final.get("path_flow_kg_s") or {}),
             "end_scalar_values":dict(final.get("scalar_values") or {}),
             "series":[round(float(x["co2_ppm"][evaluation_zone]),3) for x in observations],
+            "co2_series_by_zone":{
+                zone:[
+                    round(float(observation["co2_ppm"][zone]),3)
+                    for observation in observations
+                ]
+                for zone in sorted(profile.topology.zones)
+            },
+            "opening_pct_series":[
+                {
+                    key:round(float(value),3)
+                    for key,value in sorted(
+                        (observation.get("opening_pct") or {}).items()
+                    )
+                }
+                for observation in observations
+            ],
             "return":round(float(total_return),6),
             "provenance":(
                 "backend-generated · CONTAM · engineering-trusted"
@@ -305,6 +321,22 @@ def contam_strategy_fork_request(
             "path_flow_kg_s":dict(final.get("path_flow_kg_s") or {}),
             "end_scalar_values":dict(final.get("scalar_values") or {}),
             "series":[round(float(x["co2_ppm"][evaluation_zone]),3) for x in observations],
+            "co2_series_by_zone":{
+                zone:[
+                    round(float(observation["co2_ppm"][zone]),3)
+                    for observation in observations
+                ]
+                for zone in sorted(profile.topology.zones)
+            },
+            "opening_pct_series":[
+                {
+                    key:round(float(value),3)
+                    for key,value in sorted(
+                        (observation.get("opening_pct") or {}).items()
+                    )
+                }
+                for observation in observations
+            ],
             "return":round(float(total_return),6),
             "provenance":(
                 "backend-generated · CONTAM · engineering-trusted"

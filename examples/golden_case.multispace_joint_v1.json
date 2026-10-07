@@ -1,0 +1,90 @@
+{
+  "schema_version": "0.1",
+  "golden_case_id": "fixed-three-room-transient-joint-v1",
+  "topology_id": "demo.fixed-three-room.v1",
+  "evidence_level": "real-contam-demo",
+  "engineering_truth": false,
+  "time_step_s": 60,
+  "horizon_steps": 3,
+  "origin": {
+    "co2_ppm": {
+      "living": 1400,
+      "bedroom": 900,
+      "study": 800
+    },
+    "opening_pct": {
+      "W1": 65,
+      "W2": 35,
+      "W3": 55,
+      "D1": 100,
+      "D2": 100
+    }
+  },
+  "independent_rule": {
+    "open_threshold_ppm": 1200,
+    "close_threshold_ppm": 800,
+    "open_target_pct": 75
+  },
+  "joint_candidates": [
+    {
+      "label": "joint-balanced-low",
+      "opening_pct": {
+        "W1": 55,
+        "W2": 35,
+        "W3": 35
+      }
+    },
+    {
+      "label": "joint-balanced-medium",
+      "opening_pct": {
+        "W1": 75,
+        "W2": 35,
+        "W3": 35
+      }
+    },
+    {
+      "label": "joint-living-bedroom",
+      "opening_pct": {
+        "W1": 75,
+        "W2": 55,
+        "W3": 0
+      }
+    },
+    {
+      "label": "joint-living-study",
+      "opening_pct": {
+        "W1": 75,
+        "W2": 0,
+        "W3": 55
+      }
+    },
+    {
+      "label": "joint-balanced-high",
+      "opening_pct": {
+        "W1": 75,
+        "W2": 55,
+        "W3": 55
+      }
+    },
+    {
+      "label": "joint-all-high",
+      "opening_pct": {
+        "W1": 75,
+        "W2": 75,
+        "W3": 75
+      }
+    }
+  ],
+  "metrics": {
+    "iaq_reference_ppm": 1000,
+    "high_co2_ppm": 1200
+  },
+  "objective_weights": {
+    "mean_excess_1000": 0.01,
+    "max_excess_1200": 0.02,
+    "high_co2_zone_steps": 1,
+    "mean_room_imbalance": 0.005,
+    "movement_pct_sum": 0.02
+  },
+  "note": "Demo Golden Case only. It is a reproducible real-ContamX strategy comparison anchor, not engineering truth."
+}
