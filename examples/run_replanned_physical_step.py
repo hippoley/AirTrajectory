@@ -284,7 +284,7 @@ def run_replanned_physical_step(
     }
 
     try:
-            feedback=driver.set_position(
+        feedback=driver.set_position(
             str(opening_id),
             float(authorization["authorized_target_pct"]),
         )
