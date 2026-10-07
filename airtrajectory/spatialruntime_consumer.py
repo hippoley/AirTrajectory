@@ -8,6 +8,8 @@ from __future__ import annotations
 
 from hashlib import sha256
 import json
+import os
+import re
 from pathlib import Path
 from typing import Any, Mapping
 
@@ -18,6 +20,16 @@ RESULT_SCHEMA = "airtrajectory_spatialruntime_contam_result_consumer_v1"
 
 class SpatialRuntimeConsumerError(RuntimeError):
     pass
+
+
+def spatialruntime_pin() -> str | None:
+    value = os.environ.get("SPATIALRUNTIME_PIN")
+    if value is None or not value.strip():
+        return None
+    pin = value.strip().lower()
+    if re.fullmatch(r"[0-9a-f]{40}", pin) is None:
+        raise SpatialRuntimeConsumerError("SPATIALRUNTIME_PIN must be a 40-hex Git commit SHA")
+    return pin
 
 
 def _canonical(value: Any) -> str:
@@ -131,6 +143,7 @@ def verify_generated_prj_with_spatialruntime(
         "zone_count": len(mappings["zones"]),
         "flow_path_count": len(mappings["flow_paths"]),
         "spatialruntime_binding_schema": registry.get("schema"),
+        "spatialruntime_pin": spatialruntime_pin(),
     }
     return {**payload, "receipt_sha256": _sha256(payload)}
 
@@ -308,6 +321,7 @@ def verify_branch_result_with_spatialruntime(
         "max_abs_co2_ppm_delta": max_zone_delta,
         "max_abs_mass_flow_kg_s_delta": max_path_delta,
         "native_result_source": metadata.get("native_result_source"),
+        "spatialruntime_pin": spatialruntime_pin(),
     }
     for key in (
         "binding_registry_fingerprint",
