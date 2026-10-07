@@ -124,6 +124,21 @@ def verify_persisted_physical_cycle(
     readiness_identity=str(
         step_summary.get("readiness_hardware_identity_sha256") or ""
     )
+    origin_identity=str(
+        (previous.get("hardware_identity_by_opening") or {}).get(opening_id) or ""
+    )
+    if not origin_identity:
+        raise RuntimeError(
+            "persisted previous physical origin lacks hardware identity for opening"
+        )
+    if step_summary.get("origin_hardware_identity_sha256")!=origin_identity:
+        raise RuntimeError(
+            "persisted step origin hardware identity does not match previous origin"
+        )
+    if readiness_identity!=origin_identity:
+        raise RuntimeError(
+            "persisted readiness hardware identity does not match previous origin"
+        )
     if command_ack.get("hardware_identity_sha256")!=readiness_identity:
         raise RuntimeError(
             "persisted command ACK hardware identity does not match readiness identity"
@@ -170,6 +185,7 @@ def verify_persisted_physical_cycle(
         "authorization_sha256":authorization[
             "replanned_action_authorization_sha256"
         ],
+        "hardware_identity_sha256":origin_identity,
         "command_request_id":command_request_id,
         "command_id":str(command_ack["command_id"]),
         "command_ack_sha256":str(command_ack["command_ack_sha256"]),
