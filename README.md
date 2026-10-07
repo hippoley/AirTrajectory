@@ -353,6 +353,39 @@ consumed. A fresh physical observation/origin is still required before control
 can resume. Cross-host leases fail closed because local PID checks cannot prove
 the remote owner is dead.
 
+Capture that fresh origin without moving the actuator:
+
+```bash
+python examples/capture_recovery_physical_origin.py \
+  --windowpilot http://127.0.0.1:8001 \
+  --previous-origin artifacts/physical-next-origin.json \
+  --lease artifacts/physical-origin-leases/<origin-receipt-sha256>.json \
+  --opening-id W1 \
+  --zone-id living \
+  --out artifacts/recovery-physical-origin.json
+```
+
+The recovery capture is read-only. It requires the same WindowPilot hardware
+identity as the abandoned origin, measured current position, and fresh CO₂/rain.
+Only that opening/zone and rain are refreshed as measured evidence; every other
+controller value remains inherited and does not inherit historical "measured"
+coverage. The recovery receipt includes the complete read-only snapshot so its
+hash can be independently recomputed.
+
+After the recovery origin is persisted, the old lease is bound to that exact
+receipt and transitions from `RECOVERY_REQUIRED` to `RECOVERED`. The old
+origin remains permanently consumed:
+
+```text
+abandoned IN_FLIGHT
+→ same-host dead-owner proof
+→ RECOVERY_REQUIRED
+→ read-only measured position + CO₂ + rain
+→ verified recovery physical origin
+→ lease RECOVERED
+→ controller replans only from the recovery origin
+```
+
 After an executed step, verify the persisted artifacts independently without
 contacting hardware:
 
