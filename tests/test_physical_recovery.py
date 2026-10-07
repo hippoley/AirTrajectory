@@ -8,6 +8,9 @@ from pathlib import Path
 
 from airtrajectory.physical import DriverCapabilities
 from airtrajectory.physical_origin import verify_physical_origin_receipt
+from airtrajectory.physical_recovery_verify import (
+    verify_persisted_physical_recovery,
+)
 from airtrajectory.physical_origin_lease import (
     claim_physical_origin_execution,
     finalize_physical_origin_execution,
@@ -227,6 +230,24 @@ class PhysicalRecoveryTests(unittest.TestCase):
                 lease["recovery_origin_receipt_sha256"],
                 recovered["physical_origin_receipt_sha256"],
             )
+            verification=verify_persisted_physical_recovery(
+                previous_origin_receipt=json.loads(
+                    origin_path.read_text(encoding="utf-8")
+                ),
+                recovered_lease=json.loads(
+                    lease_path.read_text(encoding="utf-8")
+                ),
+                recovery_summary=json.loads(
+                    (root/"summary.json").read_text(encoding="utf-8")
+                ),
+                recovery_origin_receipt=recovered,
+            )
+            self.assertEqual(verification["status"],"PASS")
+            self.assertFalse(verification["motion_performed"])
+            self.assertEqual(
+                len(verification["physical_recovery_verification_sha256"]),
+                64,
+            )
 
     def test_open_window_requires_explicit_closeout_and_does_not_mutate_lease(self):
         with tempfile.TemporaryDirectory() as d:
@@ -276,6 +297,97 @@ class PhysicalRecoveryTests(unittest.TestCase):
                 )["status"],
                 "RECOVERED",
             )
+            verification=verify_persisted_physical_recovery(
+                previous_origin_receipt=json.loads(
+                    origin_path.read_text(encoding="utf-8")
+                ),
+                recovered_lease=json.loads(
+                    lease_path.read_text(encoding="utf-8")
+                ),
+                recovery_summary=json.loads(
+                    (root/"summary.json").read_text(encoding="utf-8")
+                ),
+                recovery_origin_receipt=recovered,
+            )
+            self.assertTrue(verification["motion_performed"])
+
+    def test_hash_valid_summary_cannot_swap_recovery_origin(self):
+        with tempfile.TemporaryDirectory() as d:
+            root=Path(d)
+            origin_path,lease_path=self._artifacts(root)
+            driver=RecoveryDriver(position=0.0,timestamp=25.0)
+            module.recover_physical_origin(
+                driver=driver,
+                previous_origin_receipt=origin_path,
+                lease_path=lease_path,
+                recovery_origin_out=root/"recovered.json",
+                summary_out=root/"summary.json",
+                snapshot_fn=lambda **kwargs:sensor_snapshot(25.0),
+                clock_fn=lambda:25.5,
+            )
+            summary=json.loads((root/"summary.json").read_text())
+            summary["recovery_origin_sha256"]="f"*64
+            summary_payload={
+                key:value
+                for key,value in summary.items()
+                if key!="recovery_summary_sha256"
+            }
+            summary["recovery_summary_sha256"]=sha(summary_payload)
+            with self.assertRaisesRegex(
+                RuntimeError,
+                "summary next state mismatch|summary hash mismatch",
+            ):
+                verify_persisted_physical_recovery(
+                    previous_origin_receipt=json.loads(
+                        origin_path.read_text()
+                    ),
+                    recovered_lease=json.loads(
+                        lease_path.read_text()
+                    ),
+                    recovery_summary=summary,
+                    recovery_origin_receipt=json.loads(
+                        (root/"recovered.json").read_text()
+                    ),
+                )
+
+    def test_hash_valid_recovery_origin_cannot_change_parent_lineage(self):
+        with tempfile.TemporaryDirectory() as d:
+            root=Path(d)
+            origin_path,lease_path=self._artifacts(root)
+            driver=RecoveryDriver(position=0.0,timestamp=25.0)
+            module.recover_physical_origin(
+                driver=driver,
+                previous_origin_receipt=origin_path,
+                lease_path=lease_path,
+                recovery_origin_out=root/"recovered.json",
+                summary_out=root/"summary.json",
+                snapshot_fn=lambda **kwargs:sensor_snapshot(25.0),
+                clock_fn=lambda:25.5,
+            )
+            recovered=json.loads((root/"recovered.json").read_text())
+            recovered["parent_physical_origin_receipt_sha256"]="f"*64
+            payload={
+                key:value
+                for key,value in recovered.items()
+                if key not in {
+                    "physical_origin_receipt_sha256",
+                    "origin_sha256",
+                }
+            }
+            recovered["physical_origin_receipt_sha256"]=sha(payload)
+            with self.assertRaisesRegex(RuntimeError,"parent receipt mismatch"):
+                verify_persisted_physical_recovery(
+                    previous_origin_receipt=json.loads(
+                        origin_path.read_text()
+                    ),
+                    recovered_lease=json.loads(
+                        lease_path.read_text()
+                    ),
+                    recovery_summary=json.loads(
+                        (root/"summary.json").read_text()
+                    ),
+                    recovery_origin_receipt=recovered,
+                )
 
     def test_identity_mismatch_rejected_before_motion(self):
         with tempfile.TemporaryDirectory() as d:
