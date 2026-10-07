@@ -144,6 +144,160 @@ def physical_next_origin_from_reconcile(
 
 
 
+def _require_sha256(value: Any, label: str) -> str:
+    text=str(value or "")
+    if len(text)!=64 or any(ch not in "0123456789abcdef" for ch in text.lower()):
+        raise RuntimeError(f"{label} must be a 64-character SHA-256")
+    return text
+
+
+def _normalized_unique_strings(value: Any, label: str) -> list[str]:
+    if value is None:
+        return []
+    if not isinstance(value,list):
+        raise RuntimeError(f"{label} must be a list")
+    normalized=[str(item) for item in value]
+    if any(not item for item in normalized):
+        raise RuntimeError(f"{label} contains an empty identifier")
+    if len(set(normalized))!=len(normalized):
+        raise RuntimeError(f"{label} contains duplicate identifiers")
+    return sorted(normalized)
+
+
+def _validate_physical_origin_semantics(
+    *,
+    source: str,
+    receipt: Mapping[str, Any],
+    origin: Mapping[str, Any],
+) -> dict[str, Any]:
+    zones=set(origin["co2_ppm"])
+    openings=set(origin["opening_pct"])
+    measured_zones=_normalized_unique_strings(
+        receipt.get("measured_zones"),
+        "physical origin measured_zones",
+    )
+    measured_openings=_normalized_unique_strings(
+        receipt.get("measured_openings"),
+        "physical origin measured_openings",
+    )
+
+    zone_id=str(receipt.get("zone_id") or "")
+    opening_id=str(receipt.get("opening_id") or "")
+
+    if source=="windowpilot-physical-reconcile-v1":
+        if not zone_id or not opening_id:
+            raise RuntimeError(
+                "single physical origin requires zone_id and opening_id"
+            )
+        if measured_zones or measured_openings:
+            raise RuntimeError(
+                "single first-contact origin must not self-declare aggregate measured coverage"
+            )
+        measured_zones=[zone_id]
+        measured_openings=[opening_id]
+    elif source=="windowpilot-replanned-physical-step-v1":
+        if not zone_id or not opening_id:
+            raise RuntimeError(
+                "replanned physical origin requires zone_id and opening_id"
+            )
+        if zone_id not in measured_zones or opening_id not in measured_openings:
+            raise RuntimeError(
+                "replanned physical origin measured coverage omits current field step"
+            )
+        _require_sha256(
+            receipt.get("parent_physical_origin_sha256"),
+            "parent physical origin state",
+        )
+        _require_sha256(
+            receipt.get("parent_physical_origin_receipt_sha256"),
+            "parent physical origin receipt",
+        )
+        _require_sha256(
+            receipt.get("replanned_action_authorization_sha256"),
+            "replanned action authorization",
+        )
+        _require_sha256(receipt.get("command_ack_sha256"),"physical command acknowledgement")
+        _require_sha256(receipt.get("sensor_snapshot_sha256"),"physical sensor snapshot")
+    elif source=="windowpilot-multi-physical-origin-v1":
+        applied=receipt.get("applied_measurements")
+        if not isinstance(applied,list) or not applied:
+            raise RuntimeError(
+                "multi physical origin requires applied_measurements"
+            )
+        declared_count=receipt.get("physical_measurement_count")
+        if int(declared_count or 0)!=len(applied):
+            raise RuntimeError(
+                "multi physical origin measurement count does not match applied measurements"
+            )
+        applied_zones=[]
+        applied_openings=[]
+        for row in applied:
+            if not isinstance(row,Mapping):
+                raise RuntimeError("multi physical origin applied measurement is invalid")
+            applied_zones.append(str(row.get("zone_id") or ""))
+            applied_openings.append(str(row.get("opening_id") or ""))
+            _require_sha256(
+                row.get("physical_reconcile_sha256"),
+                "multi physical child reconcile",
+            )
+            _require_sha256(
+                row.get("physical_origin_receipt_sha256"),
+                "multi physical child origin receipt",
+            )
+        if sorted(applied_zones)!=measured_zones:
+            raise RuntimeError(
+                "multi physical origin measured_zones do not match applied measurements"
+            )
+        if sorted(applied_openings)!=measured_openings:
+            raise RuntimeError(
+                "multi physical origin measured_openings do not match applied measurements"
+            )
+
+    unknown_zones=sorted(set(measured_zones)-zones)
+    unknown_openings=sorted(set(measured_openings)-openings)
+    if unknown_zones or unknown_openings:
+        raise RuntimeError(
+            "physical origin measured coverage references unknown topology state: "
+            f"zones={unknown_zones}, openings={unknown_openings}"
+        )
+
+    inherited_zones=sorted(zones-set(measured_zones))
+    inherited_openings=sorted(openings-set(measured_openings))
+    declared_inherited_zones=receipt.get("inherited_zones")
+    declared_inherited_openings=receipt.get("inherited_openings")
+    if declared_inherited_zones is not None:
+        if _normalized_unique_strings(
+            declared_inherited_zones,
+            "physical origin inherited_zones",
+        )!=inherited_zones:
+            raise RuntimeError(
+                "physical origin inherited_zones do not complement measured coverage"
+            )
+    if declared_inherited_openings is not None:
+        if _normalized_unique_strings(
+            declared_inherited_openings,
+            "physical origin inherited_openings",
+        )!=inherited_openings:
+            raise RuntimeError(
+                "physical origin inherited_openings do not complement measured coverage"
+            )
+
+    expected_whole_home=not inherited_zones and not inherited_openings
+    if "whole_home_physically_measured" in receipt:
+        if bool(receipt.get("whole_home_physically_measured"))!=expected_whole_home:
+            raise RuntimeError(
+                "whole_home_physically_measured contradicts measured/inherited coverage"
+            )
+
+    return {
+        "measured_zones":measured_zones,
+        "measured_openings":measured_openings,
+        "inherited_zones":inherited_zones,
+        "inherited_openings":inherited_openings,
+        "whole_home_physically_measured":expected_whole_home,
+    }
+
+
 def verify_physical_origin_receipt(receipt: Mapping[str, Any]) -> dict[str, Any]:
     """Verify and normalize a persisted physical-origin receipt.
 
@@ -167,7 +321,13 @@ def verify_physical_origin_receipt(receipt: Mapping[str, Any]) -> dict[str, Any]
             "unsupported physical origin receipt source: "+repr(source)
         )
 
-    provided_receipt_hash=str(receipt.get(receipt_hash_field) or "")
+    if str(receipt.get("schema_version") or "")!="0.1":
+        raise RuntimeError("unsupported physical origin receipt schema_version")
+
+    provided_receipt_hash=_require_sha256(
+        receipt.get(receipt_hash_field),
+        "physical origin receipt",
+    )
     payload={
         key:value
         for key,value in receipt.items()
@@ -184,9 +344,18 @@ def verify_physical_origin_receipt(receipt: Mapping[str, Any]) -> dict[str, Any]
         opening_pct=origin.get("opening_pct") or {},
         scalar_values=origin.get("scalar_values") or {},
     ).normalized()
-    provided_origin_hash=str(receipt.get("origin_sha256") or "")
+    provided_origin_hash=_require_sha256(
+        receipt.get("origin_sha256"),
+        "physical origin state",
+    )
     if provided_origin_hash!=_sha256(normalized):
         raise RuntimeError("physical origin state SHA-256 mismatch")
+
+    semantics=_validate_physical_origin_semantics(
+        source=source,
+        receipt=receipt,
+        origin=normalized,
+    )
 
     return {
         "source":source,
@@ -194,15 +363,13 @@ def verify_physical_origin_receipt(receipt: Mapping[str, Any]) -> dict[str, Any]
         "origin_sha256":provided_origin_hash,
         "receipt_sha256":provided_receipt_hash,
         "receipt_hash_field":receipt_hash_field,
-        "whole_home_physically_measured":bool(
-            receipt.get("whole_home_physically_measured")
-        ),
-        "measured_zones":list(receipt.get("measured_zones") or (
-            [receipt.get("zone_id")] if receipt.get("zone_id") else []
-        )),
-        "measured_openings":list(receipt.get("measured_openings") or (
-            [receipt.get("opening_id")] if receipt.get("opening_id") else []
-        )),
+        "whole_home_physically_measured":semantics[
+            "whole_home_physically_measured"
+        ],
+        "measured_zones":semantics["measured_zones"],
+        "measured_openings":semantics["measured_openings"],
+        "inherited_zones":semantics["inherited_zones"],
+        "inherited_openings":semantics["inherited_openings"],
         "evidence_boundary":str(receipt.get("evidence_boundary") or ""),
     }
 
