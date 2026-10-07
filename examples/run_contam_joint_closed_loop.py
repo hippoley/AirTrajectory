@@ -36,8 +36,66 @@ from airtrajectory.physical_origin import verify_physical_origin_receipt
 ROOT = Path(__file__).resolve().parents[1]
 
 
+def _sha256(payload):
+    import hashlib
+    return hashlib.sha256(
+        json.dumps(
+            payload,
+            sort_keys=True,
+            separators=(",", ":"),
+            ensure_ascii=False,
+        ).encode("utf-8")
+    ).hexdigest()
+
+
 def _load(path: Path):
     return json.loads(path.read_text(encoding="utf-8"))
+
+
+def _project_origin_for_contam(profile, origin):
+    """Project controller state onto the exact state surface consumed by CONTAM.
+
+    Controller-only scalar state (for example measured rain) remains part of
+    the controller/physical-origin lineage, but is not silently passed to a
+    CONTAM profile that has no corresponding scalar control.
+    """
+    controller_scalars=dict(origin.get("scalar_values") or {})
+    supported=set(profile.scalar_controls)
+    missing=sorted(supported-set(controller_scalars))
+    if missing:
+        raise RuntimeError(
+            "controller origin is missing CONTAM scalar controls: "
+            + ",".join(missing)
+        )
+    contam_scalars={
+        key:float(controller_scalars[key])
+        for key in sorted(supported)
+    }
+    dropped={
+        key:float(value)
+        for key,value in sorted(controller_scalars.items())
+        if key not in supported
+    }
+    projected={
+        "co2_ppm":dict(origin["co2_ppm"]),
+        "opening_pct":dict(origin["opening_pct"]),
+        "scalar_values":contam_scalars,
+    }
+    evidence={
+        "controller_scalar_values":{
+            key:float(value)
+            for key,value in sorted(controller_scalars.items())
+        },
+        "contam_scalar_values":dict(contam_scalars),
+        "dropped_scalar_values":dropped,
+        "scalar_projection_applied":bool(dropped),
+        "evidence_boundary":(
+            "controller-only scalar state remains in physical/controller origin "
+            "lineage; CONTAM receives only scalar controls explicitly configured "
+            "by the active ContamForkProfile"
+        ),
+    }
+    return projected,evidence
 
 
 def _case_for_origin(base_case, origin, topology):
@@ -217,11 +275,15 @@ def main() -> int:
 
     def evaluator(origin, candidates, horizon, step_index):
         step_case = step_cases[step_index]
+        contam_origin, scalar_projection = _project_origin_for_contam(
+            profile,
+            origin,
+        )
         response = contam_strategy_fork_request(
             {
                 "profile_id": profile.profile_id,
                 "topology_id": layout.topology_id,
-                "origin": origin,
+                "origin": contam_origin,
                 "candidates": list(candidates),
                 "horizon_steps": int(horizon),
                 "evaluation_zone": "living",
@@ -255,6 +317,9 @@ def main() -> int:
                     "prj_reseed_continuation_verified"
                 ],
                 "prj_reseed_receipt": response["prj_reseed_receipt"],
+                "controller_origin_sha256": _sha256(origin),
+                "contam_origin_sha256": _sha256(contam_origin),
+                "scalar_projection": scalar_projection,
                 "candidate_scores": sorted(
                     scored,
                     key=lambda row: (row["objective_score"], row["label"]),
