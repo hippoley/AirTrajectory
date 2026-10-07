@@ -9,9 +9,11 @@ from dataclasses import asdict
 import hashlib
 import json
 from pathlib import Path
+import time
 
 from airtrajectory.drivers import WindowPilotHTTPDriver
 from airtrajectory.physical_action_snapshot import capture_post_action_snapshot
+from airtrajectory.physical_origin import verify_physical_origin_receipt
 from airtrajectory.physical_replan_handoff import (
     authorize_replanned_physical_action,
     build_replanned_physical_step_origin,
@@ -91,6 +93,8 @@ def run_replanned_physical_step(
     next_origin_out,
     execute=False,
     snapshot_fn=capture_post_action_snapshot,
+    max_origin_age_s=30.0,
+    clock_fn=time.time,
 ):
     physical_payload=json.loads(
         Path(physical_origin_receipt).read_text(encoding="utf-8")
@@ -108,6 +112,64 @@ def run_replanned_physical_step(
         handoff,
         max_delta_pct=float(max_delta_pct),
     )
+
+    verified_origin=verify_physical_origin_receipt(physical_payload)
+    max_age=float(max_origin_age_s)
+    if max_age<=0:
+        raise ValueError("max_origin_age_s must be positive")
+    target_opening=str(opening_id)
+    target_zone=str(zone_id)
+
+    origin_identity=str(
+        verified_origin["opening_hardware_identities"].get(target_opening) or ""
+    )
+    if len(origin_identity)!=64 or any(
+        ch not in "0123456789abcdef" for ch in origin_identity.lower()
+    ):
+        raise RuntimeError(
+            "physical origin lacks hardware identity for target opening"
+        )
+
+    opening_ts=verified_origin["opening_observed_at"].get(target_opening)
+    zone_ts=verified_origin["zone_observed_at"].get(target_zone)
+    rain_ts=verified_origin.get("rain_observed_at")
+    if opening_ts is None:
+        raise RuntimeError(
+            "physical origin lacks observation timestamp for target opening"
+        )
+    if zone_ts is None:
+        raise RuntimeError(
+            "physical origin lacks observation timestamp for target zone"
+        )
+    if rain_ts is None:
+        raise RuntimeError("physical origin lacks rain observation timestamp")
+
+    now=float(clock_fn())
+    ages={
+        "opening":now-float(opening_ts),
+        "zone":now-float(zone_ts),
+        "rain":now-float(rain_ts),
+    }
+    future=[key for key,age in ages.items() if age < -1.0]
+    if future:
+        raise RuntimeError(
+            "physical origin contains future-dated observations: "
+            + ",".join(sorted(future))
+        )
+    stale={
+        key:age
+        for key,age in ages.items()
+        if age>max_age
+    }
+    if stale:
+        rendered=", ".join(
+            f"{key}={age:.3f}s"
+            for key,age in sorted(stale.items())
+        )
+        raise RuntimeError(
+            "physical origin is stale for replanned execution: "
+            +rendered+f" > {max_age:.3f}s"
+        )
 
     caps=driver.capabilities()
     if caps.simulated:
@@ -136,6 +198,11 @@ def run_replanned_physical_step(
     ):
         raise RuntimeError(
             "replanned physical step readiness lacks stable hardware identity"
+        )
+    if identity!=origin_identity:
+        raise RuntimeError(
+            "WindowPilot readiness hardware identity does not match "
+            "the target opening's physical-origin identity"
         )
 
     base={
@@ -167,6 +234,9 @@ def run_replanned_physical_step(
         "intervention":authorization["intervention"],
         "physical_write_ready":True,
         "readiness_hardware_identity_sha256":readiness_identity_sha,
+        "origin_hardware_identity_sha256":origin_identity,
+        "max_origin_age_s":max_age,
+        "origin_evidence_age_s":dict(sorted(ages.items())),
         "handoff":handoff,
         "authorization":authorization,
     }
@@ -307,6 +377,12 @@ def main(argv=None):
     parser.add_argument("--zone-id",required=True)
     parser.add_argument("--max-delta-pct",type=float,required=True)
     parser.add_argument(
+        "--max-origin-age-s",
+        type=float,
+        default=30.0,
+        help="Reject physical opening/zone/rain evidence older than this before any write.",
+    )
+    parser.add_argument(
         "--summary-out",
         default="artifacts/replanned-physical-step.json",
     )
@@ -324,6 +400,7 @@ def main(argv=None):
         opening_id=args.opening_id,
         zone_id=args.zone_id,
         max_delta_pct=args.max_delta_pct,
+        max_origin_age_s=args.max_origin_age_s,
         summary_out=args.summary_out,
         next_origin_out=args.next_origin_out,
         execute=args.execute,
