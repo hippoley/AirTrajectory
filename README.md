@@ -307,6 +307,25 @@ This path makes repeated physical closed-loop execution possible, but repository
 CI still uses synthetic contract fixtures and does not claim real field
 validation.
 
+After an executed step, verify the persisted artifacts independently without
+contacting hardware:
+
+```bash
+python examples/verify_replanned_physical_cycle.py \
+  --previous-origin artifacts/physical-next-origin.json \
+  --planner-receipt artifacts/contam-replan-from-physical-origin.json \
+  --step-summary artifacts/replanned-physical-step.json \
+  --next-origin artifacts/physical-next-origin-2.json \
+  --out artifacts/physical-cycle-verification.json
+```
+
+The verifier re-derives the planner handoff and bounded authorization, checks
+the complete command acknowledgement, measured actuator feedback and fresh
+sensor snapshot, reconstructs the next physical origin, and requires it to
+match the persisted next-origin receipt exactly. This proves persisted-artifact
+contract continuity; it is still not a substitute for authenticated hardware
+attestation.
+
 ## Physical τ₀ evidence chain
 
 AirTrajectory now accepts a commissioning bundle only when it carries the WindowPilot read-only preflight lineage:

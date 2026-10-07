@@ -167,6 +167,8 @@ def run_replanned_physical_step(
         "intervention":authorization["intervention"],
         "physical_write_ready":True,
         "readiness_hardware_identity_sha256":readiness_identity_sha,
+        "handoff":handoff,
+        "authorization":authorization,
     }
 
     if not execute:
@@ -263,7 +265,9 @@ def run_replanned_physical_step(
         "motion_performed":True,
         "next_origin_ready":True,
         "actuator_feedback":feedback_row,
+        "command_ack":command_ack,
         "command_ack_sha256":command_ack.get("command_ack_sha256"),
+        "sensor_snapshot":snapshot,
         "sensor_snapshot_sha256":snapshot.get("snapshot_sha256"),
         "next_physical_origin":str(next_origin_out),
         "next_physical_origin_sha256":next_origin["origin_sha256"],
