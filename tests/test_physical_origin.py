@@ -2,7 +2,10 @@ import hashlib
 import json
 import unittest
 
-from airtrajectory.physical_origin import physical_next_origin_from_reconcile
+from airtrajectory.physical_origin import (
+    physical_next_origin_from_reconcile,
+    verify_physical_origin_receipt,
+)
 from airtrajectory.joint_closed_loop import (
     BackendContinuationCapability,
     ClosedLoopOrigin,
@@ -158,6 +161,33 @@ class PhysicalOriginTests(unittest.TestCase):
             receipt["steps"][0]["origin_sha256"],
             physical["origin_sha256"],
         )
+
+    def test_persisted_single_physical_origin_receipt_verifies(self):
+        reconcile=self.reconcile()
+        receipt=physical_next_origin_from_reconcile(
+            current_origin=self.current(),
+            reconcile=reconcile,
+            zone_id="living",
+        )
+        verified=verify_physical_origin_receipt(receipt)
+        self.assertEqual(verified["origin"],receipt["origin"])
+        self.assertEqual(verified["origin_sha256"],receipt["origin_sha256"])
+        self.assertEqual(
+            verified["receipt_sha256"],
+            receipt["physical_origin_receipt_sha256"],
+        )
+        self.assertEqual(verified["measured_zones"],["living"])
+        self.assertEqual(verified["measured_openings"],["W1"])
+
+    def test_tampered_physical_origin_receipt_is_rejected(self):
+        receipt=physical_next_origin_from_reconcile(
+            current_origin=self.current(),
+            reconcile=self.reconcile(),
+            zone_id="living",
+        )
+        receipt["origin"]["co2_ppm"]["living"]=1.0
+        with self.assertRaisesRegex(RuntimeError,"receipt SHA-256 mismatch"):
+            verify_physical_origin_receipt(receipt)
 
     def test_tampered_reconcile_is_rejected(self):
         receipt = self.reconcile()
