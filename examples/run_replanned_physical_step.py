@@ -236,6 +236,7 @@ def run_replanned_physical_step(
         "readiness_hardware_identity_sha256":readiness_identity_sha,
         "origin_hardware_identity_sha256":origin_identity,
         "max_origin_age_s":max_age,
+        "origin_freshness_checked_at":now,
         "origin_evidence_age_s":dict(sorted(ages.items())),
         "handoff":handoff,
         "authorization":authorization,
