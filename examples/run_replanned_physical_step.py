@@ -68,6 +68,12 @@ def run_replanned_physical_step(
         max_delta_pct=float(max_delta_pct),
     )
 
+    caps=driver.capabilities()
+    if caps.simulated:
+        raise RuntimeError("replanned physical step requires a non-simulated driver")
+    if caps.measured_position is not True:
+        raise RuntimeError("replanned physical step requires measured position feedback")
+
     readiness=driver.physical_readiness()
     if not isinstance(readiness,dict):
         raise RuntimeError("WindowPilot physical readiness returned invalid payload")
@@ -83,6 +89,13 @@ def run_replanned_physical_step(
         readiness_identity.get("identity_sha256")
         if isinstance(readiness_identity,dict) else None
     )
+    identity=str(readiness_identity_sha or "")
+    if len(identity)!=64 or any(
+        ch not in "0123456789abcdef" for ch in identity.lower()
+    ):
+        raise RuntimeError(
+            "replanned physical step readiness lacks stable hardware identity"
+        )
 
     base={
         "schema_version":"0.1",
