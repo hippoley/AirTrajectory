@@ -143,6 +143,67 @@ def physical_next_origin_from_reconcile(
     }
 
 
+
+def verify_physical_origin_receipt(receipt: Mapping[str, Any]) -> dict[str, Any]:
+    """Verify and normalize a persisted physical-origin receipt.
+
+    Accepts both single-device and multi-device origin receipts. The returned
+    payload is safe to use as a ClosedLoopOrigin only after its receipt hash
+    and origin hash have been re-derived successfully.
+    """
+    if not isinstance(receipt, Mapping):
+        raise ValueError("physical origin receipt must be an object")
+
+    source=str(receipt.get("source") or "")
+    if source=="windowpilot-physical-reconcile-v1":
+        receipt_hash_field="physical_origin_receipt_sha256"
+    elif source=="windowpilot-multi-physical-origin-v1":
+        receipt_hash_field="multi_physical_origin_receipt_sha256"
+    else:
+        raise RuntimeError(
+            "unsupported physical origin receipt source: "+repr(source)
+        )
+
+    provided_receipt_hash=str(receipt.get(receipt_hash_field) or "")
+    payload={
+        key:value
+        for key,value in receipt.items()
+        if key not in {receipt_hash_field,"origin_sha256"}
+    }
+    if provided_receipt_hash!=_sha256(payload):
+        raise RuntimeError("physical origin receipt SHA-256 mismatch")
+
+    origin=receipt.get("origin")
+    if not isinstance(origin,Mapping):
+        raise RuntimeError("physical origin receipt missing origin object")
+    normalized=ClosedLoopOrigin(
+        co2_ppm=origin.get("co2_ppm") or {},
+        opening_pct=origin.get("opening_pct") or {},
+        scalar_values=origin.get("scalar_values") or {},
+    ).normalized()
+    provided_origin_hash=str(receipt.get("origin_sha256") or "")
+    if provided_origin_hash!=_sha256(normalized):
+        raise RuntimeError("physical origin state SHA-256 mismatch")
+
+    return {
+        "source":source,
+        "origin":normalized,
+        "origin_sha256":provided_origin_hash,
+        "receipt_sha256":provided_receipt_hash,
+        "receipt_hash_field":receipt_hash_field,
+        "whole_home_physically_measured":bool(
+            receipt.get("whole_home_physically_measured")
+        ),
+        "measured_zones":list(receipt.get("measured_zones") or (
+            [receipt.get("zone_id")] if receipt.get("zone_id") else []
+        )),
+        "measured_openings":list(receipt.get("measured_openings") or (
+            [receipt.get("opening_id")] if receipt.get("opening_id") else []
+        )),
+        "evidence_boundary":str(receipt.get("evidence_boundary") or ""),
+    }
+
+
 def merge_physical_next_origins(
     *,
     current_origin: Mapping[str, Any] | ClosedLoopOrigin,
