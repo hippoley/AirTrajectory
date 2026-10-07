@@ -142,6 +142,37 @@ class JointClosedLoopTests(unittest.TestCase):
                 capability=capability,
             )
 
+
+    def test_verified_prj_reseed_profile_unlocks_real_contam_replanning_gate(self):
+        profile = SimpleNamespace(
+            origin_state_mode="prj-initial-only",
+            prj_initial_co2_ppm={
+                "living": 1400,
+                "bedroom": 900,
+                "study": 800,
+            },
+            prj_reseed_continuation_verified=True,
+        )
+        capability = contam_receding_horizon_capability(profile)
+        self.assertTrue(capability.state_reinjection_verified)
+        self.assertEqual(
+            capability.continuation_mode,
+            "prj-section15-reseed-verified",
+        )
+        receipt = run_receding_horizon_joint(
+            initial_origin=self.initial_origin(),
+            control_steps=2,
+            prediction_horizon_steps=2,
+            candidate_provider=self.candidates,
+            evaluator=self.evaluator,
+            executor=self.executor,
+            capability=capability,
+        )
+        self.assertTrue(receipt["closed_loop_replanning_executed"])
+        self.assertTrue(
+            receipt["backend_capability"]["state_reinjection_verified"]
+        )
+
     def test_current_contam_capability_still_allows_one_origin_plan(self):
         profile = SimpleNamespace(
             origin_state_mode="prj-initial-only",
