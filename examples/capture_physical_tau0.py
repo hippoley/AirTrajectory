@@ -1,5 +1,6 @@
 """Capture and audit a physical trajectory through a configured WindowPilot runtime."""
 import argparse
+from dataclasses import asdict
 import hashlib
 import json
 from pathlib import Path
@@ -12,6 +13,11 @@ from airtrajectory.physical import (
 from airtrajectory.physical_closeout import (
     build_closeout_evidence,
     trajectory_last_feedback_timestamp,
+)
+from airtrajectory.physical_handoff import (
+    authorize_tau0_from_planner,
+    build_physical_handoff_reconcile,
+    extract_closed_loop_opening_action,
 )
 from airtrajectory.tau0_preflight import validate_physical_tau0_preconditions
 from airtrajectory.trajectory import TrajectoryStore
@@ -58,6 +64,8 @@ def capture_physical_tau0(
     receipt,
     commission_bundle=None,
     sensor_apply_receipts=None,
+    planner_handoff=None,
+    predicted_zone_id=None,
 ):
     if commission_bundle is None:
         raise RuntimeError("commissioning evidence bundle is required before physical tau0 capture")
@@ -70,11 +78,21 @@ def capture_physical_tau0(
     context_extra={key:preflight[key] for key in _CONTEXT_KEYS}
     tolerance=float(preflight["position_tolerance_pct"])
     acceptance=preflight["commissioning_behavior_witness"]["acceptance_policy"]
-    target=min(
-        5.0,
-        float(acceptance["requested_excursion_pct"]),
-        float(acceptance["max_first_excursion_pct"]),
-    )
+    physical_authorization=None
+    if planner_handoff is not None:
+        physical_authorization=authorize_tau0_from_planner(
+            planner_handoff,
+            acceptance_policy=acceptance,
+        )
+        target=float(physical_authorization["authorized_target_pct"])
+        context_extra["planner_handoff"]=dict(planner_handoff)
+        context_extra["physical_authorization"]=dict(physical_authorization)
+    else:
+        target=min(
+            5.0,
+            float(acceptance["requested_excursion_pct"]),
+            float(acceptance["max_first_excursion_pct"]),
+        )
     if steps!=1:
         raise RuntimeError("physical tau0 capture must contain exactly one bounded probe step")
     policy=Tau0ProbePolicy(
@@ -127,6 +145,14 @@ def capture_physical_tau0(
         ) from closeout_error
 
     report=validate_physical_tau0(trajectory)
+    physical_reconcile=None
+    if planner_handoff is not None:
+        physical_reconcile=build_physical_handoff_reconcile(
+            planner_handoff=planner_handoff,
+            authorization=physical_authorization,
+            trajectory_step=asdict(trajectory.steps[0]),
+            zone_id=predicted_zone_id,
+        )
     payload={
         "trajectory_id":trajectory.id,
         "valid_tau0":report.valid_tau0,
@@ -137,6 +163,12 @@ def capture_physical_tau0(
         **context_extra,
         "closeout":closeout,
         "trajectory_sha256":hashlib.sha256(Path(out).read_bytes()).hexdigest(),
+        "planner_handoff":planner_handoff,
+        "physical_authorization":physical_authorization,
+        "physical_reconcile":physical_reconcile,
+        "sim_to_physical_handoff_verified":bool(
+            report.valid_tau0 and physical_reconcile is not None
+        ),
     }
 
     receipt_path=Path(receipt)
@@ -166,6 +198,21 @@ def main(argv=None):
         help="WindowPilot physical bring-up evidence bundle",
     )
     parser.add_argument(
+        "--closed-loop-receipt",
+        type=Path,
+        help="Optional real-ContamX closed-loop JSON receipt to bind into physical tau0",
+    )
+    parser.add_argument(
+        "--closed-loop-step-index",
+        type=int,
+        default=0,
+        help="Closed-loop step whose selected opening action becomes the planner handoff",
+    )
+    parser.add_argument(
+        "--predicted-zone-id",
+        help="Optional zone key used to compare simulated predicted CO2 with measured post-action CO2",
+    )
+    parser.add_argument(
         "--sensor-apply-receipt",
         action="append",
         default=[],
@@ -175,6 +222,17 @@ def main(argv=None):
         ),
     )
     args=parser.parse_args(argv)
+
+    planner_handoff=None
+    if args.closed_loop_receipt is not None:
+        closed_loop_payload=json.loads(
+            args.closed_loop_receipt.read_text(encoding="utf-8")
+        )
+        planner_handoff=extract_closed_loop_opening_action(
+            closed_loop_payload,
+            step_index=args.closed_loop_step_index,
+            opening_id=args.opening_id,
+        )
 
     driver=WindowPilotHTTPDriver(args.windowpilot)
     receipt=capture_physical_tau0(
@@ -186,6 +244,8 @@ def main(argv=None):
         receipt=args.receipt,
         commission_bundle=args.commission_bundle,
         sensor_apply_receipts=args.sensor_apply_receipt,
+        planner_handoff=planner_handoff,
+        predicted_zone_id=args.predicted_zone_id,
     )
     print(json.dumps(receipt,ensure_ascii=False))
     return 0
