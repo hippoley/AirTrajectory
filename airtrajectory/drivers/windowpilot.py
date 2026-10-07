@@ -276,12 +276,20 @@ class WindowPilotHTTPDriver(PhysicalWindowDriver):
         )
         physical=pre_execution.get("simulated") is False
         ack_contract=str(pre_caps.get("command_ack_contract") or "")
-        if physical and ack_contract not in {
-            "windowpilot-command-ack-v1",
-            "windowpilot-command-ack-v2",
-        }:
+        idempotency_contract=str(
+            pre_caps.get("command_idempotency_contract") or ""
+        )
+        if physical and ack_contract!="windowpilot-command-ack-v2":
             raise RuntimeError(
-                "WindowPilot physical command acknowledgement contract is unavailable"
+                "WindowPilot physical writes require windowpilot-command-ack-v2"
+            )
+        if (
+            physical
+            and idempotency_contract!="process-local-fail-closed-v1"
+        ):
+            raise RuntimeError(
+                "WindowPilot physical writes require a supported command "
+                "idempotency contract"
             )
 
         command_started=self._clock()
