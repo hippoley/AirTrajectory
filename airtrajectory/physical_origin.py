@@ -211,6 +211,7 @@ def merge_physical_next_origins(
     *,
     current_origin: Mapping[str, Any] | ClosedLoopOrigin,
     measurements: list[Mapping[str, Any]],
+    max_measurement_skew_s: float = 10.0,
 ) -> dict[str, Any]:
     """Merge multiple independently verified physical zone/opening receipts.
 
@@ -232,11 +233,16 @@ def merge_physical_next_origins(
     else:
         raise ValueError("current_origin must be a ClosedLoopOrigin or mapping")
 
+    max_skew=float(max_measurement_skew_s)
+    if max_skew < 0:
+        raise ValueError("max_measurement_skew_s must be non-negative")
+
     current = base
     seen_zones: set[str] = set()
     seen_openings: set[str] = set()
     rain_value: float | None = None
     applied: list[dict[str, Any]] = []
+    measurement_windows: list[dict[str, Any]] = []
 
     for index, row in enumerate(measurements):
         if not isinstance(row, Mapping):
@@ -270,6 +276,21 @@ def merge_physical_next_origins(
                 "conflicting measured rain state across physical receipts"
             )
 
+        co2_ts=float(reconcile.get("terminal_co2_timestamp") or 0)
+        rain_ts=float(reconcile.get("terminal_rain_timestamp") or 0)
+        if co2_ts<=0 or rain_ts<=0:
+            raise RuntimeError(
+                "physical measurement lacks terminal sensor timestamps"
+            )
+        measurement_windows.append(
+            {
+                "zone_id":zone_id,
+                "opening_id":opening_id,
+                "start_timestamp":min(co2_ts,rain_ts),
+                "end_timestamp":max(co2_ts,rain_ts),
+            }
+        )
+
         current = candidate
         seen_zones.add(zone_id)
         seen_openings.add(opening_id)
@@ -285,6 +306,15 @@ def merge_physical_next_origins(
                     receipt["physical_origin_receipt_sha256"]
                 ),
             }
+        )
+
+    earliest=min(row["start_timestamp"] for row in measurement_windows)
+    latest=max(row["end_timestamp"] for row in measurement_windows)
+    measurement_skew_s=latest-earliest
+    if measurement_skew_s>max_skew:
+        raise RuntimeError(
+            "physical measurements exceed max temporal skew: "
+            f"{measurement_skew_s:.3f}s > {max_skew:.3f}s"
         )
 
     measured_zones = sorted(seen_zones)
@@ -303,6 +333,13 @@ def merge_physical_next_origins(
         "inherited_openings": inherited_openings,
         "applied_measurements": applied,
         "physical_measurement_count": len(applied),
+        "measurement_windows": measurement_windows,
+        "measurement_time_range": {
+            "earliest_timestamp": earliest,
+            "latest_timestamp": latest,
+            "skew_s": measurement_skew_s,
+            "max_allowed_skew_s": max_skew,
+        },
         "whole_home_physically_measured": (
             not inherited_zones and not inherited_openings
         ),
