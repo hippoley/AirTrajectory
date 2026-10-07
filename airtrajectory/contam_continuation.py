@@ -147,7 +147,10 @@ def classify_continuation_surface(engine: Any) -> dict[str, Any]:
     state_methods = sorted(
         name for name in names
         if "state" in name.lower()
-        and ("get" in name.lower() or "set" in name.lower())
+        and any(
+            token in name.lower()
+            for token in ("get", "set", "load", "save", "read", "write")
+        )
     )
 
     native_runtime = ContinuationStrategy(
