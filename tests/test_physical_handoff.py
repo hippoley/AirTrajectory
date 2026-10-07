@@ -157,6 +157,57 @@ class PhysicalHandoffTests(unittest.TestCase):
         )
         self.assertTrue(out["next_origin_position_verified"])
 
+    def test_physical_next_origin_requires_closeout_and_fresh_terminal_sensors(self):
+        handoff = extract_closed_loop_opening_action(
+            self.closed_loop(),
+            step_index=0,
+            opening_id="W1",
+        )
+        authorization = authorize_tau0_from_planner(
+            handoff,
+            acceptance_policy=self.policy(),
+        )
+        out = build_physical_handoff_reconcile(
+            planner_handoff=handoff,
+            authorization=authorization,
+            trajectory_step={
+                "observation": {"co2_ppm": 1400.0},
+                "next_observation": {"co2_ppm": 1392.0},
+                "actuator_feedback": [
+                    {
+                        "actuator_id": "W1",
+                        "timestamp": 10.0,
+                        "measured_position_pct": 4.9,
+                        "quality": "encoder-measured",
+                    }
+                ],
+            },
+            zone_id="living",
+            closeout={
+                "confirmed_closed": True,
+                "feedback": {
+                    "actuator_id": "W1",
+                    "timestamp": 12.0,
+                    "measured_position_pct": 0.1,
+                    "quality": "encoder-measured",
+                },
+            },
+            terminal_snapshot={
+                "fresh_after_closeout": True,
+                "co2_ppm": 1388.0,
+                "co2_timestamp": 13.0,
+                "rain": False,
+                "rain_timestamp": 13.0,
+                "snapshot_sha256": "f" * 64,
+            },
+        )
+        self.assertEqual(out["terminal_position_pct"], 0.1)
+        self.assertEqual(out["terminal_co2_ppm"], 1388.0)
+        self.assertFalse(out["terminal_rain"])
+        self.assertTrue(out["next_origin_position_verified"])
+        self.assertTrue(out["next_origin_sensor_verified"])
+        self.assertTrue(out["physical_next_origin_ready"])
+
     def test_too_small_planner_target_fails_before_motion(self):
         payload = self.closed_loop()
         payload["receipt"]["steps"][0]["selected_actions"][0]["target_pct"] = 1.0
