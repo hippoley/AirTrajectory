@@ -377,6 +377,92 @@ class ReplannedPhysicalStepTests(unittest.TestCase):
                     ),
                 )
 
+    def test_hash_valid_summary_cannot_fake_origin_freshness(self):
+        with tempfile.TemporaryDirectory() as d:
+            root=Path(d)
+            physical,planner=self._files(root)
+            driver=FakeDriver()
+            module.run_replanned_physical_step(
+                driver=driver,
+                physical_origin_receipt=physical,
+                planner_receipt=planner,
+                opening_id="W1",
+                zone_id="living",
+                max_delta_pct=10.0,
+                summary_out=root/"summary.json",
+                next_origin_out=root/"next.json",
+                execute=True,
+                snapshot_fn=lambda **kwargs:snapshot(),
+                clock_fn=lambda:23.0,
+            )
+            summary=json.loads((root/"summary.json").read_text(encoding="utf-8"))
+            summary["origin_freshness_checked_at"]=40.0
+            summary_payload={
+                key:value
+                for key,value in summary.items()
+                if key!="replanned_physical_step_sha256"
+            }
+            summary["replanned_physical_step_sha256"]=sha(summary_payload)
+            with self.assertRaisesRegex(
+                RuntimeError,
+                "evidence ages do not match|exceeded max age",
+            ):
+                verify_persisted_physical_cycle(
+                    previous_origin_receipt=json.loads(
+                        physical.read_text(encoding="utf-8")
+                    ),
+                    planner_payload=json.loads(
+                        planner.read_text(encoding="utf-8")
+                    ),
+                    step_summary=summary,
+                    next_origin_receipt=json.loads(
+                        (root/"next.json").read_text(encoding="utf-8")
+                    ),
+                )
+
+    def test_hash_valid_summary_cannot_swap_origin_hardware_identity(self):
+        with tempfile.TemporaryDirectory() as d:
+            root=Path(d)
+            physical,planner=self._files(root)
+            driver=FakeDriver()
+            module.run_replanned_physical_step(
+                driver=driver,
+                physical_origin_receipt=physical,
+                planner_receipt=planner,
+                opening_id="W1",
+                zone_id="living",
+                max_delta_pct=10.0,
+                summary_out=root/"summary.json",
+                next_origin_out=root/"next.json",
+                execute=True,
+                snapshot_fn=lambda **kwargs:snapshot(),
+                clock_fn=lambda:23.0,
+            )
+            summary=json.loads((root/"summary.json").read_text(encoding="utf-8"))
+            summary["origin_hardware_identity_sha256"]="d"*64
+            summary_payload={
+                key:value
+                for key,value in summary.items()
+                if key!="replanned_physical_step_sha256"
+            }
+            summary["replanned_physical_step_sha256"]=sha(summary_payload)
+            with self.assertRaisesRegex(
+                RuntimeError,
+                "origin hardware identity does not match",
+            ):
+                verify_persisted_physical_cycle(
+                    previous_origin_receipt=json.loads(
+                        physical.read_text(encoding="utf-8")
+                    ),
+                    planner_payload=json.loads(
+                        planner.read_text(encoding="utf-8")
+                    ),
+                    step_summary=summary,
+                    next_origin_receipt=json.loads(
+                        (root/"next.json").read_text(encoding="utf-8")
+                    ),
+                )
+
     def test_hash_valid_summary_cannot_change_persisted_authorization(self):
         with tempfile.TemporaryDirectory() as d:
             root=Path(d)
