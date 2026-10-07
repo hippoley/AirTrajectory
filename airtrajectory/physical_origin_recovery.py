@@ -185,6 +185,7 @@ def capture_recovery_physical_origin(
         "parent_physical_origin_sha256":previous["origin_sha256"],
         "parent_physical_origin_receipt_sha256":previous["receipt_sha256"],
         "recovery_execution_lease_sha256":str(lease["lease_sha256"]),
+        "recovery_snapshot":snapshot_payload,
         "recovery_snapshot_sha256":snapshot_sha,
         "opening_id":opening,
         "zone_id":zone,
