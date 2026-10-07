@@ -132,6 +132,7 @@ def build_physical_handoff_reconcile(
     authorization: Mapping[str, Any],
     trajectory_step: Mapping[str, Any],
     zone_id: str | None = None,
+    closeout: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     feedback_rows = trajectory_step.get("actuator_feedback")
     if not isinstance(feedback_rows, list) or len(feedback_rows) != 1:
@@ -141,6 +142,26 @@ def build_physical_handoff_reconcile(
     if measured is None:
         raise RuntimeError("physical handoff requires measured actuator position")
     measured = float(measured)
+    action_feedback_ts = float(feedback.get("timestamp") or 0)
+    if action_feedback_ts <= 0:
+        raise RuntimeError("physical handoff actuator feedback timestamp is invalid")
+
+    closeout_position = None
+    closeout_ts = None
+    if closeout is not None:
+        closeout_feedback = closeout.get("feedback")
+        if not isinstance(closeout_feedback, Mapping):
+            raise ValueError("physical handoff closeout feedback is missing")
+        closeout_position = closeout_feedback.get("measured_position_pct")
+        closeout_ts = closeout_feedback.get("timestamp")
+        if closeout_position is None or closeout_ts is None:
+            raise ValueError("physical handoff closeout lacks measured position/timestamp")
+        closeout_position = float(closeout_position)
+        closeout_ts = float(closeout_ts)
+        if closeout_ts <= action_feedback_ts:
+            raise RuntimeError("physical closeout must be newer than action feedback")
+        if closeout.get("confirmed_closed") is not True:
+            raise RuntimeError("physical closeout is not confirmed closed")
 
     pre = trajectory_step.get("observation") or {}
     post = trajectory_step.get("next_observation") or {}
@@ -162,8 +183,18 @@ def build_physical_handoff_reconcile(
         "selected_label": str(planner_handoff.get("selected_label") or ""),
         "planned_target_pct": float(planner_handoff["planned_target_pct"]),
         "authorized_target_pct": authorized,
-        "measured_position_pct": measured,
+        "action_feedback_position_pct": measured,
+        "action_feedback_timestamp": action_feedback_ts,
         "measured_minus_authorized_pct": round(position_error, 6),
+        "post_closeout_position_pct": closeout_position,
+        "post_closeout_timestamp": closeout_ts,
+        "terminal_position_pct": closeout_position,
+        "terminal_position_source": (
+            "safe-closeout-measured-feedback"
+            if closeout_position is not None
+            else "unavailable-until-safe-closeout"
+        ),
+        "next_origin_position_verified": closeout_position is not None,
         "planner_action_fully_executed": (
             bool(authorization.get("planner_action_fully_authorized"))
             and abs(position_error) <= 1.0
