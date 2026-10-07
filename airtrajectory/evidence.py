@@ -34,6 +34,58 @@ def _sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+def _canonical_sha256(payload) -> str:
+    raw=json.dumps(
+        payload,
+        sort_keys=True,
+        separators=(",",":"),
+        ensure_ascii=False,
+    ).encode("utf-8")
+    return hashlib.sha256(raw).hexdigest()
+
+
+def _validate_command_ack(
+    ack,
+    *,
+    expected_target,
+    expected_hardware_identity_sha256,
+):
+    reasons=[]
+    if not isinstance(ack,dict):
+        return ["physical trajectory command acknowledgement is missing"]
+    provided=str(ack.get("command_ack_sha256") or "")
+    payload={key:value for key,value in ack.items() if key!="command_ack_sha256"}
+    if provided!=_canonical_sha256(payload):
+        reasons.append("physical command acknowledgement SHA-256 mismatch")
+    if ack.get("receipt")!="windowpilot-command-ack-v1":
+        reasons.append("physical command acknowledgement contract is unsupported")
+    if ack.get("accepted") is not True:
+        reasons.append("physical command acknowledgement is not accepted")
+    if ack.get("simulated") is not False:
+        reasons.append("physical command acknowledgement is marked simulated")
+    if ack.get("physical_write_ready") is not True:
+        reasons.append("physical command acknowledgement lacks write authorization")
+    if ack.get("write_contract_ready") is not True:
+        reasons.append("physical command acknowledgement lacks write contract")
+    if ack.get("motion_semantics_ready") is not True:
+        reasons.append("physical command acknowledgement lacks motion semantics")
+    if ack.get("evidence_kind")!="physical-command-accepted":
+        reasons.append("physical command acknowledgement evidence kind is invalid")
+    if str(ack.get("action") or "")!="open":
+        reasons.append("physical command acknowledgement action is not open")
+    try:
+        if abs(float(ack.get("target_pct"))-float(expected_target))>1e-9:
+            reasons.append("physical command acknowledgement target mismatch")
+    except (TypeError,ValueError):
+        reasons.append("physical command acknowledgement target is invalid")
+    identity=str(ack.get("hardware_identity_sha256") or "")
+    if identity!=str(expected_hardware_identity_sha256 or ""):
+        reasons.append(
+            "physical command acknowledgement hardware identity does not match runtime"
+        )
+    return reasons
+
+
 def _load_json(path: Path):
     payload=json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(payload,dict):
@@ -103,6 +155,26 @@ def verify_physical_tau0_artifacts(*, trajectory_path, receipt_path, commission_
         reasons.append("tau0 receipt does not declare valid_tau0=true")
     if receipt.get("environment_kind")!="physical":
         reasons.append("tau0 receipt environment_kind is not physical")
+
+    physical_reconcile=receipt.get("physical_reconcile")
+    if physical_reconcile is not None:
+        if not isinstance(physical_reconcile,dict):
+            reasons.append("tau0 receipt physical_reconcile is not an object")
+        else:
+            reconcile_sha=str(
+                physical_reconcile.get("physical_reconcile_sha256") or ""
+            )
+            reconcile_payload={
+                key:value
+                for key,value in physical_reconcile.items()
+                if key!="physical_reconcile_sha256"
+            }
+            if reconcile_sha!=_canonical_sha256(reconcile_payload):
+                reasons.append("tau0 physical reconcile SHA-256 mismatch")
+            if receipt.get("sim_to_physical_handoff_verified") is not True:
+                reasons.append(
+                    "tau0 receipt has physical reconcile but handoff is not verified"
+                )
 
     receipt_capture_policy=receipt.get("tau0_capture_policy")
     capture_target=None
@@ -440,6 +512,56 @@ def verify_physical_tau0_artifacts(*, trajectory_path, receipt_path, commission_
                             reasons.append(
                                 f"step {index} executed target does not match tau0 capture policy"
                             )
+
+                step_info=step.get("info") or {}
+                command_acks=(
+                    step_info.get("command_acks")
+                    if isinstance(step_info,dict)
+                    else None
+                )
+                if physical_reconcile is not None:
+                    if not isinstance(command_acks,list) or len(command_acks)!=1:
+                        reasons.append(
+                            f"step {index} must contain exactly one physical command acknowledgement"
+                        )
+                    else:
+                        reasons.extend(
+                            _validate_command_ack(
+                                command_acks[0],
+                                expected_target=capture_target,
+                                expected_hardware_identity_sha256=runtime_id,
+                            )
+                        )
+                        ack_sha=str(
+                            command_acks[0].get("command_ack_sha256") or ""
+                        )
+                        if physical_reconcile.get("command_ack_sha256")!=ack_sha:
+                            reasons.append(
+                                "physical reconcile command acknowledgement hash mismatch"
+                            )
+                        if (
+                            physical_reconcile.get(
+                                "command_hardware_identity_sha256"
+                            )!=runtime_id
+                        ):
+                            reasons.append(
+                                "physical reconcile command hardware identity mismatch"
+                            )
+                        if physical_reconcile.get(
+                            "command_write_gate_verified"
+                        ) is not True:
+                            reasons.append(
+                                "physical reconcile does not prove command write gate"
+                            )
+                elif isinstance(command_acks,list):
+                    for ack in command_acks:
+                        reasons.extend(
+                            _validate_command_ack(
+                                ack,
+                                expected_target=capture_target,
+                                expected_hardware_identity_sha256=runtime_id,
+                            )
+                        )
                 pre_rows=[
                     item for item in (step.get("sensor_readings") or [])
                     if isinstance(item,dict)
