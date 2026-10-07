@@ -147,6 +147,7 @@ def independent_action_vector(case: Mapping[str, Any], topology) -> dict[str, fl
         topology,
         open_threshold=rule["open_threshold_ppm"],
         close_threshold=rule["close_threshold_ppm"],
+        open_target_pct=rule["open_target_pct"],
     )
     observation = {
         "co2_ppm": normalized["origin"]["co2_ppm"],
@@ -164,12 +165,7 @@ def independent_action_vector(case: Mapping[str, Any], topology) -> dict[str, fl
         )
     }
     values = {
-        action.opening_id: (
-            rule["open_target_pct"]
-            if action.target_pct == 75
-            and rule["open_target_pct"] != 75
-            else float(action.target_pct)
-        )
+        action.opening_id: float(action.target_pct)
         for action in actions
         if action.opening_id in exterior
     }
