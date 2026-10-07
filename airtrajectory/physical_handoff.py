@@ -96,6 +96,10 @@ def authorize_tau0_from_planner(
         raise RuntimeError("commissioning max first excursion must be within (0,5]")
 
     authorized = min(planned, requested, max_first, 5.0)
+    if authorized < 2.0:
+        raise RuntimeError(
+            "authorized first-contact target is below the 2% minimum Reality Delta"
+        )
     intervention = (
         None
         if abs(authorized - planned) <= 1e-9
