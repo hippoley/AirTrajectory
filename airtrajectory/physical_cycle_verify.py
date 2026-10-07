@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import uuid
 from typing import Any, Mapping
 
 from .physical_origin import verify_physical_origin_receipt
@@ -110,6 +111,13 @@ def verify_persisted_physical_cycle(
 
     command_ack=step_summary.get("command_ack")
     command_request_id=str(step_summary.get("command_request_id") or "")
+    command_scope_raw=step_summary.get("command_idempotency_scope_id")
+    try:
+        command_scope_id=str(uuid.UUID(str(command_scope_raw or "")))
+    except (ValueError,TypeError,AttributeError) as exc:
+        raise RuntimeError(
+            "persisted physical step missing valid command idempotency scope"
+        ) from exc
     feedback=step_summary.get("actuator_feedback")
     snapshot=step_summary.get("sensor_snapshot")
     if not isinstance(command_ack,Mapping):
@@ -148,6 +156,10 @@ def verify_persisted_physical_cycle(
         )
     if step_summary.get("command_ack_sha256")!=command_ack.get("command_ack_sha256"):
         raise RuntimeError("persisted command ACK SHA field mismatch")
+    if command_ack.get("idempotency_scope_id")!=command_scope_id:
+        raise RuntimeError(
+            "persisted command ACK idempotency scope does not match issued scope"
+        )
     if step_summary.get("sensor_snapshot_sha256")!=snapshot.get("snapshot_sha256"):
         raise RuntimeError("persisted sensor snapshot SHA field mismatch")
 
@@ -194,6 +206,7 @@ def verify_persisted_physical_cycle(
         authorization=authorization,
         command_ack=command_ack,
         expected_request_id=command_request_id,
+        expected_idempotency_scope_id=command_scope_id,
         feedback=feedback,
         sensor_snapshot=snapshot,
         zone_id=zone_id,
@@ -227,6 +240,7 @@ def verify_persisted_physical_cycle(
             "replanned_action_authorization_sha256"
         ],
         "command_request_id":command_request_id,
+        "command_idempotency_scope_id":command_scope_id,
         "command_id":str(command_ack["command_id"]),
         "command_ack_sha256":str(command_ack["command_ack_sha256"]),
         "sensor_snapshot_sha256":str(snapshot["snapshot_sha256"]),
