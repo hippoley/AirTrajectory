@@ -73,6 +73,59 @@ def physical_origin_payload():
     }
 
 
+def recovery_origin_payload():
+    origin={
+        "co2_ppm":{"living":1250.0,"bedroom":875.0,"study":800.0},
+        "opening_pct":{"W1":3.0,"W2":0.1,"W3":55.0,"D1":100.0,"D2":100.0},
+        "scalar_values":{"rain":0.0},
+    }
+    snapshot={
+        "opening_id":"W1",
+        "zone_id":"living",
+        "hardware_identity_sha256":"c"*64,
+        "position_pct":3.0,
+        "position_timestamp":21.0,
+        "co2_ppm":1250.0,
+        "co2_timestamp":22.0,
+        "rain":False,
+        "rain_timestamp":22.0,
+        "captured_at":22.5,
+        "max_observation_age_s":10.0,
+    }
+    payload={
+        "schema_version":"0.1",
+        "source":"windowpilot-recovery-physical-origin-v1",
+        "parent_physical_origin_sha256":"1"*64,
+        "parent_physical_origin_receipt_sha256":"2"*64,
+        "recovery_execution_lease_sha256":"3"*64,
+        "recovery_snapshot":snapshot,
+        "recovery_snapshot_sha256":sha(snapshot),
+        "opening_id":"W1",
+        "zone_id":"living",
+        "origin":origin,
+        "opening_hardware_identities":{"W1":"c"*64},
+        "opening_observed_at":{"W1":21.0},
+        "zone_observed_at":{"living":22.0},
+        "rain_observed_at":22.0,
+        "measured_zones":["living"],
+        "measured_openings":["W1"],
+        "inherited_zones":["bedroom","study"],
+        "inherited_openings":["D1","D2","W2","W3"],
+        "whole_home_physically_measured":False,
+        "recovery_observation_age_s":{
+            "opening":1.5,
+            "rain":0.5,
+            "zone":0.5,
+        },
+        "evidence_boundary":"synthetic recovery-origin execution contract fixture",
+    }
+    return {
+        **payload,
+        "origin_sha256":sha(origin),
+        "physical_origin_receipt_sha256":sha(payload),
+    }
+
+
 def planner_payload(origin_receipt,target=5.0):
     origin_sha=origin_receipt["origin_sha256"]
     step_payload={
@@ -328,6 +381,51 @@ class ReplannedPhysicalStepTests(unittest.TestCase):
                 )
             self.assertEqual(second_driver.commanded,[])
             self.assertFalse((root/"run-b"/"summary.json").exists())
+
+    def test_recovery_origin_can_drive_next_bounded_physical_step(self):
+        with tempfile.TemporaryDirectory() as d:
+            root=Path(d)
+            origin=recovery_origin_payload()
+            physical=root/"recovery-origin.json"
+            planner=root/"planner.json"
+            physical.write_text(json.dumps(origin),encoding="utf-8")
+            planner.write_text(
+                json.dumps(planner_payload(origin,target=8.0)),
+                encoding="utf-8",
+            )
+            driver=FakeDriver()
+            out=module.run_replanned_physical_step(
+                driver=driver,
+                physical_origin_receipt=physical,
+                planner_receipt=planner,
+                opening_id="W1",
+                zone_id="living",
+                max_delta_pct=10.0,
+                summary_out=root/"summary.json",
+                next_origin_out=root/"next.json",
+                execute=True,
+                lease_dir=root/"physical-origin-leases",
+                snapshot_fn=lambda **kwargs:snapshot(),
+                clock_fn=lambda:23.0,
+            )
+            self.assertEqual(out["status"],"PASS")
+            self.assertEqual(driver.commanded,[("W1",8.0)])
+            next_payload=json.loads(
+                (root/"next.json").read_text(encoding="utf-8")
+            )
+            verified=verify_physical_origin_receipt(next_payload)
+            self.assertEqual(
+                verified["source"],
+                "windowpilot-replanned-physical-step-v1",
+            )
+            self.assertAlmostEqual(
+                verified["origin"]["opening_pct"]["W1"],
+                7.9,
+            )
+            self.assertEqual(
+                verified["origin"]["co2_ppm"]["living"],
+                1320.0,
+            )
 
     def test_execute_emits_verified_next_physical_origin(self):
         with tempfile.TemporaryDirectory() as d:
