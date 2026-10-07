@@ -369,6 +369,30 @@ def build_replanned_physical_step_origin(
     all_zones=set(normalized_origin["co2_ppm"])
     all_openings=set(normalized_origin["opening_pct"])
 
+    ack_identity=str(command_ack.get("hardware_identity_sha256") or "")
+    if len(ack_identity)!=64 or any(
+        ch not in "0123456789abcdef" for ch in ack_identity.lower()
+    ):
+        raise RuntimeError(
+            "replanned physical command hardware identity is invalid"
+        )
+
+    opening_hardware_identities=dict(
+        previous.get("opening_hardware_identities") or {}
+    )
+    previous_identity=opening_hardware_identities.get(opening_id)
+    if previous_identity and previous_identity!=ack_identity:
+        raise RuntimeError(
+            "replanned physical command hardware identity does not match "
+            "previous physical origin"
+        )
+    opening_hardware_identities[opening_id]=ack_identity
+
+    opening_observed_at=dict(previous.get("opening_observed_at") or {})
+    zone_observed_at=dict(previous.get("zone_observed_at") or {})
+    opening_observed_at[opening_id]=feedback_ts
+    zone_observed_at[zone]=co2_ts
+
     payload={
         "schema_version":"0.1",
         "source":"windowpilot-replanned-physical-step-v1",
@@ -385,6 +409,18 @@ def build_replanned_physical_step_origin(
         "zone_id":zone,
         "measured_position_pct":measured,
         "actuator_feedback_timestamp":feedback_ts,
+        "opening_hardware_identities":dict(
+            sorted(opening_hardware_identities.items())
+        ),
+        "opening_observed_at":dict(sorted(
+            (key,float(value))
+            for key,value in opening_observed_at.items()
+        )),
+        "zone_observed_at":dict(sorted(
+            (key,float(value))
+            for key,value in zone_observed_at.items()
+        )),
+        "rain_observed_at":rain_ts,
         "measured_zones":sorted(prior_measured_zones),
         "measured_openings":sorted(prior_measured_openings),
         "inherited_zones":sorted(all_zones-prior_measured_zones),
