@@ -290,6 +290,11 @@ def build_replanned_physical_step_origin(
     ack_target=command_ack.get("target_pct")
     if ack_target is None or abs(float(ack_target)-expected_target)>1e-9:
         raise RuntimeError("replanned physical command target mismatch")
+    expected_action="close" if expected_target<=0 else "open"
+    if str(command_ack.get("action") or "")!=expected_action:
+        raise RuntimeError(
+            "replanned physical command action does not match authorized target"
+        )
 
     if not isinstance(feedback,Mapping):
         raise RuntimeError("replanned physical step missing actuator feedback")
