@@ -26,6 +26,8 @@ jobs:
 
   contam-real:
     runs-on: windows-latest
+    env:
+      SPATIALRUNTIME_COMMIT_SHA: d123ab9a5310cb9ce15d9e82630828a0d32211f4
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -35,11 +37,11 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: hippoley/SpatialRuntime
-          ref: d123ab9a5310cb9ce15d9e82630828a0d32211f4
+          ref: ${{ env.SPATIALRUNTIME_COMMIT_SHA }}
           path: _spatialruntime
       - name: Verify pinned SpatialRuntime revision
         shell: bash
-        run: test "$(git -C _spatialruntime rev-parse HEAD)" = "d123ab9a5310cb9ce15d9e82630828a0d32211f4"
+        run: test "$(git -C _spatialruntime rev-parse HEAD)" = "$SPATIALRUNTIME_COMMIT_SHA"
       - name: Install official contamxpy runtime and SpatialRuntime
         run: |
           python -m pip install -e ".[contam]"
@@ -179,12 +181,14 @@ jobs:
           assert all(s["evaluation_evidence"]["origin_kind"]=="prj-reseed-verified" for s in r["steps"])
           sr=p["spatialruntime_consumer"]
           assert sr["verified"] is True
+          assert sr["spatialruntime_commit_sha"]=="d123ab9a5310cb9ce15d9e82630828a0d32211f4"
           assert sr["zone_ids"]==["bedroom","living","study"]
           assert sr["flow_path_ids"]==["D1","D2","W1","W2","W3"]
           for step_index,s in enumerate(r["steps"]):
               rows=s["evaluation_evidence"]["spatialruntime_result_consumers"]
               assert len(rows)==s["candidate_count"]
               assert all(row["verified"] is True for row in rows)
+              assert all(row["spatialruntime_commit_sha"]=="d123ab9a5310cb9ce15d9e82630828a0d32211f4" for row in rows)
               assert all(row["adapter_id"]=="contam-project-v0.9" for row in rows)
               assert all(row["native_result_source"]=="airtrajectory_real_contam_branch" for row in rows)
               assert all(row["zone_count"]==3 for row in rows)
@@ -273,6 +277,7 @@ jobs:
           assert projection["dropped_scalar_values"]=={"rain":0.0}
           sr=p["spatialruntime_consumer"]
           assert sr["verified"] is True
+          assert sr["spatialruntime_commit_sha"]=="d123ab9a5310cb9ce15d9e82630828a0d32211f4"
           assert sr["zone_ids"]==["bedroom","living","study"]
           assert sr["flow_path_ids"]==["D1","D2","W1","W2","W3"]
           rows=evidence["spatialruntime_result_consumers"]
@@ -328,6 +333,7 @@ jobs:
           assert len(p["branches"])>=2
           sr=p["spatialruntime_consumer"]
           assert sr["verified"] is True
+          assert sr["spatialruntime_commit_sha"]=="d123ab9a5310cb9ce15d9e82630828a0d32211f4"
           assert sr["zone_ids"]==["bedroom","living","study"]
           assert sr["flow_path_ids"]==["D1","D2","W1","W2","W3"]
           assert sr["project_sha256"]==p["comparison"]["prj_sha256"]
@@ -336,6 +342,7 @@ jobs:
           srr=p["spatialruntime_result_consumers"]
           assert len(srr)==len(p["branches"])
           assert all(row["verified"] is True for row in srr)
+          assert all(row["spatialruntime_commit_sha"]=="d123ab9a5310cb9ce15d9e82630828a0d32211f4" for row in srr)
           assert all(row["adapter_id"]=="contam-project-v0.9" for row in srr)
           assert all(row["native_result_source"]=="airtrajectory_real_contam_branch" for row in srr)
           assert all(row["zone_count"]==3 for row in srr)
@@ -375,11 +382,13 @@ jobs:
           assert len(c["comparison_sha256"])==64
           sr=p["spatialruntime_consumer"]
           assert sr["verified"] is True
+          assert sr["spatialruntime_commit_sha"]=="d123ab9a5310cb9ce15d9e82630828a0d32211f4"
           assert sr["zone_ids"]==["bedroom","living","study"]
           assert sr["flow_path_ids"]==["D1","D2","W1","W2","W3"]
           srr=p["spatialruntime_result_consumers"]
           assert len(srr)==len(p["branches"])
           assert all(row["verified"] is True for row in srr)
+          assert all(row["spatialruntime_commit_sha"]=="d123ab9a5310cb9ce15d9e82630828a0d32211f4" for row in srr)
           assert all(row["adapter_id"]=="contam-project-v0.9" for row in srr)
           assert all(row["native_result_source"]=="airtrajectory_real_contam_branch" for row in srr)
           assert all(row["zone_count"]==3 for row in srr)

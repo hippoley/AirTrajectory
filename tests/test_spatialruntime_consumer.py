@@ -1,7 +1,10 @@
+import os
 import unittest
+from unittest.mock import patch
 
 from airtrajectory.spatialruntime_consumer import (
     SpatialRuntimeConsumerError,
+    _spatialruntime_commit_sha,
     native_branch_result_from_stable,
     stable_mappings_from_provenance,
 )
@@ -137,6 +140,17 @@ class SpatialRuntimeConsumerMappingTests(unittest.TestCase):
             "path results do not exactly cover",
         ):
             native_branch_result_from_stable(branch, self.provenance)
+
+
+    def test_spatialruntime_commit_sha_is_validated(self):
+        with patch.dict(os.environ, {"SPATIALRUNTIME_COMMIT_SHA": "a" * 40}, clear=False):
+            self.assertEqual(_spatialruntime_commit_sha(), "a" * 40)
+        with patch.dict(os.environ, {"SPATIALRUNTIME_COMMIT_SHA": "not-a-git-sha"}, clear=False):
+            with self.assertRaisesRegex(
+                SpatialRuntimeConsumerError,
+                "40-char git SHA",
+            ):
+                _spatialruntime_commit_sha()
 
 
 if __name__ == "__main__":

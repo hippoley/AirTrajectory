@@ -8,6 +8,8 @@ from __future__ import annotations
 
 from hashlib import sha256
 import json
+import os
+import re
 from pathlib import Path
 from typing import Any, Mapping
 
@@ -27,6 +29,17 @@ def _canonical(value: Any) -> str:
 def _sha256(value: Any) -> str:
     return sha256(_canonical(value).encode("utf-8")).hexdigest()
 
+
+
+
+def _spatialruntime_commit_sha() -> str | None:
+    value = os.environ.get("SPATIALRUNTIME_COMMIT_SHA")
+    if value is None or not value.strip():
+        return None
+    value = value.strip().lower()
+    if re.fullmatch(r"[0-9a-f]{40}", value) is None:
+        raise SpatialRuntimeConsumerError("SPATIALRUNTIME_COMMIT_SHA must be a 40-char git SHA")
+    return value
 
 def stable_mappings_from_provenance(
     provenance: Mapping[str, Any],
@@ -131,6 +144,7 @@ def verify_generated_prj_with_spatialruntime(
         "zone_count": len(mappings["zones"]),
         "flow_path_count": len(mappings["flow_paths"]),
         "spatialruntime_binding_schema": registry.get("schema"),
+        "spatialruntime_commit_sha": _spatialruntime_commit_sha(),
     }
     return {**payload, "receipt_sha256": _sha256(payload)}
 
@@ -308,6 +322,7 @@ def verify_branch_result_with_spatialruntime(
         "max_abs_co2_ppm_delta": max_zone_delta,
         "max_abs_mass_flow_kg_s_delta": max_path_delta,
         "native_result_source": metadata.get("native_result_source"),
+        "spatialruntime_commit_sha": _spatialruntime_commit_sha(),
     }
     for key in (
         "binding_registry_fingerprint",
