@@ -226,6 +226,87 @@ This still does **not** claim field validation until the artifacts come from a
 real WindowPilot endpoint. The summary explicitly distinguishes read-only
 readiness, executed physical evidence, and controller-ready physical origin.
 
+## Replan from physical origin and execute the second field action
+
+After the first field handoff emits a verified physical-origin receipt, real
+ContamX can plan exactly one next action from that measured state:
+
+```bash
+python examples/run_contam_joint_closed_loop.py \
+  artifacts/multispace-transient.prj \
+  artifacts/multispace-transient.prj.json \
+  --control-steps 1 \
+  --prediction-horizon-steps 3 \
+  --physical-origin-receipt artifacts/physical-next-origin.json \
+  --out artifacts/contam-replan-from-physical-origin.json
+```
+
+When `--physical-origin-receipt` is present, the runner intentionally requires
+`--control-steps 1`. Only that first plan is grounded in the measured field
+origin; additional steps without another physical observation would be
+simulation continuation.
+
+The resulting next action is then bound back to the exact physical-origin hash
+and must pass an explicit field ramp limit before another command can move:
+
+```bash
+python examples/run_replanned_physical_step.py \
+  --windowpilot http://127.0.0.1:8001 \
+  --physical-origin-receipt artifacts/physical-next-origin.json \
+  --planner-receipt artifacts/contam-replan-from-physical-origin.json \
+  --opening-id W1 \
+  --zone-id living \
+  --max-delta-pct 10
+```
+
+That command is read-only by default. It verifies:
+
+```text
+physical-origin receipt hash
+→ real-ContamX planner origin hash
+→ selected planner step hash
+→ WindowPilot non-simulated measured-position capability
+→ physical_write_ready
+→ stable runtime hardware identity
+→ bounded next-action authorization
+```
+
+Only after review should the same command be repeated with `--execute`.
+
+```bash
+python examples/run_replanned_physical_step.py \
+  --windowpilot http://127.0.0.1:8001 \
+  --physical-origin-receipt artifacts/physical-next-origin.json \
+  --planner-receipt artifacts/contam-replan-from-physical-origin.json \
+  --opening-id W1 \
+  --zone-id living \
+  --max-delta-pct 10 \
+  --next-origin-out artifacts/physical-next-origin-2.json \
+  --execute
+```
+
+The execute path requires measured actuator feedback and fresh CO₂/rain newer
+than that feedback. It then emits another verified physical-origin receipt:
+
+```text
+physical origin #1
+→ real ContamX one-step replan
+→ bounded second WindowPilot command
+→ verified command ACK
+→ measured terminal position
+→ fresh post-action CO₂/rain
+→ physical origin #2
+```
+
+A planner jump is never silently treated as fully authorized. For example, if
+the measured opening is 0.2%, the planner asks for 75%, and
+`--max-delta-pct 10`, the authorized field target is 10.2% and the receipt
+records `REPLANNED_ACTION_BOUNDED_BY_FIELD_RAMP_LIMIT`.
+
+This path makes repeated physical closed-loop execution possible, but repository
+CI still uses synthetic contract fixtures and does not claim real field
+validation.
+
 ## Physical τ₀ evidence chain
 
 AirTrajectory now accepts a commissioning bundle only when it carries the WindowPilot read-only preflight lineage:

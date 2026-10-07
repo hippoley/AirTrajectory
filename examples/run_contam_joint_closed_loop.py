@@ -30,13 +30,72 @@ from airtrajectory.joint_closed_loop import (
     run_receding_horizon_joint,
 )
 from airtrajectory.layout import LayoutContract
+from airtrajectory.physical_origin import verify_physical_origin_receipt
 
 
 ROOT = Path(__file__).resolve().parents[1]
 
 
+def _sha256(payload):
+    import hashlib
+    return hashlib.sha256(
+        json.dumps(
+            payload,
+            sort_keys=True,
+            separators=(",", ":"),
+            ensure_ascii=False,
+        ).encode("utf-8")
+    ).hexdigest()
+
+
 def _load(path: Path):
     return json.loads(path.read_text(encoding="utf-8"))
+
+
+def _project_origin_for_contam(profile, origin):
+    """Project controller state onto the exact state surface consumed by CONTAM.
+
+    Controller-only scalar state (for example measured rain) remains part of
+    the controller/physical-origin lineage, but is not silently passed to a
+    CONTAM profile that has no corresponding scalar control.
+    """
+    controller_scalars=dict(origin.get("scalar_values") or {})
+    supported=set(profile.scalar_controls)
+    missing=sorted(supported-set(controller_scalars))
+    if missing:
+        raise RuntimeError(
+            "controller origin is missing CONTAM scalar controls: "
+            + ",".join(missing)
+        )
+    contam_scalars={
+        key:float(controller_scalars[key])
+        for key in sorted(supported)
+    }
+    dropped={
+        key:float(value)
+        for key,value in sorted(controller_scalars.items())
+        if key not in supported
+    }
+    projected={
+        "co2_ppm":dict(origin["co2_ppm"]),
+        "opening_pct":dict(origin["opening_pct"]),
+        "scalar_values":contam_scalars,
+    }
+    evidence={
+        "controller_scalar_values":{
+            key:float(value)
+            for key,value in sorted(controller_scalars.items())
+        },
+        "contam_scalar_values":dict(contam_scalars),
+        "dropped_scalar_values":dropped,
+        "scalar_projection_applied":bool(dropped),
+        "evidence_boundary":(
+            "controller-only scalar state remains in physical/controller origin "
+            "lineage; CONTAM receives only scalar controls explicitly configured "
+            "by the active ContamForkProfile"
+        ),
+    }
+    return projected,evidence
 
 
 def _case_for_origin(base_case, origin, topology):
@@ -70,6 +129,15 @@ def main() -> int:
         default=ROOT / "web" / "data" / "home_topology.fixed.json",
     )
     parser.add_argument("--control-steps", type=int, default=2)
+    parser.add_argument(
+        "--physical-origin-receipt",
+        type=Path,
+        help=(
+            "Verified physical-origin receipt from WindowPilot field handoff. "
+            "When supplied, control_steps must be 1 so only the first plan is "
+            "claimed as replanning from measured field state."
+        ),
+    )
     parser.add_argument("--prediction-horizon-steps", type=int, default=3)
     parser.add_argument(
         "--candidate-mode",
@@ -116,6 +184,51 @@ def main() -> int:
         key: float(value)
         for key, value in provenance["initial_co2_ppm"].items()
     }
+    initial_scalars = {}
+    physical_origin_evidence = None
+    if args.physical_origin_receipt is not None:
+        if args.control_steps != 1:
+            raise RuntimeError(
+                "physical-origin replanning must use --control-steps 1; "
+                "additional steps would be simulation continuation without new field feedback"
+            )
+        raw_physical_origin = _load(args.physical_origin_receipt)
+        physical_origin_evidence = verify_physical_origin_receipt(
+            raw_physical_origin
+        )
+        physical_origin = physical_origin_evidence["origin"]
+        missing_zones = sorted(
+            set(topology.zones) - set(physical_origin["co2_ppm"])
+        )
+        missing_openings = sorted(
+            set(topology.openings) - set(physical_origin["opening_pct"])
+        )
+        extra_zones = sorted(
+            set(physical_origin["co2_ppm"]) - set(topology.zones)
+        )
+        extra_openings = sorted(
+            set(physical_origin["opening_pct"]) - set(topology.openings)
+        )
+        if missing_zones or missing_openings or extra_zones or extra_openings:
+            raise RuntimeError(
+                "physical origin/topology mismatch: "
+                f"missing_zones={missing_zones}, "
+                f"missing_openings={missing_openings}, "
+                f"extra_zones={extra_zones}, "
+                f"extra_openings={extra_openings}"
+            )
+        initial_co2 = {
+            zone: float(physical_origin["co2_ppm"][zone])
+            for zone in sorted(topology.zones)
+        }
+        initial_openings = {
+            opening_id: float(physical_origin["opening_pct"][opening_id])
+            for opening_id in sorted(topology.openings)
+        }
+        initial_scalars = {
+            key: float(value)
+            for key, value in physical_origin["scalar_values"].items()
+        }
     fixed = {
         opening_id: float(initial_openings[opening_id])
         for opening_id in topology.openings
@@ -162,11 +275,15 @@ def main() -> int:
 
     def evaluator(origin, candidates, horizon, step_index):
         step_case = step_cases[step_index]
+        contam_origin, scalar_projection = _project_origin_for_contam(
+            profile,
+            origin,
+        )
         response = contam_strategy_fork_request(
             {
                 "profile_id": profile.profile_id,
                 "topology_id": layout.topology_id,
-                "origin": origin,
+                "origin": contam_origin,
                 "candidates": list(candidates),
                 "horizon_steps": int(horizon),
                 "evaluation_zone": "living",
@@ -200,6 +317,9 @@ def main() -> int:
                     "prj_reseed_continuation_verified"
                 ],
                 "prj_reseed_receipt": response["prj_reseed_receipt"],
+                "controller_origin_sha256": _sha256(origin),
+                "contam_origin_sha256": _sha256(contam_origin),
+                "scalar_projection": scalar_projection,
                 "candidate_scores": sorted(
                     scored,
                     key=lambda row: (row["objective_score"], row["label"]),
@@ -232,6 +352,7 @@ def main() -> int:
         initial_origin=ClosedLoopOrigin(
             co2_ppm=initial_co2,
             opening_pct=initial_openings,
+            scalar_values=initial_scalars,
         ),
         control_steps=args.control_steps,
         prediction_horizon_steps=args.prediction_horizon_steps,
@@ -240,8 +361,13 @@ def main() -> int:
         executor=executor,
         capability=contam_receding_horizon_capability(profile),
     )
-    if receipt["closed_loop_replanning_executed"] is not True:
-        raise RuntimeError("closed-loop Joint receipt did not execute replanning")
+    expected_replanning = args.control_steps > 1
+    if receipt["closed_loop_replanning_executed"] is not expected_replanning:
+        raise RuntimeError(
+            "closed-loop replanning flag does not match control-step count: "
+            f"expected={expected_replanning}, "
+            f"actual={receipt['closed_loop_replanning_executed']}"
+        )
     if len(receipt["steps"]) != args.control_steps:
         raise RuntimeError("closed-loop Joint control-step count mismatch")
     if not all(
@@ -251,13 +377,25 @@ def main() -> int:
         raise RuntimeError("one or more closed-loop steps lacked verified reseed provenance")
 
     payload = {
-        "marker": "REAL_CONTAM_RECEDING_HORIZON_JOINT_EXECUTED",
+        "marker": (
+            "REAL_CONTAM_REPLAN_FROM_PHYSICAL_ORIGIN"
+            if physical_origin_evidence is not None
+            else "REAL_CONTAM_RECEDING_HORIZON_JOINT_EXECUTED"
+        ),
         "candidate_mode": args.candidate_mode,
         "physics_fidelity": "CONTAM",
         "evidence_level": profile.evidence_level,
         "engineering_truth": False,
         "field_validated": False,
         "full_restart_verified": False,
+        "physical_origin_consumed": physical_origin_evidence is not None,
+        "physical_origin_evidence": physical_origin_evidence,
+        "evidence_boundary": (
+            "one real-ContamX planning step starts from a verified physical-origin "
+            "receipt; no second physical action or second field observation is claimed"
+            if physical_origin_evidence is not None
+            else "simulation closed loop using verified PRJ Section 15 contaminant reseeding"
+        ),
         "receipt": receipt,
     }
     rendered = json.dumps(payload, indent=2, sort_keys=True)
