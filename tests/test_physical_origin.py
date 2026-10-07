@@ -3,6 +3,11 @@ import json
 import unittest
 
 from airtrajectory.physical_origin import physical_next_origin_from_reconcile
+from airtrajectory.joint_closed_loop import (
+    BackendContinuationCapability,
+    ClosedLoopOrigin,
+    run_receding_horizon_joint,
+)
 
 
 def sha(payload):
@@ -91,6 +96,68 @@ class PhysicalOriginTests(unittest.TestCase):
         self.assertEqual(origin["scalar_values"]["rain"], 0.0)
         self.assertEqual(len(out["origin_sha256"]), 64)
         self.assertIn("single physical opening/zone", out["evidence_boundary"])
+
+    def test_controller_replans_from_measured_physical_origin(self):
+        physical = physical_next_origin_from_reconcile(
+            current_origin=self.current(),
+            reconcile=self.reconcile(),
+            zone_id="living",
+        )
+        seen = {}
+
+        def candidates(origin, step_index):
+            seen["candidate_origin"] = origin
+            return [{
+                "label": "next-plan",
+                "actions": [{"opening_id": "W1", "target_pct": 10.0}],
+            }]
+
+        def evaluator(origin, candidates, horizon, step_index):
+            seen["evaluator_origin"] = origin
+            return {
+                "selected_label": "next-plan",
+                "selected_actions": candidates[0]["actions"],
+                "objective_score": 1.0,
+            }
+
+        def executor(origin, actions, step_index):
+            return origin
+
+        receipt = run_receding_horizon_joint(
+            initial_origin=ClosedLoopOrigin(
+                co2_ppm=physical["origin"]["co2_ppm"],
+                opening_pct=physical["origin"]["opening_pct"],
+                scalar_values=physical["origin"]["scalar_values"],
+            ),
+            control_steps=1,
+            prediction_horizon_steps=2,
+            candidate_provider=candidates,
+            evaluator=evaluator,
+            executor=executor,
+            capability=BackendContinuationCapability(
+                backend="physical-origin-contract-test",
+                physics_fidelity="measured-terminal-state",
+                state_reinjection_verified=True,
+                continuation_mode="verified-physical-origin",
+                evidence_boundary="unit-test receipt",
+            ),
+        )
+        self.assertEqual(
+            seen["evaluator_origin"]["co2_ppm"]["living"],
+            1388.0,
+        )
+        self.assertEqual(
+            seen["evaluator_origin"]["opening_pct"]["W1"],
+            0.2,
+        )
+        self.assertEqual(
+            seen["evaluator_origin"]["scalar_values"]["rain"],
+            0.0,
+        )
+        self.assertEqual(
+            receipt["steps"][0]["origin_sha256"],
+            physical["origin_sha256"],
+        )
 
     def test_tampered_reconcile_is_rejected(self):
         receipt = self.reconcile()
