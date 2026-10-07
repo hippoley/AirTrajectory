@@ -37,6 +37,10 @@ def physical_origin():
         "opening_id":"W1",
         "physical_reconcile_sha256":"a"*64,
         "terminal_snapshot_sha256":"b"*64,
+        "opening_hardware_identities":{"W1":"c"*64},
+        "opening_observed_at":{"W1":19.0},
+        "zone_observed_at":{"living":19.0},
+        "rain_observed_at":19.0,
         "origin":origin,
         "evidence_boundary":"single physical opening/zone updated from measured terminal state",
     }
@@ -111,6 +115,80 @@ def planner(origin_receipt, *, target=75.0):
 
 
 class PhysicalReplanHandoffTests(unittest.TestCase):
+    def _advance_origin(
+        self,
+        previous,
+        *,
+        opening_id,
+        zone_id,
+        feedback_ts,
+        sensor_ts,
+        sequence,
+    ):
+        verified=verify_physical_origin_receipt(previous)
+        auth_payload={
+            "opening_id":opening_id,
+            "authorized_target_pct":0.0,
+            "physical_origin_sha256":verified["origin_sha256"],
+            "physical_origin_receipt_sha256":verified["receipt_sha256"],
+        }
+        authorization={
+            **auth_payload,
+            "replanned_action_authorization_sha256":sha(auth_payload),
+        }
+        request_id=f"aaaaaaaa-aaaa-4aaa-8aaa-{sequence:012d}"
+        command_id=f"bbbbbbbb-bbbb-4bbb-8bbb-{sequence:012d}"
+        ack_payload={
+            "schema_version":"0.1",
+            "receipt":"windowpilot-command-ack-v2",
+            "accepted":True,
+            "accepted_at":float(feedback_ts)-0.25,
+            "request_id":request_id,
+            "command_id":command_id,
+            "action":"close",
+            "target_pct":0.0,
+            "execution_backend":"cwds-ca01-thingmodel",
+            "transport":"thingmodel-http",
+            "simulated":False,
+            "hardware_identity_sha256":"c"*64,
+            "physical_write_ready":True,
+            "write_contract_ready":True,
+            "motion_semantics_ready":True,
+            "write_blockers":[],
+            "evidence_kind":"physical-command-accepted",
+        }
+        ack={**ack_payload,"command_ack_sha256":sha(ack_payload)}
+        snapshot_payload={
+            "schema_version":"0.1",
+            "snapshot":"post-replanned-action-physical-v1",
+            "after_timestamp":float(feedback_ts),
+            "co2_ppm":1000.0+sequence,
+            "co2_timestamp":float(sensor_ts),
+            "rain":False,
+            "rain_timestamp":float(sensor_ts),
+            "sensor_readings":[],
+            "fresh_after_action":True,
+        }
+        snapshot={
+            **snapshot_payload,
+            "snapshot_sha256":sha(snapshot_payload),
+        }
+        return build_replanned_physical_step_origin(
+            previous_physical_origin_receipt=previous,
+            authorization=authorization,
+            command_ack=ack,
+            expected_request_id=request_id,
+            feedback={
+                "actuator_id":opening_id,
+                "timestamp":float(feedback_ts),
+                "measured_position_pct":0.0,
+                "estimated_position_pct":None,
+                "quality":"encoder-measured",
+            },
+            sensor_snapshot=snapshot,
+            zone_id=zone_id,
+        )
+
     def test_extracts_next_action_bound_to_same_physical_origin(self):
         origin=physical_origin()
         handoff=extract_replanned_physical_action(
@@ -442,6 +520,103 @@ class PhysicalReplanHandoffTests(unittest.TestCase):
         self.assertEqual(authorization["authorized_target_pct"],0.0)
         self.assertEqual(authorization["intervention"],"RAIN_SAFE_CLOSE")
         self.assertFalse(authorization["planner_action_fully_authorized"])
+
+    def test_historical_coverage_does_not_become_contemporaneous_whole_home(self):
+        current=physical_origin()
+        for sequence,(opening_id,zone_id,feedback_ts,sensor_ts) in enumerate(
+            [
+                ("W2","bedroom",30.0,31.0),
+                ("W3","study",60.0,61.0),
+                ("D1","living",90.0,91.0),
+                ("D2","bedroom",120.0,121.0),
+            ],
+            start=1,
+        ):
+            current=self._advance_origin(
+                current,
+                opening_id=opening_id,
+                zone_id=zone_id,
+                feedback_ts=feedback_ts,
+                sensor_ts=sensor_ts,
+                sequence=sequence,
+            )
+        verified=verify_physical_origin_receipt(current)
+        self.assertEqual(
+            verified["measured_openings"],
+            ["D1","D2","W1","W2","W3"],
+        )
+        self.assertEqual(
+            verified["measured_zones"],
+            ["bedroom","living","study"],
+        )
+        self.assertFalse(verified["whole_home_physically_measured"])
+        self.assertGreater(
+            verified["whole_home_measurement_skew_s"],
+            10.0,
+        )
+        self.assertEqual(current["current_step_measured_openings"],["D2"])
+        self.assertEqual(current["current_step_measured_zones"],["bedroom"])
+
+    def test_coherent_complete_coverage_can_claim_whole_home(self):
+        current=physical_origin()
+        for sequence,(opening_id,zone_id,feedback_ts,sensor_ts) in enumerate(
+            [
+                ("W2","bedroom",20.0,20.5),
+                ("W3","study",21.0,21.5),
+                ("D1","living",22.0,22.5),
+                ("D2","bedroom",23.0,23.5),
+            ],
+            start=10,
+        ):
+            current=self._advance_origin(
+                current,
+                opening_id=opening_id,
+                zone_id=zone_id,
+                feedback_ts=feedback_ts,
+                sensor_ts=sensor_ts,
+                sequence=sequence,
+            )
+        verified=verify_physical_origin_receipt(current)
+        self.assertTrue(verified["whole_home_physically_measured"])
+        self.assertLessEqual(
+            verified["whole_home_measurement_skew_s"],
+            current["whole_home_measurement_max_skew_s"],
+        )
+
+    def test_hash_valid_stale_coverage_cannot_forge_whole_home_claim(self):
+        current=physical_origin()
+        for sequence,(opening_id,zone_id,feedback_ts,sensor_ts) in enumerate(
+            [
+                ("W2","bedroom",30.0,31.0),
+                ("W3","study",60.0,61.0),
+                ("D1","living",90.0,91.0),
+                ("D2","bedroom",120.0,121.0),
+            ],
+            start=20,
+        ):
+            current=self._advance_origin(
+                current,
+                opening_id=opening_id,
+                zone_id=zone_id,
+                feedback_ts=feedback_ts,
+                sensor_ts=sensor_ts,
+                sequence=sequence,
+            )
+        current["whole_home_physically_measured"]=True
+        payload={
+            key:value
+            for key,value in current.items()
+            if key not in {
+                "physical_origin_receipt_sha256",
+                "origin_sha256",
+            }
+        }
+        current["physical_origin_receipt_sha256"]=sha(payload)
+        with self.assertRaisesRegex(
+            RuntimeError,
+            "whole_home_physically_measured contradicts",
+        ):
+            verify_physical_origin_receipt(current)
 
     def test_tampered_planner_step_without_outer_rehash_is_rejected(self):
         origin=physical_origin()
