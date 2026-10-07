@@ -133,6 +133,7 @@ def build_physical_handoff_reconcile(
     trajectory_step: Mapping[str, Any],
     zone_id: str | None = None,
     closeout: Mapping[str, Any] | None = None,
+    terminal_snapshot: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     feedback_rows = trajectory_step.get("actuator_feedback")
     if not isinstance(feedback_rows, list) or len(feedback_rows) != 1:
@@ -174,6 +175,24 @@ def build_physical_handoff_reconcile(
         if isinstance(by_zone, Mapping) and zone_id in by_zone:
             predicted_co2 = float(by_zone[zone_id])
 
+    terminal_co2 = None
+    terminal_co2_ts = None
+    terminal_rain = None
+    terminal_rain_ts = None
+    terminal_snapshot_sha = None
+    if terminal_snapshot is not None:
+        if terminal_snapshot.get("fresh_after_closeout") is not True:
+            raise RuntimeError("terminal physical sensor snapshot is not fresh after closeout")
+        terminal_co2 = float(terminal_snapshot["co2_ppm"])
+        terminal_co2_ts = float(terminal_snapshot["co2_timestamp"])
+        terminal_rain = bool(terminal_snapshot["rain"])
+        terminal_rain_ts = float(terminal_snapshot["rain_timestamp"])
+        terminal_snapshot_sha = str(terminal_snapshot.get("snapshot_sha256") or "")
+        if closeout_ts is None:
+            raise RuntimeError("terminal sensor snapshot requires closeout evidence")
+        if terminal_co2_ts <= closeout_ts or terminal_rain_ts <= closeout_ts:
+            raise RuntimeError("terminal sensors must be newer than closeout feedback")
+
     authorized = float(authorization["authorized_target_pct"])
     position_error = measured - authorized
     payload = {
@@ -195,6 +214,15 @@ def build_physical_handoff_reconcile(
             else "unavailable-until-safe-closeout"
         ),
         "next_origin_position_verified": closeout_position is not None,
+        "terminal_co2_ppm": terminal_co2,
+        "terminal_co2_timestamp": terminal_co2_ts,
+        "terminal_rain": terminal_rain,
+        "terminal_rain_timestamp": terminal_rain_ts,
+        "terminal_snapshot_sha256": terminal_snapshot_sha,
+        "next_origin_sensor_verified": terminal_snapshot is not None,
+        "physical_next_origin_ready": (
+            closeout_position is not None and terminal_snapshot is not None
+        ),
         "planner_action_fully_executed": (
             bool(authorization.get("planner_action_fully_authorized"))
             and abs(position_error) <= 1.0

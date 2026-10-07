@@ -19,6 +19,9 @@ from airtrajectory.physical_handoff import (
     build_physical_handoff_reconcile,
     extract_closed_loop_opening_action,
 )
+from airtrajectory.physical_terminal_snapshot import (
+    capture_post_closeout_snapshot,
+)
 from airtrajectory.tau0_preflight import validate_physical_tau0_preconditions
 from airtrajectory.trajectory import TrajectoryStore
 
@@ -144,6 +147,13 @@ def capture_physical_tau0(
             "physical tau0 safe closeout failed: "+str(closeout_error)
         ) from closeout_error
 
+    terminal_snapshot=None
+    if planner_handoff is not None:
+        terminal_snapshot=capture_post_closeout_snapshot(
+            driver=driver,
+            after_timestamp=float(closeout["feedback"]["timestamp"]),
+        )
+
     report=validate_physical_tau0(trajectory)
     physical_reconcile=None
     if planner_handoff is not None:
@@ -153,6 +163,7 @@ def capture_physical_tau0(
             trajectory_step=asdict(trajectory.steps[0]),
             zone_id=predicted_zone_id,
             closeout=closeout,
+            terminal_snapshot=terminal_snapshot,
         )
     payload={
         "trajectory_id":trajectory.id,
@@ -167,6 +178,7 @@ def capture_physical_tau0(
         "planner_handoff":planner_handoff,
         "physical_authorization":physical_authorization,
         "physical_reconcile":physical_reconcile,
+        "terminal_sensor_snapshot":terminal_snapshot,
         "sim_to_physical_handoff_verified":bool(
             report.valid_tau0 and physical_reconcile is not None
         ),
