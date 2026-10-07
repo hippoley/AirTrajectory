@@ -169,6 +169,26 @@ jobs:
           assert r["steps"][0]["next_origin_sha256"]==r["steps"][1]["origin_sha256"]
           print("REAL_CONTAM_RECEDING_HORIZON_RECEIPT_VERIFIED", [s["selected_label"] for s in r["steps"]])
           '@ | python -
+      - name: Compare adaptive vs Independent closed-loop on real ContamX
+        timeout-minutes: 8
+        shell: pwsh
+        run: |
+          python examples/run_contam_joint_closed_loop.py artifacts/multispace-transient.prj artifacts/multispace-transient.prj.json --control-steps 3 --prediction-horizon-steps 3 --candidate-mode adaptive --out artifacts/contam-closed-loop-adaptive.json | Tee-Object -FilePath contam-closed-loop-adaptive.log
+          python examples/run_contam_joint_closed_loop.py artifacts/multispace-transient.prj artifacts/multispace-transient.prj.json --control-steps 3 --prediction-horizon-steps 3 --candidate-mode independent-only --out artifacts/contam-closed-loop-independent.json | Tee-Object -FilePath contam-closed-loop-independent.log
+          python examples/compare_contam_closed_loop_modes.py artifacts/contam-closed-loop-adaptive.json artifacts/contam-closed-loop-independent.json --out artifacts/contam-closed-loop-comparison.json | Tee-Object -FilePath contam-closed-loop-comparison.log
+          if (-not (Select-String -Path contam-closed-loop-comparison.log -Pattern "REAL_CONTAM_CLOSED_LOOP_MODES_COMPARED")) { exit 1 }
+          @'
+          import json
+          p=json.load(open("artifacts/contam-closed-loop-comparison.json",encoding="utf-8"))
+          c=p["comparison"]
+          assert p["control_steps"]==3
+          assert p["prediction_horizon_steps"]==3
+          assert c["outcome"] in ("WIN","TIE","LOSS")
+          assert len(c["comparison_sha256"])==64
+          assert c["adaptive"]["metrics"]["control_steps"]==3
+          assert c["independent"]["metrics"]["control_steps"]==3
+          print("REAL_CONTAM_CLOSED_LOOP_COMPARISON_VERIFIED", c["outcome"], c["objective_improvement"], c["adaptive"]["metrics"], c["independent"]["metrics"])
+          '@ | python -
       - name: Run Independent vs Joint Golden Case on real ContamX
         timeout-minutes: 4
         shell: pwsh
