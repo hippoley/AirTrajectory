@@ -185,11 +185,18 @@ jobs:
           assert sr["zone_ids"]==["bedroom","living","study"]
           assert sr["flow_path_ids"]==["D1","D2","W1","W2","W3"]
           for step_index,s in enumerate(r["steps"]):
-              rows=s["evaluation_evidence"]["spatialruntime_result_consumers"]
+              evidence=s["evaluation_evidence"]
+              reseed=evidence["prj_reseed_receipt"]
+              rows=evidence["spatialruntime_result_consumers"]
               assert len(rows)==s["candidate_count"]
               assert all(row["verified"] is True for row in rows)
               assert all(row["spatialruntime_commit_sha"]=="d123ab9a5310cb9ce15d9e82630828a0d32211f4" for row in rows)
               assert all(row["adapter_id"]=="contam-project-v0.9" for row in rows)
+              assert all(row["source_project_sha256"]==sr["project_sha256"] for row in rows)
+              assert all(row["execution_project_sha256"]==reseed["reseeded_prj_sha256"] for row in rows)
+              assert all(row["project_sha256"]==row["execution_project_sha256"] for row in rows)
+              assert all(row["reseeded_execution"] is True for row in rows)
+              assert all(len(row["reseed_receipt_sha256"])==64 for row in rows)
               assert all(row["native_result_source"]=="airtrajectory_real_contam_branch" for row in rows)
               assert all(row["zone_count"]==3 for row in rows)
               assert all(row["flow_path_count"]==5 for row in rows)
@@ -281,9 +288,14 @@ jobs:
           assert sr["zone_ids"]==["bedroom","living","study"]
           assert sr["flow_path_ids"]==["D1","D2","W1","W2","W3"]
           rows=evidence["spatialruntime_result_consumers"]
+          reseed=evidence["prj_reseed_receipt"]
           assert len(rows)==r["steps"][0]["candidate_count"]
           assert all(row["verified"] is True for row in rows)
           assert all(row["adapter_id"]=="contam-project-v0.9" for row in rows)
+          assert all(row["source_project_sha256"]==sr["project_sha256"] for row in rows)
+          assert all(row["execution_project_sha256"]==reseed["reseeded_prj_sha256"] for row in rows)
+          assert all(row["project_sha256"]==row["execution_project_sha256"] for row in rows)
+          assert all(row["reseeded_execution"] is True for row in rows)
           assert all(row["max_abs_co2_ppm_delta"]==0 for row in rows)
           assert all(row["max_abs_mass_flow_kg_s_delta"]==0 for row in rows)
           assert all(len(row["request_hash"])==64 for row in rows)
