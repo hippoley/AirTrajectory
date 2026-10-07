@@ -229,6 +229,31 @@ class PhysicalOriginTests(unittest.TestCase):
         ):
             verify_physical_origin_receipt(receipt)
 
+    def test_hash_valid_receipt_cannot_lie_about_hardware_coverage(self):
+        receipt=physical_next_origin_from_reconcile(
+            current_origin=self.current(),
+            reconcile=self.reconcile(),
+            zone_id="living",
+        )
+        receipt["hardware_identity_by_opening"]={
+            "W1":"c"*64,
+            "W2":"d"*64,
+        }
+        payload={
+            key:value
+            for key,value in receipt.items()
+            if key not in {
+                "physical_origin_receipt_sha256",
+                "origin_sha256",
+            }
+        }
+        receipt["physical_origin_receipt_sha256"]=sha(payload)
+        with self.assertRaisesRegex(
+            RuntimeError,
+            "hardware identity coverage does not match measured openings",
+        ):
+            verify_physical_origin_receipt(receipt)
+
     def test_tampered_physical_origin_receipt_is_rejected(self):
         receipt=physical_next_origin_from_reconcile(
             current_origin=self.current(),
