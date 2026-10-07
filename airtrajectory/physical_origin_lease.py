@@ -283,10 +283,11 @@ def recover_abandoned_physical_origin_execution(
 def bind_recovery_origin_to_execution_lease(
     *,
     lease_path,
-    recovery_origin_receipt_sha256,
-    recovery_origin_sha256,
+    recovery_origin_receipt: Mapping[str, Any],
     bound_at,
 ) -> dict[str, Any]:
+    from .physical_origin import verify_physical_origin_receipt
+
     path=Path(lease_path)
     current=verify_physical_origin_execution_lease(
         lease_path=path,
@@ -303,14 +304,33 @@ def bind_recovery_origin_to_execution_lease(
             "recovery-required lease does not require a new physical origin"
         )
 
-    receipt_sha=_require_sha(
-        recovery_origin_receipt_sha256,
-        "recovery physical origin receipt",
-    )
-    origin_sha=_require_sha(
-        recovery_origin_sha256,
-        "recovery physical origin state",
-    )
+    verified=verify_physical_origin_receipt(recovery_origin_receipt)
+    if verified["source"]!="windowpilot-recovery-physical-origin-v1":
+        raise RuntimeError(
+            "execution lease recovery requires a recovery physical-origin receipt"
+        )
+    if (
+        recovery_origin_receipt.get("parent_physical_origin_receipt_sha256")
+        !=current["physical_origin_receipt_sha256"]
+    ):
+        raise RuntimeError(
+            "recovery physical origin does not descend from the leased origin"
+        )
+    if (
+        recovery_origin_receipt.get("parent_physical_origin_sha256")
+        !=current["physical_origin_sha256"]
+    ):
+        raise RuntimeError(
+            "recovery physical origin parent state does not match the leased origin"
+        )
+    if (
+        recovery_origin_receipt.get("recovery_execution_lease_sha256")
+        !=current["lease_sha256"]
+    ):
+        raise RuntimeError(
+            "recovery physical origin does not reference this execution lease"
+        )
+
     ts=float(bound_at)
     finalized_at=float(current.get("finalized_at") or 0)
     if ts<=finalized_at:
@@ -326,8 +346,8 @@ def bind_recovery_origin_to_execution_lease(
     updated_recovery=dict(recovery)
     updated_recovery.update({
         "requires_new_physical_origin":False,
-        "recovery_origin_receipt_sha256":receipt_sha,
-        "recovery_origin_sha256":origin_sha,
+        "recovery_origin_receipt_sha256":verified["receipt_sha256"],
+        "recovery_origin_sha256":verified["origin_sha256"],
         "recovery_origin_bound_at":ts,
     })
     payload["status"]="RECOVERED"
