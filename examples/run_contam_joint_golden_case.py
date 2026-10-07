@@ -50,7 +50,10 @@ def main() -> int:
     layout = LayoutContract.from_file(args.layout)
     topology = layout.to_building_topology()
     snapshot = DemoRuntimeSnapshot.resolve(layout)
-    case = normalize_golden_case(_load(args.golden_case), topology)
+    raw_case = _load(args.golden_case)
+    if str(raw_case.get("topology_id") or "") != layout.topology_id:
+        raise RuntimeError("Golden Case topology_id does not match layout")
+    case = normalize_golden_case(raw_case, topology)
 
     if int(provenance.get("time_step_s") or 0) != case["time_step_s"]:
         raise RuntimeError("Golden Case time_step_s does not match generated PRJ")
