@@ -31,6 +31,10 @@ from airtrajectory.joint_closed_loop import (
 )
 from airtrajectory.layout import LayoutContract
 from airtrajectory.physical_origin import verify_physical_origin_receipt
+from airtrajectory.spatialruntime_consumer import (
+    verify_branch_result_with_spatialruntime,
+    verify_generated_prj_with_spatialruntime,
+)
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -145,6 +149,14 @@ def main() -> int:
         default="adaptive",
         help="adaptive searches Independent + Joint candidates; independent-only replans only the rule baseline",
     )
+    parser.add_argument(
+        "--spatialruntime-verify",
+        action="store_true",
+        help=(
+            "verify the generated PRJ and every real ContamX candidate branch "
+            "through SpatialRuntime normalization without changing controller selection"
+        ),
+    )
     parser.add_argument("--out", type=Path)
     args = parser.parse_args()
 
@@ -256,6 +268,16 @@ def main() -> int:
         prj_reseed_continuation_verified=True,
     )
 
+    spatialruntime_consumer = None
+    if args.spatialruntime_verify:
+        spatialruntime_consumer = verify_generated_prj_with_spatialruntime(
+            project_path=args.prj,
+            provenance=provenance,
+            case_id=profile.profile_id,
+        )
+        if spatialruntime_consumer.get("verified") is not True:
+            raise RuntimeError("SpatialRuntime PRJ verification did not pass")
+
     selected_branch_by_step = {}
     step_cases = {}
 
@@ -292,6 +314,24 @@ def main() -> int:
         )
         if response.get("origin_kind") != "prj-reseed-verified":
             raise RuntimeError("closed-loop evaluation did not use verified PRJ reseed origin")
+
+        spatialruntime_result_consumers = []
+        if args.spatialruntime_verify:
+            for branch_index, branch in enumerate(response["branches"]):
+                result_receipt = verify_branch_result_with_spatialruntime(
+                    project_path=args.prj,
+                    provenance=provenance,
+                    case_id=profile.profile_id,
+                    branch=branch,
+                    source_step=step_index,
+                    source_revision=branch_index,
+                )
+                if result_receipt.get("verified") is not True:
+                    raise RuntimeError(
+                        "SpatialRuntime closed-loop branch verification did not pass"
+                    )
+                spatialruntime_result_consumers.append(result_receipt)
+
         scored = [
             score_strategy_branch(branch, case=step_case, topology=topology)
             for branch in response["branches"]
@@ -324,6 +364,7 @@ def main() -> int:
                     scored,
                     key=lambda row: (row["objective_score"], row["label"]),
                 ),
+                "spatialruntime_result_consumers": spatialruntime_result_consumers,
             },
         }
 
@@ -390,6 +431,7 @@ def main() -> int:
         "full_restart_verified": False,
         "physical_origin_consumed": physical_origin_evidence is not None,
         "physical_origin_evidence": physical_origin_evidence,
+        "spatialruntime_consumer": spatialruntime_consumer,
         "evidence_boundary": (
             "one real-ContamX planning step starts from a verified physical-origin "
             "receipt; no second physical action or second field observation is claimed"
