@@ -109,10 +109,13 @@ def verify_persisted_physical_cycle(
         )
 
     command_ack=step_summary.get("command_ack")
+    command_request_id=str(step_summary.get("command_request_id") or "")
     feedback=step_summary.get("actuator_feedback")
     snapshot=step_summary.get("sensor_snapshot")
     if not isinstance(command_ack,Mapping):
         raise RuntimeError("persisted physical step missing complete command ACK")
+    if not command_request_id:
+        raise RuntimeError("persisted physical step missing command request identity")
     if not isinstance(feedback,Mapping):
         raise RuntimeError("persisted physical step missing actuator feedback")
     if not isinstance(snapshot,Mapping):
@@ -134,6 +137,7 @@ def verify_persisted_physical_cycle(
         previous_physical_origin_receipt=previous_origin_receipt,
         authorization=authorization,
         command_ack=command_ack,
+        expected_request_id=command_request_id,
         feedback=feedback,
         sensor_snapshot=snapshot,
         zone_id=zone_id,
@@ -166,6 +170,8 @@ def verify_persisted_physical_cycle(
         "authorization_sha256":authorization[
             "replanned_action_authorization_sha256"
         ],
+        "command_request_id":command_request_id,
+        "command_id":str(command_ack["command_id"]),
         "command_ack_sha256":str(command_ack["command_ack_sha256"]),
         "sensor_snapshot_sha256":str(snapshot["snapshot_sha256"]),
         "step_summary_sha256":summary_sha,
