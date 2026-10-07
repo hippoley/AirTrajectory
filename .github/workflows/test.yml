@@ -215,6 +215,7 @@ jobs:
               "opening_id":"W1",
               "physical_reconcile_sha256":"0"*64,
               "terminal_snapshot_sha256":"1"*64,
+              "hardware_identity_by_opening":{"W1":"c"*64},
               "origin":origin,
               "contract_fixture":True,
               "evidence_boundary":"synthetic CI contract fixture; not field evidence",
