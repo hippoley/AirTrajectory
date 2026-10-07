@@ -30,6 +30,7 @@ from airtrajectory.joint_closed_loop import (
     run_receding_horizon_joint,
 )
 from airtrajectory.layout import LayoutContract
+from airtrajectory.physical_origin import verify_physical_origin_receipt
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -70,6 +71,15 @@ def main() -> int:
         default=ROOT / "web" / "data" / "home_topology.fixed.json",
     )
     parser.add_argument("--control-steps", type=int, default=2)
+    parser.add_argument(
+        "--physical-origin-receipt",
+        type=Path,
+        help=(
+            "Verified physical-origin receipt from WindowPilot field handoff. "
+            "When supplied, control_steps must be 1 so only the first plan is "
+            "claimed as replanning from measured field state."
+        ),
+    )
     parser.add_argument("--prediction-horizon-steps", type=int, default=3)
     parser.add_argument(
         "--candidate-mode",
@@ -116,6 +126,46 @@ def main() -> int:
         key: float(value)
         for key, value in provenance["initial_co2_ppm"].items()
     }
+    physical_origin_evidence = None
+    if args.physical_origin_receipt is not None:
+        if args.control_steps != 1:
+            raise RuntimeError(
+                "physical-origin replanning must use --control-steps 1; "
+                "additional steps would be simulation continuation without new field feedback"
+            )
+        raw_physical_origin = _load(args.physical_origin_receipt)
+        physical_origin_evidence = verify_physical_origin_receipt(
+            raw_physical_origin
+        )
+        physical_origin = physical_origin_evidence["origin"]
+        missing_zones = sorted(
+            set(topology.zones) - set(physical_origin["co2_ppm"])
+        )
+        missing_openings = sorted(
+            set(topology.openings) - set(physical_origin["opening_pct"])
+        )
+        extra_zones = sorted(
+            set(physical_origin["co2_ppm"]) - set(topology.zones)
+        )
+        extra_openings = sorted(
+            set(physical_origin["opening_pct"]) - set(topology.openings)
+        )
+        if missing_zones or missing_openings or extra_zones or extra_openings:
+            raise RuntimeError(
+                "physical origin/topology mismatch: "
+                f"missing_zones={missing_zones}, "
+                f"missing_openings={missing_openings}, "
+                f"extra_zones={extra_zones}, "
+                f"extra_openings={extra_openings}"
+            )
+        initial_co2 = {
+            zone: float(physical_origin["co2_ppm"][zone])
+            for zone in sorted(topology.zones)
+        }
+        initial_openings = {
+            opening_id: float(physical_origin["opening_pct"][opening_id])
+            for opening_id in sorted(topology.openings)
+        }
     fixed = {
         opening_id: float(initial_openings[opening_id])
         for opening_id in topology.openings
@@ -251,13 +301,25 @@ def main() -> int:
         raise RuntimeError("one or more closed-loop steps lacked verified reseed provenance")
 
     payload = {
-        "marker": "REAL_CONTAM_RECEDING_HORIZON_JOINT_EXECUTED",
+        "marker": (
+            "REAL_CONTAM_REPLAN_FROM_PHYSICAL_ORIGIN"
+            if physical_origin_evidence is not None
+            else "REAL_CONTAM_RECEDING_HORIZON_JOINT_EXECUTED"
+        ),
         "candidate_mode": args.candidate_mode,
         "physics_fidelity": "CONTAM",
         "evidence_level": profile.evidence_level,
         "engineering_truth": False,
         "field_validated": False,
         "full_restart_verified": False,
+        "physical_origin_consumed": physical_origin_evidence is not None,
+        "physical_origin_evidence": physical_origin_evidence,
+        "evidence_boundary": (
+            "one real-ContamX planning step starts from a verified physical-origin "
+            "receipt; no second physical action or second field observation is claimed"
+            if physical_origin_evidence is not None
+            else "simulation closed loop using verified PRJ Section 15 contaminant reseeding"
+        ),
         "receipt": receipt,
     }
     rendered = json.dumps(payload, indent=2, sort_keys=True)
