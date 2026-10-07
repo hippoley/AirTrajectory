@@ -288,6 +288,32 @@ class RecoveryOriginTests(unittest.TestCase):
                     claimed_at=34.0,
                 )
 
+    def test_hash_valid_receipt_cannot_tamper_recovery_snapshot(self):
+        with tempfile.TemporaryDirectory() as d:
+            root=Path(d)
+            origin=previous_origin()
+            lease=self._lease(root,origin)
+            recovered=capture_recovery_physical_origin(
+                driver=RecoveryDriver(),
+                previous_origin_receipt=origin,
+                lease_path=lease["lease_path"],
+                opening_id="W1",
+                zone_id="living",
+                clock_fn=lambda:32.0,
+            )
+            recovered["recovery_snapshot"]["co2_ppm"]=1.0
+            payload={
+                key:value
+                for key,value in recovered.items()
+                if key not in {"origin_sha256","physical_origin_receipt_sha256"}
+            }
+            recovered["physical_origin_receipt_sha256"]=sha(payload)
+            with self.assertRaisesRegex(
+                RuntimeError,
+                "recovery physical snapshot SHA-256 mismatch",
+            ):
+                verify_physical_origin_receipt(recovered)
+
     def test_binding_rejects_unrelated_recovery_origin(self):
         with tempfile.TemporaryDirectory() as d:
             root=Path(d)
