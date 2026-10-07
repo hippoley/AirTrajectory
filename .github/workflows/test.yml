@@ -68,6 +68,20 @@ jobs:
           open("_contam_prj.txt","w",encoding="utf-8").write(matches[0])
           print(matches[0])
           '@ | python -
+      - name: Probe real contamxpy continuation surface
+        shell: pwsh
+        run: |
+          $prj = (Get-Content _contam_prj.txt -Raw).Trim()
+          python examples/probe_contam_continuation.py "$prj" --out artifacts/contam-continuation-capability.json | Tee-Object -FilePath contam-continuation-capability.log
+          if (-not (Select-String -Path contam-continuation-capability.log -Pattern "CONTAM_CONTINUATION_CAPABILITY_PROBED")) { exit 1 }
+          @'
+          import json
+          p=json.load(open("artifacts/contam-continuation-capability.json",encoding="utf-8"))
+          assert p["state_reinjection_verified"] is False
+          assert len(p["probe_sha256"])==64
+          assert "continuity_test_required" in p
+          print("CONTAM_CONTINUATION_CAPABILITY_RECEIPT_VERIFIED")
+          '@ | python -
       - name: Execute real CONTAM engine
         shell: pwsh
         run: |
@@ -101,6 +115,21 @@ jobs:
         run: |
           python examples/generate_multispace_contam_prj.py --prj-profile examples/contam_prj_profile.transient.example.json --out artifacts/multispace-transient.prj --provenance-out artifacts/multispace-transient.prj.json
           if (-not (Select-String -Path artifacts/multispace-transient.prj -Pattern "contaminant simulation: transient")) { exit 1 }
+      - name: Probe setZoneAddMass behavior on real transient ContamX
+        shell: pwsh
+        run: |
+          python examples/probe_contam_zone_add_mass.py artifacts/multispace-transient.prj --zone 1 --contaminant 0 --mass 1e-6 --out artifacts/contam-zone-add-mass.json | Tee-Object -FilePath contam-zone-add-mass.log
+          if (-not (Select-String -Path contam-zone-add-mass.log -Pattern "CONTAM_ZONE_ADD_MASS_AB_PROBED")) { exit 1 }
+          @'
+          import json
+          p=json.load(open("artifacts/contam-zone-add-mass.json",encoding="utf-8"))
+          assert p["state_reinjection_verified"] is False
+          assert p["semantics_verified"] is False
+          e=p["effects"]
+          assert "immediate_1x" in e
+          assert "after_step_1x" in e
+          print("CONTAM_ZONE_ADD_MASS_BEHAVIOR_RECEIPT_VERIFIED", e["immediate_1x"], e["after_step_1x"], e["immediate_2x_over_1x"], e["after_step_2x_over_1x"])
+          '@ | python -
       - name: Run transient counterfactual on real ContamX
         timeout-minutes: 3
         shell: pwsh
