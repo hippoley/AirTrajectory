@@ -100,7 +100,8 @@ def build():
                 "temperature and humidity outcomes remain unavailable"
             ),
         },
-        "hold_outcome": hold_candidate(search_origin, objective),
+        "static_hold_snapshot": hold_candidate(search_origin, objective),
+        "hold_forecast_status": "NOT_SIMULATED",
         "metric_provenance": {
             "co2": "backend observation",
             "return": "backend RewardVector.scalar",
