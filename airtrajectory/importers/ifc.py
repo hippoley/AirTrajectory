@@ -331,6 +331,147 @@ def extract_ifc_semantics(path: str|Path) -> dict[str, Any]:
     }
 
 
+def inspect_ifc_control_readiness(path: str|Path) -> dict[str, Any]:
+    """Inspect a real IFC file and collect control-readiness blockers.
+
+    Unlike `import_ifc()`, this function is diagnostic: missing geometry,
+    volume, dimensions, or adjacency is accumulated instead of stopping at the
+    first failure.
+    """
+    try:
+        import ifcopenshell
+        import ifcopenshell.geom
+        import ifcopenshell.util.element
+    except ImportError as exc:
+        raise RuntimeError(
+            "IFC inspection requires optional dependency ifcopenshell"
+        ) from exc
+
+    path=Path(path)
+    model=ifcopenshell.open(str(path))
+    settings=ifcopenshell.geom.settings()
+    blockers=[]
+    spaces=[]
+    openings=[]
+
+    def try_bbox(entity):
+        try:
+            shape=ifcopenshell.geom.create_shape(settings,entity)
+            verts=list(shape.geometry.verts)
+            if not verts:
+                raise ValueError("no geometry vertices")
+            xs=verts[0::3]; ys=verts[1::3]
+            return min(xs),min(ys),max(xs),max(ys)
+        except Exception as exc:
+            blockers.append({
+                "entity_id":getattr(entity,"GlobalId","<entity>"),
+                "reason":"GEOMETRY_UNAVAILABLE",
+                "detail":str(exc),
+            })
+            return None
+
+    for space in model.by_type("IfcSpace"):
+        gid=space.GlobalId
+        box=try_bbox(space)
+        try:
+            volume_m3,volume_source=_volume_from_property_sets(
+                ifcopenshell.util.element.get_psets(space)
+            )
+        except ValueError as exc:
+            blockers.append({
+                "entity_id":gid,
+                "reason":"MISSING_VOLUME_M3",
+                "detail":str(exc),
+            })
+            volume_m3=None
+            volume_source=None
+        row={
+            "id":gid,
+            "name":space.Name or gid,
+            "volume_m3":volume_m3,
+            "volume_source":volume_source,
+        }
+        if box is not None:
+            x1,y1,x2,y2=box
+            row.update({"x":x1,"y":y1,"w":x2-x1,"h":y2-y1})
+        else:
+            row.update({"x":None,"y":None,"w":None,"h":None})
+        spaces.append(row)
+
+    adjacency={}
+    for rel in model.by_type("IfcRelSpaceBoundary"):
+        elem=getattr(rel,"RelatedBuildingElement",None)
+        space=getattr(rel,"RelatingSpace",None)
+        if elem is None or space is None:
+            continue
+        if elem.is_a() not in {"IfcDoor","IfcWindow"}:
+            continue
+        adjacency.setdefault(elem.GlobalId,set()).add(space.GlobalId)
+
+    for kind,ifc_type in (("door","IfcDoor"),("window","IfcWindow")):
+        for elem in model.by_type(ifc_type):
+            gid=elem.GlobalId
+            adj=sorted(adjacency.get(gid) or [])
+            if len(adj) not in {1,2}:
+                blockers.append({
+                    "entity_id":gid,
+                    "reason":"AMBIGUOUS_SPACE_ADJACENCY",
+                    "detail":{"adjacent_spaces":adj},
+                })
+            width=float(getattr(elem,"OverallWidth",0) or 0)
+            height=float(getattr(elem,"OverallHeight",0) or 0)
+            if width<=0:
+                blockers.append({"entity_id":gid,"reason":"MISSING_WIDTH_M"})
+            if height<=0:
+                blockers.append({"entity_id":gid,"reason":"MISSING_HEIGHT_M"})
+            box=try_bbox(elem)
+            row={
+                "id":gid,
+                "kind":kind,
+                "adjacent_spaces":adj,
+                "width_m":width if width>0 else None,
+                "height_m":height if height>0 else None,
+            }
+            if box is not None:
+                x1,y1,x2,y2=box
+                row.update({"x1":x1,"y1":y1,"x2":x2,"y2":y2})
+            else:
+                row.update({"x1":None,"y1":None,"x2":None,"y2":None})
+            openings.append(row)
+
+    # Reuse normalized-semantic checks so diagnostic and import paths share the
+    # same blocker vocabulary. Deduplicate exact blocker identities/reasons.
+    normalized=assess_ifc_semantics({"spaces":spaces,"openings":openings})
+    blockers.extend(normalized["blockers"])
+    dedup={}
+    for blocker in blockers:
+        key=(str(blocker.get("entity_id")),str(blocker.get("reason")))
+        dedup.setdefault(key,blocker)
+    blockers=list(dedup.values())
+
+    return {
+        "schema_version":"0.1",
+        "status":"READY" if not blockers else "BLOCKED",
+        "source":{
+            "format":"IFC",
+            "path":str(path),
+            "sha256":hashlib.sha256(path.read_bytes()).hexdigest(),
+            "schema":str(getattr(model,"schema","")),
+        },
+        "space_count":len(spaces),
+        "door_count":len(model.by_type("IfcDoor")),
+        "window_count":len(model.by_type("IfcWindow")),
+        "space_boundary_count":len(model.by_type("IfcRelSpaceBoundary")),
+        "opening_count":len(openings),
+        "blockers":blockers,
+        "semantics":{
+            "topology_id":"ifc:"+path.stem,
+            "spaces":spaces,
+            "openings":openings,
+        },
+    }
+
+
 def import_ifc(path: str|Path, *, importer_version: str="0.1") -> LayoutContract:
     path=Path(path)
     source_hash=hashlib.sha256(path.read_bytes()).hexdigest()
