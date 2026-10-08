@@ -1,9 +1,24 @@
 import unittest
 
-from airtrajectory.importers.ifc import assess_ifc_semantics, layout_from_ifc_semantics
+from airtrajectory.importers.ifc import _volume_from_property_sets, assess_ifc_semantics, layout_from_ifc_semantics
 from airtrajectory.topology_acceptance import verify_topology_runtime
 
 class IfcImporterTests(unittest.TestCase):
+    def test_space_volume_falls_back_to_revit_style_volume_property(self):
+        value,source=_volume_from_property_sets({
+            "PSet_Revit_Dimensions":{"Volume":71.3906897089998}
+        })
+        self.assertAlmostEqual(value,71.3906897089998)
+        self.assertEqual(source,"PSet_Revit_Dimensions.Volume")
+
+    def test_conflicting_fallback_volumes_fail_closed(self):
+        with self.assertRaisesRegex(ValueError,"conflicting"):
+            _volume_from_property_sets({
+                "A":{"Volume":30.0},
+                "B":{"Volume":31.0},
+            })
+
+
     def test_normalized_ifc_semantics_enter_shared_runtime(self):
         semantics={
             "topology_id":"ifc:test-home",
