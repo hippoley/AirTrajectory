@@ -28,6 +28,8 @@ from .topology import BuildingTopology, OpeningEdge, ZoneNode
 
 _ALLOWED_OPENING_KINDS={"window","door","vent"}
 _ALLOWED_WALL_KINDS={"exterior","internal"}
+_ALLOWED_SOURCE_KINDS={"fixed-floorplan","imported-floorplan"}
+_ALLOWED_IMPORT_STATES={"reserved","supported"}
 
 
 @dataclass(frozen=True)
@@ -80,6 +82,7 @@ class LayoutContract:
     source_kind: str
     outside_id: str
     capabilities: dict[str,Any]
+    source_provenance: dict[str,Any]
     rooms: tuple[LayoutRoom,...]
     walls: tuple[LayoutWall,...]
     openings: tuple[LayoutOpening,...]
@@ -147,6 +150,7 @@ class LayoutContract:
             source_kind=str(payload.get("source_kind") or ""),
             outside_id=str(payload.get("outside_id") or "OUTSIDE"),
             capabilities=dict(payload.get("capabilities") or {}),
+            source_provenance=dict(payload.get("source_provenance") or {}),
             rooms=rooms,
             walls=walls,
             openings=openings,
@@ -160,27 +164,52 @@ class LayoutContract:
             raise ValueError("unsupported layout schema_version")
         if not self.topology_id:
             raise ValueError("layout topology_id is required")
-        if self.source_kind!="fixed-floorplan":
+        if self.source_kind not in _ALLOWED_SOURCE_KINDS:
             raise ValueError(
-                "current runtime accepts source_kind=fixed-floorplan only; "
-                "future topology sources are reserved"
+                "unsupported source_kind; expected fixed-floorplan or imported-floorplan"
             )
 
-        if self.capabilities.get("floorplan_geometry_editable") is not False:
-            raise ValueError(
-                "current layout contract must keep floorplan geometry fixed"
-            )
+        geometry_editable=self.capabilities.get("floorplan_geometry_editable")
+        if not isinstance(geometry_editable,bool):
+            raise ValueError("floorplan_geometry_editable must be boolean")
         if self.capabilities.get("opening_position_editable") is not True:
             raise ValueError(
-                "current layout contract must allow opening position edits"
+                "layout contract must allow opening position edits"
             )
-        if self.capabilities.get("arbitrary_topology_import")!="reserved":
+        import_state=self.capabilities.get("arbitrary_topology_import")
+        if import_state not in _ALLOWED_IMPORT_STATES:
             raise ValueError(
-                "arbitrary_topology_import must remain reserved in current schema"
+                "arbitrary_topology_import must be reserved or supported"
             )
-        if self.capabilities.get("contam_compiler")!="reserved":
+        if self.source_kind=="fixed-floorplan":
+            if geometry_editable is not False:
+                raise ValueError(
+                    "fixed-floorplan contracts must keep floorplan geometry fixed"
+                )
+            if import_state!="reserved":
+                raise ValueError(
+                    "fixed-floorplan contracts must keep arbitrary import reserved"
+                )
+        else:
+            if import_state!="supported":
+                raise ValueError(
+                    "imported-floorplan requires arbitrary_topology_import=supported"
+                )
+            required_source=("format","source_sha256","importer")
+            missing=[key for key in required_source if not self.source_provenance.get(key)]
+            if missing:
+                raise ValueError(
+                    "imported-floorplan requires source_provenance: "
+                    + ",".join(missing)
+                )
+            source_sha=str(self.source_provenance["source_sha256"])
+            if len(source_sha)!=64 or any(c not in "0123456789abcdef" for c in source_sha.lower()):
+                raise ValueError(
+                    "source_provenance.source_sha256 must be 64 hex characters"
+                )
+        if self.capabilities.get("contam_compiler") not in {"reserved","supported"}:
             raise ValueError(
-                "contam_compiler must remain reserved in current schema"
+                "contam_compiler must be reserved or supported"
             )
 
         if not self.rooms:
@@ -291,6 +320,7 @@ class LayoutContract:
             "source_kind":self.source_kind,
             "outside_id":self.outside_id,
             "capabilities":dict(self.capabilities),
+            "source_provenance":dict(self.source_provenance),
             "rooms":[room.__dict__.copy() for room in self.rooms],
             "walls":[wall.__dict__.copy() for wall in self.walls],
             "openings":[opening.__dict__.copy() for opening in self.openings],
@@ -347,7 +377,8 @@ class LayoutContract:
     ) -> dict[str,Any]:
         """Stable input seam for the future arbitrary topology -> CONTAM compiler.
 
-        This method deliberately returns RESERVED and does not create a PRJ.
+        This seam is topology-source neutral. Downstream compiler readiness is
+        reported separately from whether the layout was fixed or imported.
         """
         positions={
             opening.id:opening.position_t
