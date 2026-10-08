@@ -17,7 +17,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - run: python -m pip install -e .
+      - run: python -m pip install -e ".[contracts]"
       - run: python -m unittest discover -s tests -v
       - run: python examples/single_room_rollout.py
       - run: python examples/export_web_scenarios.py
@@ -44,7 +44,7 @@ jobs:
         run: test "$(git -C _spatialruntime rev-parse HEAD)" = "$SPATIALRUNTIME_COMMIT_SHA"
       - name: Install official contamxpy runtime and SpatialRuntime
         run: |
-          python -m pip install -e ".[contam]"
+          python -m pip install -e ".[contam,contracts]"
           python -m pip install -e "_spatialruntime"
       - name: Inspect installed contamxpy API
         run: |
@@ -438,5 +438,10 @@ jobs:
           assert all("mean_co2_auc_ppm_s" in row["metrics"] for row in b["results"])
           assert all("peak_co2_ppm" in row["metrics"] for row in b["results"])
           assert all("actuator_movement_pct_sum" in row["metrics"] for row in b["results"])
+          from jsonschema import Draft202012Validator
+          schema=json.load(open("schemas/policy-benchmark-v0.1.schema.json",encoding="utf-8"))
+          Draft202012Validator.check_schema(schema)
+          Draft202012Validator(schema).validate(b)
+          print("AIRTRAJECTORY_POLICY_BENCHMARK_SCHEMA_CONFORMANT")
           print("AIRTRAJECTORY_POLICY_BENCHMARK_V01_VERIFIED", sorted(b["pareto_frontier"]))
           '@ | python -
