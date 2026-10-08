@@ -11,6 +11,7 @@ from airtrajectory.topology_acceptance import (
 ROOT = Path(__file__).resolve().parents[1]
 PRIMARY = ROOT / "web" / "data" / "home_topology.fixed.json"
 ALTERNATE = ROOT / "tests" / "data" / "topology.alt-two-room.json"
+STRUCTURED = ROOT / "tests" / "data" / "topology.structured-two-room.json"
 
 
 class CrossTopologyAcceptanceTests(unittest.TestCase):
@@ -44,6 +45,16 @@ class CrossTopologyAcceptanceTests(unittest.TestCase):
         self.assertEqual(
             [receipt["status"] for receipt in result["receipts"]],
             ["PASS", "PASS"],
+        )
+
+    def test_external_structured_topology_passes_same_runtime_contract(self):
+        result = verify_topology_files([PRIMARY, STRUCTURED])
+        self.assertEqual(result["status"], "PASS")
+        receipt = result["receipts"][1]
+        self.assertEqual(receipt["status"], "PASS")
+        self.assertEqual(
+            receipt["expected"]["opening_ids"],
+            ["inner_door", "north_window", "south_window"],
         )
 
     def test_duplicate_topology_is_rejected_as_fake_portability_evidence(self):
