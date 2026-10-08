@@ -280,12 +280,13 @@ def extract_ifc_semantics(path: str|Path) -> dict[str, Any]:
     spaces=[]
     for s in model.by_type("IfcSpace"):
         x1,y1,x2,y2=bbox(s)
+        volume_m3,volume_source=volume(s)
         spaces.append({
             "id":s.GlobalId,
             "name":s.Name or s.GlobalId,
             "x":x1,"y":y1,"w":x2-x1,"h":y2-y1,
-            "volume_m3":volume(s)[0],
-            "volume_source":volume(s)[1],
+            "volume_m3":volume_m3,
+            "volume_source":volume_source,
         })
 
     adjacency={}
