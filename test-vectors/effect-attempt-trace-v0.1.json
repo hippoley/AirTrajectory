@@ -1,0 +1,17 @@
+{
+  "vector_set": "effect-attempt-trace-v0.1",
+  "purpose": "Keep one logical effect distinct from multiple transport attempts.",
+  "cases": [
+    {
+      "id": "lost-ack-then-idempotent-retry",
+      "logical_effect_id": "effect-window-close-001",
+      "request_id": "request-001",
+      "attempts": [
+        {"attempt_id": "attempt-1", "status": "TRANSPORT_ERROR", "transport_error": "ack lost"},
+        {"attempt_id": "attempt-2", "status": "ACKED", "ack_id": "ack-001"}
+      ],
+      "expected_effect_outcome": "UNRESOLVED"
+    }
+  ],
+  "invariant": "transport retry history must not be rewritten as physical effect outcome"
+}
