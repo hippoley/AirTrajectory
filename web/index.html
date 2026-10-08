@@ -2,23 +2,23 @@
 <header><div><div class="tagrow"><span class="stage-tag">STAGE 0.3</span><span class="eyebrow">PHYSICAL LEARNING LAB</span></div><h1>How should this home breathe?</h1><p class="lede">A trajectory-native experiment for multi-window ventilation. Change the world, fork a state, compare its futures.</p></div><div id="health" class="health loading"><i></i><div><small>SYSTEM</small><b>LOADING BACKEND</b></div></div></header>
 <section class="probe-deck" id="probeDeck">
 <div class="probe-intro">
-  <div><p class="eyebrow">START HERE · BREAK THE AGENT</p><h2>Can the system avoid a wrong real-world claim?</h2><p class="sub">No setup. Pick one failure. The browser will show what changed, what the agent was allowed to claim, and what evidence is still missing.</p></div>
+  <div><p class="eyebrow">START HERE · BREAK A TRAJECTORY</p><h2>Can AirTrajectory keep one trajectory truthful when reality changes?</h2><p class="sub">Start from a physical origin, disturb the world, and watch whether the current trajectory is invalidated, reconciled, or allowed to continue.</p></div>
   <div class="probe-session"><small>YOUR SESSION</small><b id="probeSessionCount">0 probes tried</b><span id="probeSessionSignal">Try a failure to create evidence.</span></div>
 </div>
 <div class="probe-cards">
-  <button class="probe-card" data-correctness-probe="rain-after-approval"><small>01 · WORLD CHANGES</small><b>It starts raining after approval</b><span>Should an old approval still open the window?</span></button>
-  <button class="probe-card" data-correctness-probe="lost-ack"><small>02 · NETWORK LIES BY OMISSION</small><b>The ACK disappears</b><span>Should the agent retry blindly or check reality?</span></button>
-  <button class="probe-card" data-correctness-probe="stale-readback"><small>03 · VALUE LOOKS RIGHT</small><b>The sensor says 40% — but it is stale</b><span>Can an old measurement prove the physical effect?</span></button>
+  <button class="probe-card" data-correctness-probe="rain-after-approval"><small>01 · WORLD CHANGES</small><b>Reality changes after the trajectory was approved</b><span>Does the old trajectory become STALE before W1 moves?</span></button>
+  <button class="probe-card" data-correctness-probe="lost-ack"><small>02 · NETWORK LIES BY OMISSION</small><b>The trajectory loses its execution ACK</b><span>Can AirTrajectory reconnect from physical readback without duplicating the effect?</span></button>
+  <button class="probe-card" data-correctness-probe="stale-readback"><small>03 · VALUE LOOKS RIGHT</small><b>The trajectory sees a stale 40% readback</b><span>Can stale feedback become the next trajectory origin?</span></button>
 </div>
 <div class="probe-story" id="probeStory" aria-live="polite">
-  <div class="probe-story-head"><small>PLAYABLE CORRECTNESS PROBE</small><b id="probeStoryTitle">Pick a failure above.</b><span id="probeEvidenceClass">BROWSER EXPLANATION · NOT PHYSICAL EVIDENCE</span></div>
+  <div class="probe-story-head"><small>AIRTRAJECTORY · TRAJECTORY FAILURE PROBE</small><b id="probeStoryTitle">Pick one way to break the current trajectory.</b><span id="probeEvidenceClass">BROWSER EXPLANATION · NOT PHYSICAL EVIDENCE</span></div>
   <div class="probe-trace" id="probeTrace">
-    <div><small>YOU CHANGE</small><b>—</b></div><i>→</i>
-    <div><small>WORLD RESPONSE</small><b>—</b></div><i>→</i>
-    <div><small>SYSTEM DECISION</small><b>—</b></div><i>→</i>
-    <div><small>CLAIM</small><b>—</b></div>
+    <div><small>τ₀ · PHYSICAL ORIGIN</small><b>—</b></div><i>→</i>
+    <div><small>TRAJECTORY / PLAN</small><b>—</b></div><i>→</i>
+    <div><small>REALITY BREAK</small><b>—</b></div><i>→</i>
+    <div><small>τ₁ · NEXT ORIGIN</small><b>—</b></div>
   </div>
-  <div class="probe-verdict"><span id="probeVerdict">Run one probe to see whether the system blocks, confirms, or stays unresolved.</span><div class="probe-actions"><button class="ghost" id="probeDetails">SHOW TECHNICAL EVIDENCE</button><button class="ghost" id="probeExportPpep" disabled>EXPORT PPEP JSON</button></div></div>
+  <div class="probe-verdict"><span id="probeVerdict">Run one probe to see whether AirTrajectory invalidates, reconciles, or continues the trajectory.</span><div class="probe-actions"><button class="ghost" id="probeDetails">SHOW TRAJECTORY EVIDENCE</button><button class="ghost" id="probeExportPpep" disabled>EXPORT TRAJECTORY EVIDENCE</button></div></div>
   <pre id="probeTechnical" class="probe-technical hidden"></pre>
 </div>
 </section>
