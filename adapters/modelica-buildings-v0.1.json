@@ -1,0 +1,41 @@
+{
+  "schema_version": "0.1",
+  "adapter": "modelica-buildings-multizone-v0.1",
+  "upstream": {
+    "repository": "lbl-srg/modelica-buildings",
+    "release": "14.0.0",
+    "release_date": "2026-10-05"
+  },
+  "supported_semantics": {
+    "internal_door": {
+      "status": "supported",
+      "preferred_models": [
+        "Buildings.Airflow.Multizone.DoorOperable",
+        "Buildings.Airflow.Multizone.DoorDiscretizedOperable"
+      ],
+      "opening_signal": "y in [0,1]",
+      "notes": "Modelica Buildings documents these as operable bi-directional room-to-room openings."
+    },
+    "exterior_window": {
+      "status": "unresolved",
+      "preferred_models": [],
+      "notes": "No exact operable-window multizone semantic has been verified yet. Do not substitute DoorOperable or static Orifice without an explicit physics mapping."
+    },
+    "exterior_vent": {
+      "status": "unresolved",
+      "preferred_models": [],
+      "notes": "Requires an explicit flow-element mapping and calibration before use."
+    },
+    "contaminant_transport": {
+      "status": "supported",
+      "package": "Buildings.Airflow.Multizone",
+      "notes": "Upstream package explicitly supports multizone airflow and contaminant transport."
+    }
+  },
+  "fail_closed_rules": [
+    "do not compile an exterior window path into DoorOperable merely because both are openings",
+    "do not claim a VentilationPath is executable on Modelica Buildings while any required opening semantic is unresolved",
+    "preserve VentilationPath path identity even when backend mapping is partial"
+  ],
+  "evidence_boundary": "Capability manifest only; no Modelica simulation is executed by this artifact."
+}
