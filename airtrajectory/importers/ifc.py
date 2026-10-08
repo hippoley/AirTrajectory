@@ -353,6 +353,33 @@ def extract_ifc_semantics(path: str|Path) -> dict[str, Any]:
     }
 
 
+def _resolve_control_scope(
+    openings: list[dict[str, Any]],
+    requested_scope: set[str]|None,
+) -> tuple[list[dict[str, Any]], dict[str, Any], list[dict[str, Any]]]:
+    known={str(row["id"]) for row in openings}
+    if requested_scope is None:
+        selected=list(openings)
+        return selected,{
+            "mode":"ALL_OPENINGS",
+            "requested_opening_ids":None,
+            "resolved_opening_ids":sorted(known),
+        },[]
+
+    requested={str(value) for value in requested_scope}
+    selected=[row for row in openings if str(row["id"]) in requested]
+    missing=sorted(requested-known)
+    blockers=[
+        {"entity_id":opening_id,"reason":"UNKNOWN_CONTROL_OPENING"}
+        for opening_id in missing
+    ]
+    return selected,{
+        "mode":"DECLARED_SUBSET",
+        "requested_opening_ids":sorted(requested),
+        "resolved_opening_ids":sorted(str(row["id"]) for row in selected),
+    },blockers
+
+
 def inspect_ifc_control_readiness(
     path: str|Path,
     *,
@@ -395,7 +422,7 @@ def inspect_ifc_control_readiness(
         else None
     )
 
-    def try_bbox(entity):
+    def try_bbox(entity, *, record_blocker: bool=True):
         try:
             shape=ifcopenshell.geom.create_shape(settings,entity)
             verts=list(shape.geometry.verts)
@@ -404,11 +431,12 @@ def inspect_ifc_control_readiness(
             xs=verts[0::3]; ys=verts[1::3]
             return min(xs),min(ys),max(xs),max(ys)
         except Exception as exc:
-            blockers.append({
-                "entity_id":getattr(entity,"GlobalId","<entity>"),
-                "reason":"GEOMETRY_UNAVAILABLE",
-                "detail":str(exc),
-            })
+            if record_blocker:
+                blockers.append({
+                    "entity_id":getattr(entity,"GlobalId","<entity>"),
+                    "reason":"GEOMETRY_UNAVAILABLE",
+                    "detail":str(exc),
+                })
             return None
 
     for space in model.by_type("IfcSpace"):
@@ -467,7 +495,7 @@ def inspect_ifc_control_readiness(
                 blockers.append({"entity_id":gid,"reason":"MISSING_WIDTH_M"})
             if in_scope and height<=0:
                 blockers.append({"entity_id":gid,"reason":"MISSING_HEIGHT_M"})
-            box=try_bbox(elem)
+            box=try_bbox(elem,record_blocker=in_scope)
             row={
                 "id":gid,
                 "kind":kind,
@@ -485,21 +513,16 @@ def inspect_ifc_control_readiness(
 
     # Reuse normalized-semantic checks so diagnostic and import paths share the
     # same blocker vocabulary. Deduplicate exact blocker identities/reasons.
-    scoped_openings=[
-        row for row in openings if row.get("in_control_scope") is True
-    ]
+    scoped_openings,scope_meta,scope_blockers=_resolve_control_scope(
+        openings,
+        requested_scope,
+    )
     normalized=assess_ifc_semantics({
         "spaces":spaces,
         "openings":scoped_openings,
     })
     blockers.extend(normalized["blockers"])
-    if requested_scope is not None:
-        known={row["id"] for row in openings}
-        for missing in sorted(requested_scope-known):
-            blockers.append({
-                "entity_id":missing,
-                "reason":"UNKNOWN_CONTROL_OPENING",
-            })
+    blockers.extend(scope_blockers)
     dedup={}
     for blocker in blockers:
         key=(str(blocker.get("entity_id")),str(blocker.get("reason")))
@@ -534,16 +557,7 @@ def inspect_ifc_control_readiness(
         "window_count":len(model.by_type("IfcWindow")),
         "space_boundary_count":len(model.by_type("IfcRelSpaceBoundary")),
         "opening_count":len(openings),
-        "control_scope":{
-            "mode":"ALL_OPENINGS" if requested_scope is None else "DECLARED_SUBSET",
-            "requested_opening_ids":(
-                sorted(requested_scope) if requested_scope is not None else None
-            ),
-            "resolved_opening_ids":sorted(
-                row["id"] for row in openings
-                if row.get("in_control_scope") is True
-            ),
-        },
+        "control_scope":scope_meta,
         "opening_boundary_coverage":{
             "doors_total":len(model.by_type("IfcDoor")),
             "doors_mapped":mapped_doors,
