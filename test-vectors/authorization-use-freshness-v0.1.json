@@ -1,0 +1,27 @@
+{
+  "vector_set": "authorization-use-freshness-v0.1",
+  "purpose": "Reject valid-but-stale physical authorizations when the world changes before dispatch.",
+  "cases": [
+    {
+      "id": "position-drift-after-authorization",
+      "authorized_position_pct": 10.0,
+      "pre_dispatch_position_pct": 25.0,
+      "expected": "REJECT"
+    },
+    {
+      "id": "rain-begins-after-authorization",
+      "authorized_rain": false,
+      "pre_dispatch_rain": true,
+      "expected": "REJECT"
+    },
+    {
+      "id": "fresh-world-still-matches",
+      "authorized_position_pct": 10.0,
+      "pre_dispatch_position_pct": 10.4,
+      "authorized_rain": false,
+      "pre_dispatch_rain": false,
+      "expected": "ALLOW"
+    }
+  ],
+  "invariant": "authorization validity at creation time does not imply validity at effect-dispatch time"
+}

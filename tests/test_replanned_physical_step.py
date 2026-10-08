@@ -191,6 +191,9 @@ class FakeDriver:
         self.last_command_request_id=None
         self.last_command_idempotency_scope_id=None
         self.identity=identity
+        self.pre_dispatch_position=0.2
+        self.pre_dispatch_rain=False
+        self.pre_dispatch_timestamp=24.0
 
     def capabilities(self):
         return DriverCapabilities(
@@ -205,7 +208,22 @@ class FakeDriver:
             "physical_write_ready":True,
             "write_blockers":[],
             "hardware_identity":{"identity_sha256":self.identity},
+            "latest_position_feedback":{
+                "measured":True,
+                "position_pct":self.pre_dispatch_position,
+                "timestamp":self.pre_dispatch_timestamp,
+                "quality":"encoder-measured",
+            },
         }
+
+    def read_sensors(self):
+        return [
+            {
+                "sensor_type":"rain",
+                "value":1.0 if self.pre_dispatch_rain else 0.0,
+                "timestamp":self.pre_dispatch_timestamp + 0.5,
+            }
+        ]
 
     def set_position(self,opening_id,target_pct):
         self.commanded.append((opening_id,float(target_pct)))
@@ -270,6 +288,50 @@ class ReplannedPhysicalStepTests(unittest.TestCase):
             self.assertEqual(driver.commanded,[])
             self.assertFalse((root/"next.json").exists())
             self.assertFalse((root/"physical-origin-leases").exists())
+
+    def test_pre_dispatch_position_drift_blocks_motion(self):
+        with tempfile.TemporaryDirectory() as d:
+            root=Path(d)
+            physical,planner=self._files(root)
+            driver=FakeDriver()
+            driver.pre_dispatch_position=25.0
+            with self.assertRaisesRegex(RuntimeError,"position drift"):
+                module.run_replanned_physical_step(
+                    driver=driver,
+                    physical_origin_receipt=physical,
+                    planner_receipt=planner,
+                    opening_id="W1",
+                    zone_id="living",
+                    max_delta_pct=10.0,
+                    summary_out=root/"summary.json",
+                    next_origin_out=root/"next.json",
+                    execute=True,
+                    clock_fn=lambda:23.0,
+                    lease_dir=root/"leases",
+                )
+            self.assertEqual(driver.commanded,[])
+
+    def test_pre_dispatch_rain_change_blocks_motion(self):
+        with tempfile.TemporaryDirectory() as d:
+            root=Path(d)
+            physical,planner=self._files(root)
+            driver=FakeDriver()
+            driver.pre_dispatch_rain=True
+            with self.assertRaisesRegex(RuntimeError,"rain state drift"):
+                module.run_replanned_physical_step(
+                    driver=driver,
+                    physical_origin_receipt=physical,
+                    planner_receipt=planner,
+                    opening_id="W1",
+                    zone_id="living",
+                    max_delta_pct=10.0,
+                    summary_out=root/"summary.json",
+                    next_origin_out=root/"next.json",
+                    execute=True,
+                    clock_fn=lambda:23.0,
+                    lease_dir=root/"leases",
+                )
+            self.assertEqual(driver.commanded,[])
 
     def test_execute_requires_explicit_lease_namespace_before_motion(self):
         with tempfile.TemporaryDirectory() as d:
@@ -770,6 +832,7 @@ class ReplannedPhysicalStepTests(unittest.TestCase):
                 encoding="utf-8",
             )
             driver=FakeDriver()
+            driver.pre_dispatch_rain=True
             out=module.run_replanned_physical_step(
                 driver=driver,
                 physical_origin_receipt=physical,
