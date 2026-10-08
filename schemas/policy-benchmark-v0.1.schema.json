@@ -15,6 +15,7 @@
     "time_step_s",
     "horizon_steps",
     "required_baselines",
+    "metric_parameters",
     "ranking_policy",
     "pareto_frontier",
     "results",
@@ -207,6 +208,31 @@
     "evidence_boundary": {
       "type": "string",
       "minLength": 1
+    },
+    "metric_parameters": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "iaq_threshold_ppm_by_zone",
+        "time_integration",
+        "zone_aggregation"
+      ],
+      "properties": {
+        "iaq_threshold_ppm_by_zone": {
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": {
+            "type": "number",
+            "minimum": 0
+          }
+        },
+        "time_integration": {
+          "const": "discrete-sample-hold"
+        },
+        "zone_aggregation": {
+          "const": "mean"
+        }
+      }
     }
   },
   "allOf": [
