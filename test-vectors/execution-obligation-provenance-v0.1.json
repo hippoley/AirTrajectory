@@ -1,0 +1,32 @@
+{
+  "vector_set": "execution-obligation-provenance-v0.1",
+  "purpose": "Portable adversarial cases for binding expected execution obligations to an explicit source revision.",
+  "non_claims": [
+    "does not prove source authority",
+    "does not define signing or registry semantics",
+    "does not require AirTrajectory schema adoption"
+  ],
+  "cases": [
+    {
+      "id": "stable-obligation-order",
+      "source": {"kind": "selected-test-plan", "identity": "suite:window-v1", "revision": "plan-r1"},
+      "expected_execution_ids_a": ["exec-b", "exec-a"],
+      "expected_execution_ids_b": ["exec-a", "exec-b"],
+      "expected": "SAME_BINDING"
+    },
+    {
+      "id": "expected-set-omission-after-binding",
+      "source": {"kind": "selected-test-plan", "identity": "suite:window-v1", "revision": "plan-r1"},
+      "expected_execution_ids": ["exec-a", "exec-b"],
+      "tamper": {"expected_execution_ids": ["exec-a"]},
+      "expected": "REJECT"
+    },
+    {
+      "id": "source-revision-substitution",
+      "source": {"kind": "selected-test-plan", "identity": "suite:window-v1", "revision": "plan-r1"},
+      "expected_execution_ids": ["exec-a"],
+      "tamper": {"source_revision": "plan-r2"},
+      "expected": "REJECT"
+    }
+  ]
+}
