@@ -17,6 +17,10 @@ from airtrajectory.contam_joint_golden_case import (
 )
 from airtrajectory.demo_runtime import DemoRuntimeSnapshot
 from airtrajectory.layout import LayoutContract
+from airtrajectory.policy_benchmark import (
+    build_policy_benchmark_report,
+    build_required_benchmark_candidates,
+)
 from airtrajectory.ventilation_path_candidates import (
     inject_ventilation_path_candidates,
 )
@@ -48,6 +52,11 @@ def main() -> int:
         default=ROOT / "web" / "data" / "home_topology.fixed.json",
     )
     parser.add_argument("--out", type=Path)
+    parser.add_argument(
+        "--policy-benchmark",
+        action="store_true",
+        help="evaluate HOLD + Independent + Joint candidates under the v0.1 benchmark contract",
+    )
     parser.add_argument(
         "--spatialruntime-verify",
         action="store_true",
@@ -166,7 +175,11 @@ def main() -> int:
         origin_state_mode="prj-initial-only",
     )
 
-    candidates = build_strategy_candidates(case, topology)
+    candidates = (
+        build_required_benchmark_candidates(case, topology)
+        if args.policy_benchmark
+        else build_strategy_candidates(case, topology)
+    )
     response = contam_strategy_fork_request(
         {
             "profile_id": case["golden_case_id"],
