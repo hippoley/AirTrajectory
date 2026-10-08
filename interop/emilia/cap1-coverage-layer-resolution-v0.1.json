@@ -1,0 +1,28 @@
+{
+  "resolution_version": "0.1",
+  "target": "emiliaprotocol/emilia-protocol",
+  "discussion": "https://github.com/emiliaprotocol/emilia-protocol/issues/914",
+  "status": "RESOLVED_BY_EXISTING_LAYERING",
+  "question": "what native Emilia object commits the population whose coverage is being claimed?",
+  "answer": {
+    "coverage_layer": "CAP-1 + EMILIA-CAP1-EXAMINED-SET-v1 + coverage-reconciliation attestation",
+    "mechanisms": [
+      "CAP-1 carries the producer-declared coverage statement",
+      "examined-set verifier checks explicit eligible/examined membership and one result binding per examined unit",
+      "CAP-1 subject digest commits eligible-set and examined-set roots plus claim/profile metadata",
+      "coverage composition binds the exact CAP-1 digest as census_digest",
+      "the signed reconciliation attestation binds supplied population roots and the relying-party reconciliation program"
+    ],
+    "explicit_nonclaims": [
+      "source_population_completeness",
+      "honest_enumeration"
+    ]
+  },
+  "portable_invariant": "closed examined-set coverage != proof that the source population itself was complete",
+  "resolution": "AirTrajectory does not need to propose a new Emilia coverage primitive; the crosswalk maps to CAP-1/examined-set composition while preserving source-population completeness as a separately proven boundary.",
+  "non_claims": [
+    "This is not Emilia maintainer endorsement.",
+    "This does not claim CAP-1 proves source-population truth.",
+    "This does not claim every AirTrajectory coverage vector is an Emilia conformance vector."
+  ]
+}
