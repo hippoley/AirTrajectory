@@ -1,0 +1,69 @@
+{
+  "schema_version": "0.1",
+  "topology_id": "example.apartment.v1",
+  "zones": {
+    "living": {
+      "zone_id": "living",
+      "values": {
+        "co2_ppm": {
+          "value": 1350,
+          "evidence": "measured",
+          "observed_at": "2026-10-08T08:00:00Z",
+          "confidence": 1.0,
+          "source_id": "living-co2"
+        },
+        "pm25_ug_m3": {
+          "value": 16,
+          "evidence": "estimated",
+          "observed_at": "2026-10-08T08:00:00Z",
+          "confidence": 0.72,
+          "source_id": "living-pm25-soft"
+        },
+        "temperature_c": {
+          "value": 24.2,
+          "evidence": "measured",
+          "observed_at": "2026-10-08T08:00:00Z",
+          "confidence": 1.0,
+          "source_id": "living-temp"
+        },
+        "tvoc_ug_m3": {
+          "value": null,
+          "evidence": "unavailable",
+          "observed_at": null,
+          "confidence": null,
+          "source_id": null
+        }
+      },
+      "source_terms": {}
+    }
+  },
+  "outdoor": {
+    "boundary_id": "OUTSIDE",
+    "values": {
+      "pm25_ug_m3": {
+        "value": 88,
+        "evidence": "measured",
+        "observed_at": "2026-10-08T08:00:00Z",
+        "confidence": 1.0,
+        "source_id": "weather-pm25"
+      },
+      "temperature_c": {
+        "value": 9.0,
+        "evidence": "measured",
+        "observed_at": "2026-10-08T08:00:00Z",
+        "confidence": 1.0,
+        "source_id": "weather-temp"
+      },
+      "rain": {
+        "value": false,
+        "evidence": "measured",
+        "observed_at": "2026-10-08T08:00:00Z",
+        "confidence": 1.0,
+        "source_id": "rain-sensor"
+      }
+    }
+  },
+  "quality": {
+    "measured_fraction": 0.7142857142857143
+  }
+}
