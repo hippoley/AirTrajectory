@@ -98,7 +98,8 @@
         "browser": "web probe; explanatory only",
         "machine_vector": "test-vectors/physical-effect-reconciliation-v0.1.json",
         "implementation": "airtrajectory/physical_effect_reconciliation.py",
-        "physical_field_status": "not yet independently commissioned"
+        "physical_field_status": "not yet independently commissioned",
+        "external_native_fixture": "interop/idempotencybench/test_stale_readback_regression.py"
       },
       "invariant": "matching value != fresh attributable evidence",
       "maturity": "runtime-enforced + portable vector + browser-playable; field campaign incomplete",
