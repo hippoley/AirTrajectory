@@ -1,0 +1,64 @@
+{
+  "schema_version": "0.1",
+  "purpose": "Classify ventilation-control input requirements by the standard/runtime layer that should own their validation.",
+  "principles": [
+    "Do not duplicate IFC schema validation.",
+    "Prefer buildingSMART IDS for machine-readable information-delivery requirements that IDS can express.",
+    "Keep AirTrajectory-specific gates for geometry, topology reconstruction, physics readiness, provenance, and control semantics."
+  ],
+  "requirements": [
+    {
+      "id": "space.presence",
+      "description": "At least one modeled IfcSpace is available.",
+      "preferred_layer": "IDS",
+      "control_blocker": "NO_IFCSPACE"
+    },
+    {
+      "id": "space.identity",
+      "description": "Each control zone has stable IFC identity.",
+      "preferred_layer": "IDS"
+    },
+    {
+      "id": "space.volume",
+      "description": "Each control zone has a positive usable volume, delivered or derived with declared fidelity.",
+      "preferred_layer": "IDS_OR_RUNTIME",
+      "control_blocker": "MISSING_VOLUME_M3"
+    },
+    {
+      "id": "opening.dimensions",
+      "description": "Each controlled door/window has positive width and height.",
+      "preferred_layer": "IDS",
+      "control_blockers": [
+        "MISSING_WIDTH_M",
+        "MISSING_HEIGHT_M"
+      ]
+    },
+    {
+      "id": "opening.adjacency",
+      "description": "Each opening resolves to exactly one modeled space plus outside, or exactly two modeled spaces.",
+      "preferred_layer": "RUNTIME_RELATIONSHIP_RESOLUTION",
+      "control_blocker": "AMBIGUOUS_SPACE_ADJACENCY"
+    },
+    {
+      "id": "geometry.projection",
+      "description": "Spaces/openings have usable geometry for topology/physics projection.",
+      "preferred_layer": "RUNTIME_GEOMETRY",
+      "control_blockers": [
+        "MISSING_PROJECTED_X1",
+        "MISSING_PROJECTED_Y1",
+        "MISSING_PROJECTED_X2",
+        "MISSING_PROJECTED_Y2"
+      ]
+    },
+    {
+      "id": "source.provenance",
+      "description": "Imported topology binds source format/hash and importer identity/version.",
+      "preferred_layer": "AIRTRAJECTORY_PROVENANCE"
+    },
+    {
+      "id": "physics.acceptance",
+      "description": "Resolved topology is accepted by the selected physics adapter without invented engineering data.",
+      "preferred_layer": "AIRTRAJECTORY_RUNTIME"
+    }
+  ]
+}
