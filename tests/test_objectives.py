@@ -127,6 +127,28 @@ class MultiEnvironmentObjectiveTests(unittest.TestCase):
                 origin=self.origin,
             )
 
+    def test_different_horizons_are_not_comparable(self):
+        with self.assertRaisesRegex(ValueError,"observation horizon"):
+            compare_observation_branches(
+                branches={
+                    "HOLD":[{"co2_ppm":{"living":1400}}],
+                    "OPEN":[{"co2_ppm":{"living":1300}},{"co2_ppm":{"living":900}}],
+                },
+                objective=self.objective,
+                origin=self.origin,
+            )
+
+    def test_different_zone_sets_are_not_comparable(self):
+        with self.assertRaisesRegex(ValueError,"zone coverage"):
+            compare_observation_branches(
+                branches={
+                    "HOLD":[{"co2_ppm":{"living":1400,"bedroom":1200}}],
+                    "OPEN":[{"co2_ppm":{"living":850}}],
+                },
+                objective=self.objective,
+                origin=self.origin,
+            )
+
     def test_real_simulated_hold_can_be_worse_than_action(self):
         branches={
             "HOLD":[{
