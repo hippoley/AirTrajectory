@@ -474,7 +474,7 @@ async function buildBrowserPPEP(id,probe,runIndex){
     experiment:{
       hypothesis:probe.hypothesis,
       variant:probe.variant||id,
-      assignment_id:"airtrajectory-web-probes-v0.1"
+      assignment_id:"airtrajectory-trajectory-probes-v0.1"
     },
     interaction:{
       actor_id:ppepBrowserSession.actorId,
@@ -490,7 +490,7 @@ async function buildBrowserPPEP(id,probe,runIndex){
       evidence_refs:[]
     },
     provenance:{
-      source:"airtrajectory_web_probe",
+      source:"airtrajectory_trajectory_probe",
       consent_scope:"local_only_no_collection",
       evidence_hash:"sha256:"+"0".repeat(64)
     }
@@ -513,27 +513,27 @@ function downloadPPEP(record){
 const correctnessProbeSession={runs:0,unique:new Set(),replays:0,last:null};
 const correctnessProbes={
  "rain-after-approval":{
-  title:"Approval expires when the world changes",
-  hypothesis:"A world change after approval should invalidate use-time authorization before a physical effect is dispatched",
+  title:"Trajectory r0 becomes stale before W1 moves",
+  hypothesis:"A world change after trajectory authorization should invalidate the current physical trajectory before dispatch",
   variant:"rain-after-approval",
-  trace:["Approve OPEN 40% while dry","Rain becomes TRUE before dispatch","BLOCK · revalidation fails","NO MOTION"],
-  verdict:"The old approval is still cryptographically intact, but it is no longer valid for the current world.",
+  trace:["τ₀: W1 10% · DRY","Plan: W1 → 40%","RAIN becomes TRUE · trajectory r0 STALE","τ₁: stay at W1 10% · REPLAN"],
+  verdict:"AirTrajectory refuses to continue an old trajectory once the physical origin no longer matches the world it was planned against.",
   evidence:{scenario:"authorization-use freshness",authorization_state:{rain:false,target_pct:40},pre_dispatch_observation:{rain:true,fresh:true},expected_decision:"REJECT",physical_motion:false,invariant:"valid at check time != valid at dispatch time"}
  },
  "lost-ack":{
-  title:"A lost ACK does not prove failure",
-  hypothesis:"A lost transport acknowledgement should not be treated as proof that the physical effect failed",
+  title:"Trajectory execution loses its ACK",
+  hypothesis:"A lost transport acknowledgement should not create a second physical trajectory before authoritative readback",
   variant:"lost-ack",
-  trace:["Dispatch OPEN 40%","Transport ACK is lost","READ BACK reality before retry","UNRESOLVED → CONFIRMED only by readback"],
-  verdict:"The system must not turn a transport error into a physical-effect failure or blindly create a second mutation.",
+  trace:["τ₀: W1 10%","Trajectory commands W1 → 40%","ACK LOST · effect state unknown","τ₁ comes from measured W1 readback, not retry"],
+  verdict:"AirTrajectory keeps one logical trajectory and reconnects it to reality through readback instead of blindly creating another physical effect.",
   evidence:{scenario:"logical effect vs transport attempt",logical_effect_id:"effect-demo-001",attempt_1:{status:"TRANSPORT_ERROR",detail:"ACK lost"},required_next_step:"authoritative post-action readback",blind_retry:"FORBIDDEN",invariant:"transport evidence != physical effect outcome"}
  },
  "stale-readback":{
-  title:"A correct-looking value can still be invalid evidence",
-  hypothesis:"A numerically matching but stale observation should remain insufficient to verify an external effect",
+  title:"A stale readback cannot become the next trajectory origin",
+  hypothesis:"A numerically matching but stale observation should remain insufficient to seed the next AirTrajectory origin",
   variant:"stale-readback",
-  trace:["Target OPEN 40%","Sensor reports 40%","Timestamp is older than the action","UNRESOLVED"],
-  verdict:"Matching numbers are not enough. The observation must be fresh, measured, and attributable after the action.",
+  trace:["τ₀: W1 10%","Trajectory targets W1 → 40%","Readback says 40% but predates dispatch","τ₁: UNRESOLVED · origin not advanced"],
+  verdict:"AirTrajectory does not advance the trajectory just because the number looks right; the next origin must come from fresh, measured, attributable evidence.",
   evidence:{scenario:"physical-effect reconciliation",target_pct:40,observation:{measured:true,position_pct:40,fresh_after_action:false,source:"actuator-encoder"},expected_status:"UNRESOLVED",reason:"OBSERVATION_NOT_FRESH",invariant:"fresh-looking value != fresh attributable evidence"}
  }
 };
@@ -547,20 +547,20 @@ async function renderCorrectnessProbe(id){
  document.querySelector("#probeVerdict").textContent=p.verdict;
  document.querySelector("#probeTechnical").textContent=JSON.stringify({...p.evidence,evidence_class:"browser-explanation",physical_evidence:false},null,2);
  document.querySelector("#probeTechnical").classList.add("hidden");
- document.querySelector("#probeDetails").textContent="SHOW TECHNICAL EVIDENCE";
+ document.querySelector("#probeDetails").textContent="SHOW TRAJECTORY EVIDENCE";
  document.querySelector("#probeSessionCount").textContent=correctnessProbeSession.runs+" probe"+(correctnessProbeSession.runs===1?"":"s")+" tried";
  const unique=correctnessProbeSession.unique.size,replays=correctnessProbeSession.replays;
  document.querySelector("#probeSessionSignal").textContent=unique+" unique failure"+(unique===1?"":"s")+" explored"+(replays?" · "+replays+" replay"+(replays===1?"":"s"):" · try another failure");
  ppepBrowserSession.lastRecord=await buildBrowserPPEP(id,p,correctnessProbeSession.runs);
  const exportButton=document.querySelector("#probeExportPpep");
  exportButton.disabled=false;
- exportButton.textContent="EXPORT PPEP JSON";
+ exportButton.textContent="EXPORT TRAJECTORY EVIDENCE";
 }
 document.querySelectorAll("[data-correctness-probe]").forEach(el=>el.addEventListener("click",()=>renderCorrectnessProbe(el.dataset.correctnessProbe)));
 document.querySelector("#probeExportPpep").addEventListener("click",()=>{if(ppepBrowserSession.lastRecord)downloadPPEP(ppepBrowserSession.lastRecord)});
 document.querySelector("#probeDetails").addEventListener("click",()=>{
  const el=document.querySelector("#probeTechnical"),hidden=el.classList.toggle("hidden");
- document.querySelector("#probeDetails").textContent=hidden?"SHOW TECHNICAL EVIDENCE":"HIDE TECHNICAL EVIDENCE";
+ document.querySelector("#probeDetails").textContent=hidden?"SHOW TRAJECTORY EVIDENCE":"HIDE TRAJECTORY EVIDENCE";
 });
 
 /* Backend-generated learning Episode Lab */
