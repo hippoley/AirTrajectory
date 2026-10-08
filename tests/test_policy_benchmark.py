@@ -117,8 +117,12 @@ class PolicyBenchmarkTests(unittest.TestCase):
             {"bedroom": 1000.0, "living": 1000.0, "study": 1000.0},
         )
         self.assertEqual(
-            report["metric_parameters"]["time_integration"],
-            "discrete-sample-hold",
+            report["metric_parameters"]["trajectory_integral"],
+            "trapezoidal-origin-plus-rollout",
+        )
+        self.assertEqual(
+            report["metric_parameters"]["threshold_duration"],
+            "discrete-sample-hold-post-step",
         )
 
     def test_report_rejects_missing_hold(self):
