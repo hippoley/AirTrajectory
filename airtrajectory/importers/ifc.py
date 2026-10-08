@@ -195,6 +195,42 @@ def layout_from_ifc_semantics(
     return LayoutContract.from_dict(payload)
 
 
+def _volume_from_property_sets(psets: dict[str, Any]) -> tuple[float, str]:
+    """Resolve one positive space volume from IFC quantities/properties.
+
+    Preference order:
+    1. standard/common quantity names NetVolume / GrossVolume;
+    2. a unique positive property named Volume.
+
+    Multiple conflicting fallback values fail closed instead of selecting one.
+    """
+    preferred=[]
+    fallback=[]
+    for set_name, values in (psets or {}).items():
+        if not isinstance(values,dict):
+            continue
+        for key in ("NetVolume","GrossVolume"):
+            value=values.get(key)
+            if isinstance(value,(int,float)) and value>0:
+                preferred.append((float(value),f"{set_name}.{key}"))
+        value=values.get("Volume")
+        if isinstance(value,(int,float)) and value>0:
+            fallback.append((float(value),f"{set_name}.Volume"))
+
+    if preferred:
+        # NetVolume/GrossVolume may both exist. Prefer first deterministic name.
+        preferred.sort(key=lambda item:item[1])
+        return preferred[0]
+
+    unique={round(value,12) for value,_ in fallback}
+    if len(unique)==1 and fallback:
+        fallback.sort(key=lambda item:item[1])
+        return fallback[0]
+    if len(unique)>1:
+        raise ValueError("space has conflicting positive Volume properties")
+    raise ValueError("space missing usable volume quantity/property")
+
+
 def extract_ifc_semantics(path: str|Path) -> dict[str, Any]:
     """Extract strict semantics with IfcOpenShell.
 
@@ -228,14 +264,18 @@ def extract_ifc_semantics(path: str|Path) -> dict[str, Any]:
         return min(xs),min(ys),max(xs),max(ys)
 
     def volume(space):
-        psets=ifcopenshell.util.element.get_psets(space,qtos_only=True)
-        for name in ("Qto_SpaceBaseQuantities","BaseQuantities"):
-            q=psets.get(name) or {}
-            for key in ("NetVolume","GrossVolume"):
-                value=q.get(key)
-                if isinstance(value,(int,float)) and value>0:
-                    return float(value)
-        raise ValueError(f"IfcSpace {space.GlobalId} missing volume quantity")
+        # Real IFC2X3/Revit exports commonly place space volume in ordinary
+        # property sets rather than Qto_SpaceBaseQuantities. Read all psets,
+        # prefer standard quantity names, then accept one unambiguous positive
+        # property named Volume while preserving its source path.
+        psets=ifcopenshell.util.element.get_psets(space)
+        try:
+            value,source=_volume_from_property_sets(psets)
+            return value,source
+        except ValueError as exc:
+            raise ValueError(
+                f"IfcSpace {space.GlobalId} {exc}"
+            ) from exc
 
     spaces=[]
     for s in model.by_type("IfcSpace"):
@@ -244,7 +284,8 @@ def extract_ifc_semantics(path: str|Path) -> dict[str, Any]:
             "id":s.GlobalId,
             "name":s.Name or s.GlobalId,
             "x":x1,"y":y1,"w":x2-x1,"h":y2-y1,
-            "volume_m3":volume(s),
+            "volume_m3":volume(s)[0],
+            "volume_source":volume(s)[1],
         })
 
     adjacency={}
