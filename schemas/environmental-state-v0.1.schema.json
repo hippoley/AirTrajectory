@@ -1,0 +1,122 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/hippoley/AirTrajectory/schemas/environmental-state-v0.1.schema.json",
+  "title": "AirTrajectory Environmental State v0.1",
+  "description": "Topology-bound environmental state envelope with explicit evidence class. Exploratory and non-normative.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "topology_id", "zones", "outdoor", "quality"],
+  "properties": {
+    "schema_version": {"const": "0.1"},
+    "topology_id": {"type": "string", "minLength": 1},
+    "zones": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": {"$ref": "#/$defs/zoneState"}
+    },
+    "outdoor": {"$ref": "#/$defs/outdoorState"},
+    "quality": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["measured_fraction"],
+      "properties": {
+        "measured_fraction": {"type": "number", "minimum": 0, "maximum": 1}
+      }
+    }
+  },
+  "$defs": {
+    "environmentalValue": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["value", "evidence", "observed_at", "confidence", "source_id"],
+      "properties": {
+        "value": {
+          "anyOf": [
+            {"type": "number"},
+            {"type": "boolean"},
+            {"type": "null"}
+          ]
+        },
+        "evidence": {
+          "enum": ["measured", "estimated", "simulated", "stale", "unavailable"]
+        },
+        "observed_at": {
+          "anyOf": [
+            {"type": "string", "format": "date-time"},
+            {"type": "null"}
+          ]
+        },
+        "confidence": {
+          "anyOf": [
+            {"type": "number", "minimum": 0, "maximum": 1},
+            {"type": "null"}
+          ]
+        },
+        "source_id": {
+          "anyOf": [
+            {"type": "string", "minLength": 1},
+            {"type": "null"}
+          ]
+        }
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"evidence": {"const": "unavailable"}}},
+          "then": {"properties": {"value": {"type": "null"}}}
+        },
+        {
+          "if": {"properties": {"evidence": {"const": "measured"}}},
+          "then": {"properties": {"value": {"not": {"type": "null"}}}}
+        }
+      ]
+    },
+    "zoneValues": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "co2_ppm": {"$ref": "#/$defs/environmentalValue"},
+        "pm25_ug_m3": {"$ref": "#/$defs/environmentalValue"},
+        "temperature_c": {"$ref": "#/$defs/environmentalValue"},
+        "relative_humidity_pct": {"$ref": "#/$defs/environmentalValue"},
+        "tvoc_ug_m3": {"$ref": "#/$defs/environmentalValue"},
+        "hcho_mg_m3": {"$ref": "#/$defs/environmentalValue"},
+        "occupancy_count": {"$ref": "#/$defs/environmentalValue"}
+      }
+    },
+    "zoneState": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["zone_id", "values", "source_terms"],
+      "properties": {
+        "zone_id": {"type": "string", "minLength": 1},
+        "values": {"$ref": "#/$defs/zoneValues"},
+        "source_terms": {
+          "type": "object",
+          "additionalProperties": {"$ref": "#/$defs/environmentalValue"}
+        }
+      }
+    },
+    "outdoorValues": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "pm25_ug_m3": {"$ref": "#/$defs/environmentalValue"},
+        "temperature_c": {"$ref": "#/$defs/environmentalValue"},
+        "relative_humidity_pct": {"$ref": "#/$defs/environmentalValue"},
+        "wind_speed_m_s": {"$ref": "#/$defs/environmentalValue"},
+        "wind_direction_deg": {"$ref": "#/$defs/environmentalValue"},
+        "rain": {"$ref": "#/$defs/environmentalValue"},
+        "pressure_pa": {"$ref": "#/$defs/environmentalValue"}
+      }
+    },
+    "outdoorState": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["boundary_id", "values"],
+      "properties": {
+        "boundary_id": {"type": "string", "minLength": 1},
+        "values": {"$ref": "#/$defs/outdoorValues"}
+      }
+    }
+  }
+}
