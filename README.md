@@ -2,60 +2,52 @@
 
 **Trajectory-native learning for multi-zone, multi-window ventilation control.**
 
-> **New public-verification target:** make every critical agent-to-world claim independently **playable, machine-replayable, and reality-bounded**.
+> **Product target:** accept a real home topology, construct a topology-aware environmental state, search coordinated multi-window ventilation strategies, preview their consequences, execute conservatively, and replan from measured reality.
 
-### Start here: break the agent
-
-Before reading the architecture, use the deployed lab to trigger a failure and see what the system is allowed to claim. The probe layer is intentionally simpler than the research surface below it.
-
-Current reference probes:
-
-- **Rain after approval** → stale authorization must block motion.
-- **Lost ACK** → transport uncertainty must not become physical-effect failure.
-- **Stale readback** → a correct-looking value cannot confirm an effect if the observation is not fresh.
-
-The canonical cross-layer index is [`probes/catalog.v0.1.json`](probes/catalog.v0.1.json). It connects each playable interaction to its behavioral mechanism, machine vector, runtime implementation, evidence boundary, and Build / Double / Kill criterion.
-
-The long-term goal is not to maximize clicks. It is to reduce the cost for an independent reviewer or runtime to **reproduce, challenge, adapt, cite, or depend on** one correctness case without first understanding the whole repository.
-
-AirTrajectory turns room topology + a replaceable physics backend into trajectories that can be used for offline RL, sequence models, counterfactual analysis, and transfer evaluation on unseen floor plans.
-
-## What stays valuable when models get better
-
-AirTrajectory treats **model intelligence as replaceable** and **evidence authority as non-replaceable**.
-
-A stronger planner, LLM, RL policy, or future agent may propose better actions. It must not be able to rewrite what actually happened.
+AirTrajectory is built around one end-to-end path:
 
 ```text
-model / planner                replaceable
-physics backend                replaceable
-policy implementation          replaceable
-
-physical measurement           authoritative
-execution identity             durable
-coverage reconciliation        deterministic
-evidence class                 explicit
-field validation               empirical
-standards/interoperability     portable
+Floorplan / topology
+→ environmental state
+→ candidate ventilation paths
+→ physics-backed future trajectories
+→ coordinated multi-window action
+→ physical feedback
+→ next trusted origin
+→ replan / learn
 ```
 
-That gives the project a deliberately model-independent moat:
+The long-term product goal is **arbitrary-layout transfer**: the control pipeline should not depend on one fixed floor plan, fixed room count, or fixed W1/W2/W3 action vector.
 
-- a model assertion cannot promote `tau_sim` into physical evidence;
-- a persuasive explanation cannot erase a missing expected execution;
-- a transport ACK cannot be promoted into proof of physical effect;
-- compensation is not successful until independently verified;
-- coverage over an examined set is not proof that the source population was complete.
+Target environmental objectives include:
 
-**Portable proof artifacts:**
+- CO₂;
+- PM2.5;
+- temperature;
+- humidity;
+- TVOC and formaldehyde when source/emission assumptions are explicit enough to support meaningful physical claims.
 
-- [Model Substitution Contract](docs/model-substitution-contract.md)
-- [Conformance coverage vectors](test-vectors/conformance-coverage-v0.1.json)
-- [Coverage integrity evidence index](docs/conformance-coverage-integrity-evidence-index.md)
-- [Standards / prior-art lineage](docs/standards-lineage-evidence-coverage.md)
-- [OpenTelemetry physical-effect reference scenario](interop/opentelemetry/physical-effect-lost-ack-v0.1.json)
+See [Product User Story](docs/product-user-story.md) for the full product/research acceptance contract.
 
-The long-term research bet is therefore not “which model plans best?” It is the harder boundary between **proposal → execution → measurement → evidence → coverage → claim**, grounded in real physics and independently replayable verification.
+### Development priority
+
+1. **Arbitrary topology** — unseen floorplan import/correction and variable room/door/window counts.
+2. **Multi-environment control** — one joint objective across air quality, comfort, and safety.
+3. **Topology-aware joint planning** — HOLD / Independent / Joint / learned comparisons.
+4. **Physical closed loop** — measured origin → execution → readback → next origin → replan.
+5. **Generalization evidence** — held-out topology families and sim→real transfer.
+6. **Correctness / evidence / interoperability** — support the physical trajectory system; do not replace the product.
+
+### Current truth
+
+Today the repository already has multi-zone/multi-window trajectories, real ContamX execution, learning baselines, unseen-topology experiments, closed-loop replanning, and a software-verified WindowPilot bridge.
+
+The most important product gaps remain:
+
+- arbitrary new floorplan import is not yet complete;
+- multi-pollutant/multi-comfort optimization is not yet complete;
+- real-device commissioning and the first captured physical τ₀ are not yet complete;
+- held-out structural-family results are not yet strong enough to claim arbitrary-topology generalization.
 
 ## North star
 
