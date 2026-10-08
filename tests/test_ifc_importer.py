@@ -1,9 +1,31 @@
 import unittest
 
-from airtrajectory.importers.ifc import _volume_from_property_sets, assess_ifc_semantics, layout_from_ifc_semantics
+from airtrajectory.importers.ifc import _resolve_control_scope, _volume_from_property_sets, assess_ifc_semantics, layout_from_ifc_semantics
 from airtrajectory.topology_acceptance import verify_topology_runtime
 
 class IfcImporterTests(unittest.TestCase):
+    def test_declared_control_scope_selects_only_requested_openings(self):
+        openings=[
+            {"id":"A","kind":"window"},
+            {"id":"B","kind":"window"},
+            {"id":"C","kind":"door"},
+        ]
+        selected,meta,blockers=_resolve_control_scope(openings,{"A","C"})
+        self.assertEqual([x["id"] for x in selected],["A","C"])
+        self.assertEqual(meta["mode"],"DECLARED_SUBSET")
+        self.assertEqual(meta["resolved_opening_ids"],["A","C"])
+        self.assertEqual(blockers,[])
+
+    def test_declared_control_scope_reports_unknown_opening(self):
+        openings=[{"id":"A","kind":"window"}]
+        selected,meta,blockers=_resolve_control_scope(openings,{"A","MISSING"})
+        self.assertEqual([x["id"] for x in selected],["A"])
+        self.assertEqual(meta["requested_opening_ids"],["A","MISSING"])
+        self.assertEqual(
+            blockers,
+            [{"entity_id":"MISSING","reason":"UNKNOWN_CONTROL_OPENING"}],
+        )
+
     def test_space_volume_falls_back_to_revit_style_volume_property(self):
         value,source=_volume_from_property_sets({
             "PSet_Revit_Dimensions":{"Volume":71.3906897089998}
