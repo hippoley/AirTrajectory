@@ -353,7 +353,11 @@ def extract_ifc_semantics(path: str|Path) -> dict[str, Any]:
     }
 
 
-def inspect_ifc_control_readiness(path: str|Path) -> dict[str, Any]:
+def inspect_ifc_control_readiness(
+    path: str|Path,
+    *,
+    controlled_opening_ids: set[str]|None=None,
+) -> dict[str, Any]:
     """Inspect a real IFC file and collect control-readiness blockers.
 
     Unlike `import_ifc()`, this function is diagnostic: missing geometry,
@@ -385,6 +389,11 @@ def inspect_ifc_control_readiness(path: str|Path) -> dict[str, Any]:
     blockers=[]
     spaces=[]
     openings=[]
+    requested_scope=(
+        {str(value) for value in controlled_opening_ids}
+        if controlled_opening_ids is not None
+        else None
+    )
 
     def try_bbox(entity):
         try:
@@ -445,7 +454,8 @@ def inspect_ifc_control_readiness(path: str|Path) -> dict[str, Any]:
         for elem in model.by_type(ifc_type):
             gid=elem.GlobalId
             adj=sorted(adjacency.get(gid) or [])
-            if len(adj) not in {1,2}:
+            in_scope=requested_scope is None or gid in requested_scope
+            if in_scope and len(adj) not in {1,2}:
                 blockers.append({
                     "entity_id":gid,
                     "reason":"AMBIGUOUS_SPACE_ADJACENCY",
@@ -453,9 +463,9 @@ def inspect_ifc_control_readiness(path: str|Path) -> dict[str, Any]:
                 })
             width=float(getattr(elem,"OverallWidth",0) or 0)*length_unit_scale
             height=float(getattr(elem,"OverallHeight",0) or 0)*length_unit_scale
-            if width<=0:
+            if in_scope and width<=0:
                 blockers.append({"entity_id":gid,"reason":"MISSING_WIDTH_M"})
-            if height<=0:
+            if in_scope and height<=0:
                 blockers.append({"entity_id":gid,"reason":"MISSING_HEIGHT_M"})
             box=try_bbox(elem)
             row={
@@ -464,6 +474,7 @@ def inspect_ifc_control_readiness(path: str|Path) -> dict[str, Any]:
                 "adjacent_spaces":adj,
                 "width_m":width if width>0 else None,
                 "height_m":height if height>0 else None,
+                "in_control_scope":in_scope,
             }
             if box is not None:
                 x1,y1,x2,y2=box
@@ -474,8 +485,21 @@ def inspect_ifc_control_readiness(path: str|Path) -> dict[str, Any]:
 
     # Reuse normalized-semantic checks so diagnostic and import paths share the
     # same blocker vocabulary. Deduplicate exact blocker identities/reasons.
-    normalized=assess_ifc_semantics({"spaces":spaces,"openings":openings})
+    scoped_openings=[
+        row for row in openings if row.get("in_control_scope") is True
+    ]
+    normalized=assess_ifc_semantics({
+        "spaces":spaces,
+        "openings":scoped_openings,
+    })
     blockers.extend(normalized["blockers"])
+    if requested_scope is not None:
+        known={row["id"] for row in openings}
+        for missing in sorted(requested_scope-known):
+            blockers.append({
+                "entity_id":missing,
+                "reason":"UNKNOWN_CONTROL_OPENING",
+            })
     dedup={}
     for blocker in blockers:
         key=(str(blocker.get("entity_id")),str(blocker.get("reason")))
@@ -510,6 +534,16 @@ def inspect_ifc_control_readiness(path: str|Path) -> dict[str, Any]:
         "window_count":len(model.by_type("IfcWindow")),
         "space_boundary_count":len(model.by_type("IfcRelSpaceBoundary")),
         "opening_count":len(openings),
+        "control_scope":{
+            "mode":"ALL_OPENINGS" if requested_scope is None else "DECLARED_SUBSET",
+            "requested_opening_ids":(
+                sorted(requested_scope) if requested_scope is not None else None
+            ),
+            "resolved_opening_ids":sorted(
+                row["id"] for row in openings
+                if row.get("in_control_scope") is True
+            ),
+        },
         "opening_boundary_coverage":{
             "doors_total":len(model.by_type("IfcDoor")),
             "doors_mapped":mapped_doors,
