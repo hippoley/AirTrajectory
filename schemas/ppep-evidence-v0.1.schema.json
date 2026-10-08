@@ -1,0 +1,81 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/hippoley/AirTrajectory/schemas/ppep-evidence-v0.1.schema.json",
+  "title": "Play Probe Evidence Protocol record v0.1",
+  "description": "Minimal model-agnostic evidence envelope for one observable action in a playable probe. Exploratory and non-normative.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "probe_id", "experiment", "interaction", "outcome", "provenance"],
+  "properties": {
+    "schema_version": {"const": "0.1.0"},
+    "probe_id": {"type": "string", "minLength": 1},
+    "experiment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["hypothesis", "variant", "assignment_id"],
+      "properties": {
+        "hypothesis": {"type": "string", "minLength": 1},
+        "variant": {"type": "string", "minLength": 1},
+        "assignment_id": {"type": "string", "minLength": 1}
+      }
+    },
+    "interaction": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["actor_id", "action", "timestamp", "prompted", "previous_state_hash", "result_state_hash"],
+      "properties": {
+        "actor_id": {"type": "string", "minLength": 1},
+        "action": {"type": "string", "minLength": 1},
+        "timestamp": {"type": "string", "format": "date-time"},
+        "prompted": {"type": "boolean"},
+        "previous_state_hash": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+        "result_state_hash": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"}
+      }
+    },
+    "outcome": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "verified", "evidence_refs"],
+      "properties": {
+        "type": {"type": "string", "enum": ["digital_state_change", "choice", "real_world_action", "none"]},
+        "verified": {"type": "boolean"},
+        "evidence_refs": {
+          "type": "array",
+          "items": {"type": "string", "minLength": 1},
+          "uniqueItems": true
+        }
+      }
+    },
+    "provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source", "consent_scope", "evidence_hash"],
+      "properties": {
+        "source": {"type": "string", "minLength": 1},
+        "consent_scope": {"type": "string", "minLength": 1},
+        "evidence_hash": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"}
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "outcome": {
+            "properties": {"verified": {"const": true}},
+            "required": ["verified"]
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "outcome": {
+            "properties": {
+              "evidence_refs": {"minItems": 1}
+            }
+          }
+        }
+      }
+    }
+  ]
+}

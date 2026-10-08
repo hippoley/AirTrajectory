@@ -1,0 +1,27 @@
+{
+  "schema_version": "0.1.0",
+  "probe_id": "stale-readback",
+  "experiment": {
+    "hypothesis": "A stale but numerically matching readback must not be treated as verified effect evidence",
+    "variant": "stale",
+    "assignment_id": "assignment-example-001"
+  },
+  "interaction": {
+    "actor_id": "pseudonymous-example-001",
+    "action": "run_probe",
+    "timestamp": "2026-10-08T09:00:00Z",
+    "prompted": false,
+    "previous_state_hash": "sha256:f42179448d9101533ec187b5610f6ab2c3835be3753a2995dec12107fc7c10ec",
+    "result_state_hash": "sha256:01ea6431e9df4cf0ec1d51987fb2bb0ad65eb628538db1d6b86591f30857e255"
+  },
+  "outcome": {
+    "type": "real_world_action",
+    "verified": false,
+    "evidence_refs": []
+  },
+  "provenance": {
+    "source": "interactive_probe",
+    "consent_scope": "experiment",
+    "evidence_hash": "sha256:3175b3d59ae231ca40c24cd843c672f0ed44368500485b5da239c67278f52234"
+  }
+}
