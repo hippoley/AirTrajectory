@@ -1,0 +1,50 @@
+name: external-convergence-consequencebench
+
+on:
+  pull_request:
+    paths:
+      - "interop/consequencebench/**"
+      - ".github/workflows/external-convergence-consequencebench.yml"
+  push:
+    branches: ["main"]
+    paths:
+      - "interop/consequencebench/**"
+      - ".github/workflows/external-convergence-consequencebench.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify-independent-convergence:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        upstream_ref:
+          - "469a4effe7de953bab56c9fc43853131541af901"
+          - "main"
+    steps:
+      - name: Checkout ConsequenceBench
+        uses: actions/checkout@v4
+        with:
+          repository: yuvin-labs/consequencebench
+          ref: ${{ matrix.upstream_ref }}
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install ConsequenceBench test dependencies
+        run: python -m pip install -e ".[dev]"
+
+      - name: Run upstream ambiguous-commit recovery control
+        run: |
+          python -m pytest -q \
+            tests/test_consequence_lifecycle_environment.py::test_ambiguous_commit_recovers_without_blind_duplicate
+
+      - name: Record evidence boundary
+        run: |
+          echo "This job verifies independent problem convergence only."
+          echo "It does not claim ConsequenceBench uses or adopts AirTrajectory."
+          echo "Upstream ref: ${{ matrix.upstream_ref }}"
