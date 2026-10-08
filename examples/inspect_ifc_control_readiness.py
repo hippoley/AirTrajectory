@@ -8,9 +8,20 @@ def main() -> int:
     p=argparse.ArgumentParser()
     p.add_argument("ifc",type=Path)
     p.add_argument("--out",type=Path)
+    p.add_argument(
+        "--control-opening",
+        action="append",
+        default=None,
+        help="IFC GlobalId in the declared controllable opening subset; repeatable",
+    )
     p.add_argument("--require-ready",action="store_true")
     args=p.parse_args()
-    report=inspect_ifc_control_readiness(args.ifc)
+    report=inspect_ifc_control_readiness(
+        args.ifc,
+        controlled_opening_ids=(
+            set(args.control_opening) if args.control_opening else None
+        ),
+    )
     raw=json.dumps(report,indent=2,sort_keys=True)+"\n"
     if args.out:
         args.out.parent.mkdir(parents=True,exist_ok=True)
