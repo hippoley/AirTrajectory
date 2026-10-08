@@ -156,6 +156,8 @@ class LayoutContractTests(unittest.TestCase):
         )
         self.assertEqual(len(contract.rooms),4)
         self.assertEqual(len(contract.openings),6)
+        self.assertEqual(contract.source_provenance["format"],"synthetic-structured-floorplan")
+        self.assertEqual(len(contract.source_provenance["source_sha256"]),64)
 
     def test_imported_floorplan_requires_supported_import_capability(self):
         path=ROOT/"tests"/"data"/"topology.imported-four-room.json"
