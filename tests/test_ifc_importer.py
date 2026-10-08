@@ -1,6 +1,6 @@
 import unittest
 
-from airtrajectory.importers.ifc import layout_from_ifc_semantics
+from airtrajectory.importers.ifc import assess_ifc_semantics, layout_from_ifc_semantics
 from airtrajectory.topology_acceptance import verify_topology_runtime
 
 class IfcImporterTests(unittest.TestCase):
@@ -31,6 +31,16 @@ class IfcImporterTests(unittest.TestCase):
             receipt["expected"]["opening_ids"],
             ["DOOR_AB","WIN_A","WIN_B"],
         )
+
+    def test_readiness_explains_missing_physical_semantics(self):
+        report=assess_ifc_semantics({
+            "spaces":[{"id":"S_A","name":"A","x":0,"y":0,"w":4,"h":3,"volume_m3":30}],
+            "openings":[{"id":"WIN_A","kind":"window","adjacent_spaces":[],"width_m":None,"height_m":1.4,"x1":0,"y1":1,"x2":0,"y2":2}],
+        })
+        self.assertEqual(report["status"],"BLOCKED")
+        reasons={b["reason"] for b in report["blockers"]}
+        self.assertIn("AMBIGUOUS_SPACE_ADJACENCY",reasons)
+        self.assertIn("MISSING_WIDTH_M",reasons)
 
     def test_missing_ifc_adjacency_fails_closed(self):
         semantics={
