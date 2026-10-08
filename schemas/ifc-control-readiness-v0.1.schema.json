@@ -59,7 +59,8 @@
               "MISSING_PROJECTED_Y1",
               "MISSING_PROJECTED_X2",
               "MISSING_PROJECTED_Y2",
-              "GEOMETRY_UNAVAILABLE"
+              "GEOMETRY_UNAVAILABLE",
+              "UNKNOWN_CONTROL_OPENING"
             ]
           },
           "detail": {}
@@ -148,6 +149,43 @@
         "windows_mapped": {
           "type": "integer",
           "minimum": 0
+        }
+      }
+    },
+    "control_scope": {
+      "type": "object",
+      "required": [
+        "mode",
+        "requested_opening_ids",
+        "resolved_opening_ids"
+      ],
+      "properties": {
+        "mode": {
+          "enum": [
+            "ALL_OPENINGS",
+            "DECLARED_SUBSET"
+          ]
+        },
+        "requested_opening_ids": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "uniqueItems": true
+            }
+          ]
+        },
+        "resolved_opening_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "uniqueItems": true
         }
       }
     }
