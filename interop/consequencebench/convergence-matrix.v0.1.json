@@ -1,0 +1,47 @@
+{
+  "schema": "external-correctness-convergence-matrix-v0.1",
+  "purpose": "Track independently implemented correctness boundaries without claiming adoption.",
+  "systems": [
+    {
+      "project": "IdempotencyBench",
+      "repository": "gssanjana4/idempotencybench",
+      "upstream_commit": "1b9b30fd37f983d6e2eb0ebf535bfcb1086fb311",
+      "independently_covers": [
+        "timeout-after-commit ambiguity",
+        "duplicate side effects under retries",
+        "substrate idempotency and runtime receipts"
+      ],
+      "airtrajectory_extension": [
+        "physical effect identity distinct from transport attempt",
+        "fresh measured post-action readback required to resolve physical outcome",
+        "stale readback probe"
+      ],
+      "relation": "external-native reproduction",
+      "adoption": false
+    },
+    {
+      "project": "ConsequenceBench",
+      "repository": "yuvin-labs/consequencebench",
+      "upstream_commit": "469a4effe7de953bab56c9fc43853131541af901",
+      "independently_covers": [
+        "ambiguous external commit",
+        "restart without blind duplicate dispatch",
+        "connector acknowledgement is not proof of effect",
+        "independent source readback",
+        "compensation and obligation lifecycle"
+      ],
+      "airtrajectory_extension": [
+        "physical observation freshness and measured-source requirements",
+        "authorization revalidation immediately before physical dispatch",
+        "playable failure probes for human-verifiable correctness"
+      ],
+      "relation": "independent convergence control",
+      "adoption": false
+    }
+  ],
+  "claims": {
+    "independent_problem_convergence": true,
+    "third_party_adoption": false,
+    "third_party_citation": false
+  }
+}
