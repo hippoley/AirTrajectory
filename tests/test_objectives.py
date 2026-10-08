@@ -6,6 +6,7 @@ from airtrajectory.objectives import (
     evaluate_candidate_outcome,
     hold_candidate,
     rank_candidate_outcomes,
+    evaluate_observation_branch,
 )
 
 
@@ -29,7 +30,8 @@ class MultiEnvironmentObjectiveTests(unittest.TestCase):
         self.assertEqual(hold["candidate_kind"],"hold")
         self.assertEqual(hold["label"],"HOLD")
         self.assertEqual(hold["deltas"]["mean_co2_ppm"],0)
-        self.assertEqual(hold["outcome_vector"]["actuator_motion"],0)
+        self.assertEqual(hold["physical_outcome_vector"]["actuator_motion_pct"],0)
+        self.assertEqual(hold["normalized_penalty_vector"]["actuator_motion_ratio"],0)
 
     def test_co2_improvement_can_lose_when_pm25_cost_is_large(self):
         risky=evaluate_candidate_outcome(
@@ -57,9 +59,52 @@ class MultiEnvironmentObjectiveTests(unittest.TestCase):
             future={"co2_ppm":{"living":900}},
             objective=self.objective,
         )
-        self.assertIsNone(row["outcome_vector"]["pm25_excess"])
+        self.assertIsNone(row["physical_outcome_vector"]["pm25_excess_ug_m3"])
+        self.assertIsNone(row["normalized_penalty_vector"]["pm25_excess_ratio"])
         self.assertIn("pm25_excess",row["unavailable_objectives"])
         self.assertNotIn("pm25_excess",row["available_objectives"])
+
+    def test_penalties_are_dimensionless_not_raw_unit_sums(self):
+        row=evaluate_candidate_outcome(
+            label="SCALED",
+            origin=self.origin,
+            future={
+                "co2_ppm":{"living":1500,"bedroom":1500},
+                "pm25_ug_m3":{"living":30,"bedroom":30},
+                "temperature_c":{"living":30,"bedroom":30},
+                "relative_humidity_pct":{"living":80,"bedroom":80},
+            },
+            objective=self.objective,
+            actuator_motion_pct=50,
+        )
+        p=row["normalized_penalty_vector"]
+        self.assertAlmostEqual(p["co2_excess_ratio"],0.5)
+        self.assertAlmostEqual(p["pm25_excess_ratio"],1.0)
+        self.assertAlmostEqual(p["temperature_discomfort_ratio"],4/6)
+        self.assertAlmostEqual(p["humidity_discomfort_ratio"],15/30)
+        self.assertAlmostEqual(p["actuator_motion_ratio"],0.5)
+
+    def test_existing_backend_branch_projects_without_inventing_pm25(self):
+        row=evaluate_observation_branch(
+            label="TOY-BRANCH",
+            observations=[
+                {
+                    "co2_ppm":{"living":1400},
+                    "opening_pct":{"W1":0},
+                },
+                {
+                    "co2_ppm":{"living":900},
+                    "opening_pct":{"W1":50},
+                },
+            ],
+            objective=self.objective,
+        )
+        self.assertEqual(row["deltas"]["mean_co2_ppm"],-500)
+        self.assertIsNone(row["physical_outcome_vector"]["pm25_excess_ug_m3"])
+        self.assertEqual(
+            row["physical_outcome_vector"]["actuator_motion_pct"],
+            50,
+        )
 
     def test_safety_dominates_nominal_air_quality_gain(self):
         unsafe=evaluate_candidate_outcome(
