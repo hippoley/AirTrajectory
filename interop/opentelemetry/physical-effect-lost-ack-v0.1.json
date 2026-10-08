@@ -1,0 +1,73 @@
+{
+  "scenario_version": "0.1",
+  "title": "Lost ACK -> authoritative physical-state reconciliation -> bounded compensation",
+  "purpose": "Reference scenario for external-effect observability semantics; not a proposed OpenTelemetry schema.",
+  "logical_execution_id": "exec-physical-001",
+  "effect_id": "effect-window-close-001",
+  "attempts": [
+    {
+      "attempt_id": "attempt-1",
+      "phase": "effect_intent",
+      "effect_class": "mutating",
+      "target": "window-actuator",
+      "target_state": "closed",
+      "authorization": "approved",
+      "effect_status": "not_started"
+    },
+    {
+      "attempt_id": "attempt-1",
+      "phase": "dispatch",
+      "transport_status": "sent",
+      "effect_status": "unresolved"
+    },
+    {
+      "attempt_id": "attempt-1",
+      "phase": "ack",
+      "transport_status": "ack_lost",
+      "effect_status": "unresolved",
+      "rule": "transport failure must not be rewritten as physical effect failure"
+    },
+    {
+      "attempt_id": "attempt-1",
+      "phase": "authoritative_readback",
+      "measurement_source": "physical_actuator_feedback",
+      "observed_state": "partially_closed",
+      "effect_status": "observed_incomplete"
+    },
+    {
+      "attempt_id": "compensation-1",
+      "phase": "compensation_intent",
+      "compensates_effect_id": "effect-window-close-001",
+      "effect_class": "mutating",
+      "target_state": "safe_closed",
+      "effect_status": "not_started"
+    },
+    {
+      "attempt_id": "compensation-1",
+      "phase": "compensation_readback",
+      "measurement_source": "physical_actuator_feedback",
+      "observed_state": "closed",
+      "effect_status": "compensated_verified"
+    },
+    {
+      "attempt_id": "post-state-1",
+      "phase": "fresh_post_action_state",
+      "measurement_source": "physical_sensor_state",
+      "effect_status": "stable",
+      "next_controller_origin": true
+    }
+  ],
+  "required_semantic_distinctions": [
+    "effect intent vs effect outcome",
+    "logical effect identity vs attempt identity",
+    "dispatch/transport evidence vs authoritative effect evidence",
+    "transport failure vs unresolved physical effect",
+    "compensation requested vs compensation physically verified",
+    "fresh measured state as the origin for the next decision"
+  ],
+  "nonclaims": [
+    "This file does not define OpenTelemetry attribute names.",
+    "This file does not require physical-specific GenAI semantic conventions.",
+    "This file is a sanitized reference scenario for evaluating generic external-effect semantics."
+  ]
+}
