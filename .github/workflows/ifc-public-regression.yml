@@ -1,0 +1,91 @@
+name: ifc-public-regression
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "airtrajectory/importers/ifc.py"
+      - "schemas/layout-contract-v0.1.schema.json"
+      - "schemas/ifc-control-readiness-v0.1.schema.json"
+      - "requirements-ifc.txt"
+      - "examples/import_ifc_layout.py"
+      - "examples/inspect_ifc_control_readiness.py"
+      - ".github/workflows/ifc-public-regression.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  duplex-ifc2x3:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install IFC importer dependency
+        run: python -m pip install -r requirements-ifc.txt
+
+      - name: Fetch public Duplex Apartment IFC
+        run: |
+          curl --fail --location --retry 3             "https://raw.githubusercontent.com/andyward/XBimDemo/master/Xbim.TestApp/Duplex_A_20110907.ifc"             --output /tmp/Duplex_A_20110907.ifc
+          test "$(head -c 13 /tmp/Duplex_A_20110907.ifc)" = "ISO-10303-21;"
+
+      - name: Inspect control readiness
+        run: |
+          python examples/inspect_ifc_control_readiness.py             /tmp/Duplex_A_20110907.ifc             --out artifacts/ifc/duplex-control-readiness.json
+
+      - name: Verify external sample identity and coverage
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p=json.loads(Path("artifacts/ifc/duplex-control-readiness.json").read_text())
+          assert p["source"]["schema"] == "IFC2X3", p["source"]
+          assert p["space_count"] == 21, p["space_count"]
+          assert p["door_count"] == 14, p["door_count"]
+          assert p["window_count"] == 24, p["window_count"]
+          assert p["space_boundary_count"] > 0, p["space_boundary_count"]
+          assert p["status"] in {"READY","BLOCKED"}
+          print(json.dumps({
+              "status":p["status"],
+              "spaces":p["space_count"],
+              "doors":p["door_count"],
+              "windows":p["window_count"],
+              "space_boundaries":p["space_boundary_count"],
+              "blocker_count":len(p["blockers"]),
+              "blocker_reasons":sorted({b["reason"] for b in p["blockers"]}),
+          },indent=2))
+          PY
+
+      - name: Write job summary
+        if: always()
+        run: |
+          if test -f artifacts/ifc/duplex-control-readiness.json; then
+            python - <<'PY' >> "$GITHUB_STEP_SUMMARY"
+          import json
+          from pathlib import Path
+          p=json.loads(Path("artifacts/ifc/duplex-control-readiness.json").read_text())
+          print("## AirTrajectory IFC public regression")
+          print()
+          print(f"- status: **{p['status']}**")
+          print(f"- IfcSpace: {p['space_count']}")
+          print(f"- IfcDoor: {p['door_count']}")
+          print(f"- IfcWindow: {p['window_count']}")
+          print(f"- IfcRelSpaceBoundary: {p['space_boundary_count']}")
+          print(f"- blockers: {len(p['blockers'])}")
+          for reason in sorted({b["reason"] for b in p["blockers"]}):
+              print(f"  - {reason}")
+          PY
+          fi
+
+      - name: Upload readiness receipt
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: duplex-ifc-control-readiness
+          path: artifacts/ifc/duplex-control-readiness.json
+          if-no-files-found: error
