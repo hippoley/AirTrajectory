@@ -832,6 +832,7 @@ class ReplannedPhysicalStepTests(unittest.TestCase):
                 encoding="utf-8",
             )
             driver=FakeDriver()
+            driver.pre_dispatch_rain=True
             out=module.run_replanned_physical_step(
                 driver=driver,
                 physical_origin_receipt=physical,
