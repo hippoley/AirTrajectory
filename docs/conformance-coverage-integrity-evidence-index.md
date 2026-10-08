@@ -80,6 +80,25 @@ On 2026-10-08, an external collision was opened in Veklom:
 
 At creation time, that issue had no external reply yet.
 
+### Emilia Protocol / Action Evidence Boundary
+
+Emilia Protocol independently carries an explicit formal/security invariant named
+`CoverageDoesNotProveCompleteness`. Its Action Evidence Boundary work also
+requires hostile omission/substitution vectors, and its bounded-execution work
+separates outside-plan claims from population-completeness assumptions.
+
+This is a stronger external convergence signal than a loose terminology match:
+AirTrajectory and Emilia independently encode the same semantic boundary in
+executable/formal verification work.
+
+On 2026-10-08, a second external collision was opened:
+
+- `emiliaprotocol/emilia-protocol#914`
+- purpose: ask whether AirTrajectory's schema-neutral coverage vectors can be
+  mapped into Emilia's existing hostile/conformance vector format
+- no adoption or endorsement is implied until an external maintainer responds,
+  cites, reuses, or requests a concrete mapping
+
 ## Recognition status
 
 As of 2026-10-08:
@@ -88,7 +107,7 @@ As of 2026-10-08:
 third-party dependency on AirTrajectory vectors   NOT YET OBSERVED
 third-party citation of AirTrajectory              NOT YET OBSERVED
 third-party maintainer endorsement                  NOT YET OBSERVED
-external public collision                           YES (#146)
+external public collisions                          YES (#146, #914)
 independent problem convergence                     YES
 portable executable evidence                        YES
 ```
@@ -130,7 +149,7 @@ Those stronger identities require external governance or adoption evidence.
 This evidence index should only be upgraded from "portable proof" to "external
 recognition" when at least one of the following happens:
 
-1. an external maintainer replies substantively to #146 or an equivalent
+1. an external maintainer replies substantively to #146, #914, or an equivalent
    verifier discussion;
 2. another repository reuses/adapts a coverage vector;
 3. another issue/PR cites this repository or a specific invariant;
