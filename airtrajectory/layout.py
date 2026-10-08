@@ -82,6 +82,7 @@ class LayoutContract:
     source_kind: str
     outside_id: str
     capabilities: dict[str,Any]
+    source_provenance: dict[str,Any]
     rooms: tuple[LayoutRoom,...]
     walls: tuple[LayoutWall,...]
     openings: tuple[LayoutOpening,...]
@@ -149,6 +150,7 @@ class LayoutContract:
             source_kind=str(payload.get("source_kind") or ""),
             outside_id=str(payload.get("outside_id") or "OUTSIDE"),
             capabilities=dict(payload.get("capabilities") or {}),
+            source_provenance=dict(payload.get("source_provenance") or {}),
             rooms=rooms,
             walls=walls,
             openings=openings,
@@ -192,6 +194,18 @@ class LayoutContract:
             if import_state!="supported":
                 raise ValueError(
                     "imported-floorplan requires arbitrary_topology_import=supported"
+                )
+            required_source=("format","source_sha256","importer")
+            missing=[key for key in required_source if not self.source_provenance.get(key)]
+            if missing:
+                raise ValueError(
+                    "imported-floorplan requires source_provenance: "
+                    + ",".join(missing)
+                )
+            source_sha=str(self.source_provenance["source_sha256"])
+            if len(source_sha)!=64 or any(c not in "0123456789abcdef" for c in source_sha.lower()):
+                raise ValueError(
+                    "source_provenance.source_sha256 must be 64 hex characters"
                 )
         if self.capabilities.get("contam_compiler") not in {"reserved","supported"}:
             raise ValueError(
@@ -306,6 +320,7 @@ class LayoutContract:
             "source_kind":self.source_kind,
             "outside_id":self.outside_id,
             "capabilities":dict(self.capabilities),
+            "source_provenance":dict(self.source_provenance),
             "rooms":[room.__dict__.copy() for room in self.rooms],
             "walls":[wall.__dict__.copy() for wall in self.walls],
             "openings":[opening.__dict__.copy() for opening in self.openings],
