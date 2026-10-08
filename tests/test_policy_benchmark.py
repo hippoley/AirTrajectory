@@ -112,6 +112,14 @@ class PolicyBenchmarkTests(unittest.TestCase):
             report["ranking_policy"],
             "none; inspect metrics and Pareto frontier",
         )
+        self.assertEqual(
+            report["metric_parameters"]["iaq_threshold_ppm_by_zone"],
+            {"bedroom": 1000.0, "living": 1000.0, "study": 1000.0},
+        )
+        self.assertEqual(
+            report["metric_parameters"]["time_integration"],
+            "discrete-sample-hold",
+        )
 
     def test_report_rejects_missing_hold(self):
         response = {
