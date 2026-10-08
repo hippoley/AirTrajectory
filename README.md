@@ -4,6 +4,43 @@
 
 AirTrajectory turns room topology + a replaceable physics backend into trajectories that can be used for offline RL, sequence models, counterfactual analysis, and transfer evaluation on unseen floor plans.
 
+## What stays valuable when models get better
+
+AirTrajectory treats **model intelligence as replaceable** and **evidence authority as non-replaceable**.
+
+A stronger planner, LLM, RL policy, or future agent may propose better actions. It must not be able to rewrite what actually happened.
+
+```text
+model / planner                replaceable
+physics backend                replaceable
+policy implementation          replaceable
+
+physical measurement           authoritative
+execution identity             durable
+coverage reconciliation        deterministic
+evidence class                 explicit
+field validation               empirical
+standards/interoperability     portable
+```
+
+That gives the project a deliberately model-independent moat:
+
+- a model assertion cannot promote `tau_sim` into physical evidence;
+- a persuasive explanation cannot erase a missing expected execution;
+- a transport ACK cannot be promoted into proof of physical effect;
+- compensation is not successful until independently verified;
+- coverage over an examined set is not proof that the source population was complete.
+
+**Portable proof artifacts:**
+
+- [Model Substitution Contract](docs/model-substitution-contract.md)
+- [Conformance coverage vectors](test-vectors/conformance-coverage-v0.1.json)
+- [Coverage integrity evidence index](docs/conformance-coverage-integrity-evidence-index.md)
+- [Standards / prior-art lineage](docs/standards-lineage-evidence-coverage.md)
+- [OpenTelemetry physical-effect reference scenario](interop/opentelemetry/physical-effect-lost-ack-v0.1.json)
+
+The long-term research bet is therefore not “which model plans best?” It is the harder boundary between **proposal → execution → measurement → evidence → coverage → claim**, grounded in real physics and independently replayable verification.
+
 ## North star
 
 > Learn transferable multi-window ventilation strategies from simulated and real trajectories, then generalize them to unseen building topologies.
