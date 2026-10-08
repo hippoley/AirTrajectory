@@ -449,6 +449,15 @@ def inspect_ifc_control_readiness(path: str|Path) -> dict[str, Any]:
         dedup.setdefault(key,blocker)
     blockers=list(dedup.values())
 
+    mapped_doors=sum(
+        1 for row in openings
+        if row["kind"]=="door" and len(row["adjacent_spaces"]) in {1,2}
+    )
+    mapped_windows=sum(
+        1 for row in openings
+        if row["kind"]=="window" and len(row["adjacent_spaces"]) in {1,2}
+    )
+
     return {
         "schema_version":"0.1",
         "status":"READY" if not blockers else "BLOCKED",
@@ -463,6 +472,12 @@ def inspect_ifc_control_readiness(path: str|Path) -> dict[str, Any]:
         "window_count":len(model.by_type("IfcWindow")),
         "space_boundary_count":len(model.by_type("IfcRelSpaceBoundary")),
         "opening_count":len(openings),
+        "opening_boundary_coverage":{
+            "doors_total":len(model.by_type("IfcDoor")),
+            "doors_mapped":mapped_doors,
+            "windows_total":len(model.by_type("IfcWindow")),
+            "windows_mapped":mapped_windows,
+        },
         "blockers":blockers,
         "semantics":{
             "topology_id":"ifc:"+path.stem,
