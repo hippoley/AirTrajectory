@@ -91,6 +91,7 @@ def _movement_pct_sum(
 def _co2_metrics(
     series_by_zone: Mapping[str, list[float]],
     *,
+    origin_co2: Mapping[str, float],
     time_step_s: int,
     safe_threshold_ppm: float,
 ) -> dict[str, Any]:
@@ -101,13 +102,22 @@ def _co2_metrics(
         raise ValueError("benchmark CO2 series lengths must be equal and non-empty")
 
     step_count = next(iter(lengths))
+    if set(origin_co2) != set(series_by_zone):
+        raise ValueError("benchmark origin CO2 must cover the same zones as rollout series")
     normalized = {
-        zone: [float(value) for value in values]
+        zone: [float(origin_co2[zone]), *[float(value) for value in values]]
         for zone, values in series_by_zone.items()
     }
     all_values = [value for values in normalized.values() for value in values]
+
+    def trapezoid(values: list[float]) -> float:
+        return sum(
+            (values[index] + values[index + 1]) * 0.5 * time_step_s
+            for index in range(len(values) - 1)
+        )
+
     zone_auc = {
-        zone: sum(values) * time_step_s
+        zone: trapezoid(values)
         for zone, values in normalized.items()
     }
     zone_peak = {
@@ -118,27 +128,34 @@ def _co2_metrics(
 
     unsafe_zone_steps = sum(
         value > safe_threshold_ppm
-        for values in normalized.values()
+        for values in series_by_zone.values()
         for value in values
     )
     iaq_discomfort_ppmh_per_zone = (
         sum(
-            max(0.0, value - safe_threshold_ppm)
+            trapezoid([
+                max(0.0, value - safe_threshold_ppm)
+                for value in values
+            ])
             for values in normalized.values()
-            for value in values
         )
-        * time_step_s
         / 3600.0
         / len(normalized)
     )
     time_to_safe_s = None
-    for step in range(step_count):
-        if all(
-            normalized[zone][step] <= safe_threshold_ppm
-            for zone in normalized
-        ):
-            time_to_safe_s = (step + 1) * time_step_s
-            break
+    if all(
+        normalized[zone][0] <= safe_threshold_ppm
+        for zone in normalized
+    ):
+        time_to_safe_s = 0
+    else:
+        for sample_index in range(1, step_count + 1):
+            if all(
+                normalized[zone][sample_index] <= safe_threshold_ppm
+                for zone in normalized
+            ):
+                time_to_safe_s = sample_index * time_step_s
+                break
 
     return {
         "mean_co2_auc_ppm_s": round(
@@ -162,11 +179,13 @@ def score_benchmark_branch(
     branch: Mapping[str, Any],
     *,
     origin_openings: Mapping[str, float],
+    origin_co2: Mapping[str, float],
     time_step_s: int,
     safe_threshold_ppm: float,
 ) -> dict[str, Any]:
     co2 = _co2_metrics(
         branch.get("co2_series_by_zone") or {},
+        origin_co2=origin_co2,
         time_step_s=time_step_s,
         safe_threshold_ppm=safe_threshold_ppm,
     )
@@ -226,6 +245,7 @@ def build_policy_benchmark_report(
         score_benchmark_branch(
             branch,
             origin_openings=normalized["origin"]["opening_pct"],
+            origin_co2=normalized["origin"]["co2_ppm"],
             time_step_s=normalized["time_step_s"],
             safe_threshold_ppm=normalized["metrics"]["iaq_reference_ppm"],
         )
@@ -274,7 +294,8 @@ def build_policy_benchmark_report(
                 zone_id: normalized["metrics"]["iaq_reference_ppm"]
                 for zone_id in sorted(topology.zones)
             },
-            "time_integration": "discrete-sample-hold",
+            "trajectory_integral": "trapezoidal-origin-plus-rollout",
+            "threshold_duration": "discrete-sample-hold-post-step",
             "zone_aggregation": "mean",
         },
         "ranking_policy": "none; inspect metrics and Pareto frontier",
