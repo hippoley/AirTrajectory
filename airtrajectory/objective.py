@@ -168,8 +168,8 @@ _PRESETS: dict[str, dict[str, Any]] = {
             ),
         },
         "priorities": (
-            "pm25_excess",
             "co2_excess",
+            "pm25_excess",
             "temperature_discomfort",
             "movement",
         ),
