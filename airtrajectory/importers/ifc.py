@@ -195,7 +195,11 @@ def layout_from_ifc_semantics(
     return LayoutContract.from_dict(payload)
 
 
-def _volume_from_property_sets(psets: dict[str, Any]) -> tuple[float, str]:
+def _volume_from_property_sets(
+    psets: dict[str, Any],
+    *,
+    volume_unit_scale: float=1.0,
+) -> tuple[float, str]:
     """Resolve one positive space volume from IFC quantities/properties.
 
     Preference order:
@@ -212,10 +216,10 @@ def _volume_from_property_sets(psets: dict[str, Any]) -> tuple[float, str]:
         for key in ("NetVolume","GrossVolume"):
             value=values.get(key)
             if isinstance(value,(int,float)) and value>0:
-                preferred.append((float(value),f"{set_name}.{key}"))
+                preferred.append((float(value)*volume_unit_scale,f"{set_name}.{key}"))
         value=values.get("Volume")
         if isinstance(value,(int,float)) and value>0:
-            fallback.append((float(value),f"{set_name}.Volume"))
+            fallback.append((float(value)*volume_unit_scale,f"{set_name}.Volume"))
 
     if preferred:
         # NetVolume/GrossVolume may both exist. Prefer first deterministic name.
@@ -247,6 +251,7 @@ def extract_ifc_semantics(path: str|Path) -> dict[str, Any]:
         import ifcopenshell
         import ifcopenshell.geom
         import ifcopenshell.util.element
+        import ifcopenshell.util.unit
     except ImportError as exc:
         raise RuntimeError(
             "IFC import requires optional dependency ifcopenshell"
@@ -254,6 +259,15 @@ def extract_ifc_semantics(path: str|Path) -> dict[str, Any]:
 
     model=ifcopenshell.open(str(path))
     settings=ifcopenshell.geom.settings()
+    length_unit_scale=ifcopenshell.util.unit.calculate_unit_scale(
+        model,"LENGTHUNIT"
+    )
+    try:
+        volume_unit_scale=ifcopenshell.util.unit.calculate_unit_scale(
+            model,"VOLUMEUNIT"
+        )
+    except Exception:
+        volume_unit_scale=length_unit_scale**3
 
     def bbox(entity):
         shape=ifcopenshell.geom.create_shape(settings,entity)
@@ -270,7 +284,10 @@ def extract_ifc_semantics(path: str|Path) -> dict[str, Any]:
         # property named Volume while preserving its source path.
         psets=ifcopenshell.util.element.get_psets(space)
         try:
-            value,source=_volume_from_property_sets(psets)
+            value,source=_volume_from_property_sets(
+                psets,
+                volume_unit_scale=volume_unit_scale,
+            )
             return value,source
         except ValueError as exc:
             raise ValueError(
@@ -308,8 +325,8 @@ def extract_ifc_semantics(path: str|Path) -> dict[str, Any]:
                     f"{ifc_type} {elem.GlobalId} lacks unambiguous "
                     "IfcRelSpaceBoundary adjacency"
                 )
-            width=float(getattr(elem,"OverallWidth",0) or 0)
-            height=float(getattr(elem,"OverallHeight",0) or 0)
+            width=float(getattr(elem,"OverallWidth",0) or 0)*length_unit_scale
+            height=float(getattr(elem,"OverallHeight",0) or 0)*length_unit_scale
             if width<=0 or height<=0:
                 raise ValueError(
                     f"{ifc_type} {elem.GlobalId} missing OverallWidth/OverallHeight"
@@ -326,6 +343,11 @@ def extract_ifc_semantics(path: str|Path) -> dict[str, Any]:
 
     return {
         "topology_id":"ifc:"+Path(path).stem,
+        "source_units":{
+            "length_to_m":length_unit_scale,
+            "volume_to_m3":volume_unit_scale,
+            "geometry_output":"SI_METERS",
+        },
         "spaces":spaces,
         "openings":opening_rows,
     }
@@ -350,6 +372,15 @@ def inspect_ifc_control_readiness(path: str|Path) -> dict[str, Any]:
     path=Path(path)
     model=ifcopenshell.open(str(path))
     settings=ifcopenshell.geom.settings()
+    length_unit_scale=ifcopenshell.util.unit.calculate_unit_scale(
+        model,"LENGTHUNIT"
+    )
+    try:
+        volume_unit_scale=ifcopenshell.util.unit.calculate_unit_scale(
+            model,"VOLUMEUNIT"
+        )
+    except Exception:
+        volume_unit_scale=length_unit_scale**3
     blockers=[]
     spaces=[]
     openings=[]
@@ -375,7 +406,8 @@ def inspect_ifc_control_readiness(path: str|Path) -> dict[str, Any]:
         box=try_bbox(space)
         try:
             volume_m3,volume_source=_volume_from_property_sets(
-                ifcopenshell.util.element.get_psets(space)
+                ifcopenshell.util.element.get_psets(space),
+                volume_unit_scale=volume_unit_scale,
             )
         except ValueError as exc:
             blockers.append({
@@ -418,8 +450,8 @@ def inspect_ifc_control_readiness(path: str|Path) -> dict[str, Any]:
                     "reason":"AMBIGUOUS_SPACE_ADJACENCY",
                     "detail":{"adjacent_spaces":adj},
                 })
-            width=float(getattr(elem,"OverallWidth",0) or 0)
-            height=float(getattr(elem,"OverallHeight",0) or 0)
+            width=float(getattr(elem,"OverallWidth",0) or 0)*length_unit_scale
+            height=float(getattr(elem,"OverallHeight",0) or 0)*length_unit_scale
             if width<=0:
                 blockers.append({"entity_id":gid,"reason":"MISSING_WIDTH_M"})
             if height<=0:
@@ -466,6 +498,11 @@ def inspect_ifc_control_readiness(path: str|Path) -> dict[str, Any]:
             "path":str(path),
             "sha256":hashlib.sha256(path.read_bytes()).hexdigest(),
             "schema":str(getattr(model,"schema","")),
+            "units":{
+                "length_to_m":length_unit_scale,
+                "volume_to_m3":volume_unit_scale,
+                "geometry_output":"SI_METERS",
+            },
         },
         "space_count":len(spaces),
         "door_count":len(model.by_type("IfcDoor")),
