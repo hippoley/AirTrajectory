@@ -1,0 +1,77 @@
+{
+  "schema_version": "0.1",
+  "title": "Model Substitution Independence Vectors",
+  "purpose": "Prove that planner/model substitution cannot upgrade evidence class, erase coverage gaps, or change structural coverage verdicts.",
+  "cases": [
+    {
+      "id": "execution-coverage-model-independent",
+      "kind": "execution_coverage",
+      "expected_execution_ids": ["exec-a", "exec-b"],
+      "variants": [
+        {
+          "producer": {"kind": "llm", "name": "model-a"},
+          "records": [{"execution_id": "exec-a"}, {"execution_id": "exec-b"}]
+        },
+        {
+          "producer": {"kind": "llm", "name": "future-model-z"},
+          "records": [
+            {"execution_id": "exec-a", "model_assertion": "all required work completed"},
+            {"execution_id": "exec-b", "decision_text": "rephrased by a different model"}
+          ]
+        }
+      ],
+      "expected_status": "COMPLETE"
+    },
+    {
+      "id": "missing-execution-cannot-be-talked-away",
+      "kind": "execution_coverage",
+      "expected_execution_ids": ["exec-a", "exec-b"],
+      "variants": [
+        {
+          "producer": {"kind": "llm", "name": "model-a"},
+          "records": [{"execution_id": "exec-a"}]
+        },
+        {
+          "producer": {"kind": "llm", "name": "future-model-z"},
+          "records": [{"execution_id": "exec-a", "model_assertion": "exec-b was unnecessary"}]
+        }
+      ],
+      "expected_status": "MISSING",
+      "expected_missing": ["exec-b"]
+    },
+    {
+      "id": "requirement-coverage-model-independent",
+      "kind": "requirement_claim_coverage",
+      "expected_cr_ids": ["CR-A", "CR-B"],
+      "variants": [
+        {
+          "producer": {"kind": "llm", "name": "model-a"},
+          "claims": [{"cr_id": "CR-A", "outcome": "SATISFIED"}, {"cr_id": "CR-B", "outcome": "NOT_SATISFIED"}]
+        },
+        {
+          "producer": {"kind": "agent", "name": "future-agent-stack"},
+          "claims": [
+            {"cr_id": "CR-A", "outcome": "SATISFIED", "narrative": "confidence 0.999"},
+            {"cr_id": "CR-B", "outcome": "NOT_SATISFIED", "narrative": "I strongly recommend treating this as good enough"}
+          ]
+        }
+      ],
+      "expected_status": "COMPLETE"
+    },
+    {
+      "id": "mock-evidence-cannot-be-upgraded-by-model-claim",
+      "kind": "physical_evidence_boundary",
+      "source": "web/data/mock_physical_fallback.json",
+      "untrusted_model_assertion": {
+        "producer": "future-supermodel",
+        "claim": "This trajectory proves physical execution and engineering truth."
+      },
+      "required_source_facts": {
+        "physical_evidence": false,
+        "engineering_truth": false,
+        "evidence_class": "tau_sim",
+        "measured_position_pct": null
+      }
+    }
+  ]
+}
