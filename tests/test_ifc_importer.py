@@ -62,7 +62,7 @@ class IfcImporterTests(unittest.TestCase):
             "spaces":[{"id":"S_A","name":"A","x":0,"y":0,"w":4,"h":3,"volume_m3":30}],
             "openings":[{"id":"WIN_A","kind":"window","adjacent_spaces":[],"width_m":1.2,"height_m":1.4,"x1":0,"y1":1,"x2":0,"y2":2}],
         }
-        with self.assertRaisesRegex(ValueError,"requires one or two adjacent"):
+        with self.assertRaisesRegex(ValueError,"AMBIGUOUS_SPACE_ADJACENCY"):
             layout_from_ifc_semantics(semantics,source_sha256="b"*64)
 
 if __name__=="__main__":
