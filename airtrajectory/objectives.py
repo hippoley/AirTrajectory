@@ -190,10 +190,70 @@ def hold_candidate(origin: Mapping[str, Any], objective: MultiEnvironmentObjecti
     )
 
 
-def rank_candidate_outcomes(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def rank_candidate_outcomes(
+    rows: list[dict[str, Any]],
+    *,
+    required_objectives: set[str] | None = None,
+) -> list[dict[str, Any]]:
+    """Compare candidates only on a common, explicit evidence coverage.
+
+    A candidate missing a required signal must never win simply because its
+    absent penalty was excluded from the scalar score.
+    """
     if not rows:
         raise ValueError("at least one candidate outcome is required")
+    sets=[set(row["available_objectives"]) for row in rows]
+    common=set.intersection(*sets)
+    required=set(required_objectives) if required_objectives is not None else set.union(*sets)
+    missing=required-common
+    if missing:
+        raise ValueError(
+            "candidate objectives have incomparable evidence coverage: "
+            + ",".join(sorted(missing))
+        )
+    # The evaluator's scalar score is meaningful only for an identical set of
+    # weight-bearing objectives. Do not silently rank unlike evidence.
+    if any(x!=common for x in sets):
+        raise ValueError("candidate objectives have incomparable evidence coverage")
     return sorted(rows,key=lambda row:(float(row["score"]),str(row["label"])))
+
+
+def compare_observation_branches(
+    *,
+    branches: Mapping[str, list[Mapping[str, Any]]],
+    objective: MultiEnvironmentObjective,
+    origin: Mapping[str, Any],
+    required_objectives: set[str] | None = None,
+) -> dict[str, Any]:
+    """Score actual backend futures from the same declared origin.
+
+    HOLD must be supplied as a simulated no-action branch. Holding the
+    origin values constant is not a valid future forecast.
+    """
+    if "HOLD" not in branches:
+        raise ValueError("same-origin comparison requires a simulated HOLD branch")
+    if len(branches)<2:
+        raise ValueError("comparison requires HOLD and at least one alternative")
+    outcomes=[
+        evaluate_observation_branch(
+            label=label,
+            observations=list(obs),
+            origin=origin,
+            objective=objective,
+            candidate_kind="hold" if label=="HOLD" else "strategy",
+        )
+        for label,obs in branches.items()
+    ]
+    ranked=rank_candidate_outcomes(
+        outcomes,required_objectives=required_objectives
+    )
+    return {
+        "status":"COMPARABLE",
+        "selected":ranked[0],
+        "candidates":ranked,
+        "hold_source":"backend-simulated",
+        "comparison_boundary":"same origin, same horizon and same available objectives required",
+    }
 
 
 def _opening_motion_from_states(
