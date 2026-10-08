@@ -214,7 +214,8 @@
       "additionalProperties": false,
       "required": [
         "iaq_threshold_ppm_by_zone",
-        "time_integration",
+        "trajectory_integral",
+        "threshold_duration",
         "zone_aggregation"
       ],
       "properties": {
@@ -226,11 +227,14 @@
             "minimum": 0
           }
         },
-        "time_integration": {
-          "const": "discrete-sample-hold"
-        },
         "zone_aggregation": {
           "const": "mean"
+        },
+        "trajectory_integral": {
+          "const": "trapezoidal-origin-plus-rollout"
+        },
+        "threshold_duration": {
+          "const": "discrete-sample-hold-post-step"
         }
       }
     }
