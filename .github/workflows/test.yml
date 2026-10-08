@@ -21,7 +21,7 @@ jobs:
       - run: python -m unittest discover -s tests -v
       - run: python examples/single_room_rollout.py
       - run: python examples/export_web_scenarios.py
-      - run: python -c 'import json; p=json.load(open("web/data/scenarios.json")); assert len(p["scenarios"]) == 4; assert p["baseline"] == "exhaustive-opening-search-v1"; assert p["hold_outcome"]["candidate_kind"] == "hold"; assert all(s["frames"] for s in p["scenarios"]); assert all(set(s["metrics"]) == {"iaq","flow","motion","return"} for s in p["scenarios"]); assert all("multi_environment_outcome" in s for s in p["scenarios"]); assert all("normalized_penalty_vector" in s["multi_environment_outcome"] for s in p["scenarios"]); assert all("pm25_excess_ratio" in s["multi_environment_outcome"]["unavailable_objectives"] for s in p["scenarios"])'
+      - run: python -c 'import json; p=json.load(open("web/data/scenarios.json")); assert len(p["scenarios"]) == 4; assert p["baseline"] == "exhaustive-opening-search-v1"; assert p["static_hold_snapshot"]["candidate_kind"] == "hold"; assert all(s["frames"] for s in p["scenarios"]); assert all(set(s["metrics"]) == {"iaq","flow","motion","return"} for s in p["scenarios"]); assert all("multi_environment_outcome" in s for s in p["scenarios"]); assert all("normalized_penalty_vector" in s["multi_environment_outcome"] for s in p["scenarios"]); assert all("pm25_excess_ratio" in s["multi_environment_outcome"]["unavailable_objectives"] for s in p["scenarios"])'
 
 
   contam-real:
