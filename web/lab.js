@@ -67,7 +67,7 @@ function currentTopologySnapshot(){
 }
 const fallback=[{name:"W1 · 25%",opens:[.25,.35,.55,1],co2:1045,series:[1260,1205,1162,1119,1081,1045],return:-8.2},{name:"W1 · 50%",opens:[.5,.35,.55,1],co2:925,series:[1260,1168,1090,1025,971,925],return:-7.1},{name:"W1 · 75%",opens:[.75,.35,.55,1],co2:842,series:[1260,1130,1030,952,891,842],return:-6.5},{name:"Cross-flow · W1 + W3",opens:[.55,.25,.85,1],co2:795,series:[1260,1108,1001,915,847,795],return:-6.1}];
 let scenarios=fallback,baseline=1260,holdOutcome=null,selected=0,cursor=0,timer=null,currentFrame=null,selectedOpening=null,objective="balanced",viewMode="flow",topologyRevision=0,trajectoryRevision=0,trajectoryStale=false,dragOpening=null,dragMoved=false;
-async function loadScenarios(){const h=document.querySelector("#health");try{const r=await fetch("./data/scenarios.json",{cache:"no-store"});if(!r.ok)throw 0;const p=await r.json();if(!Array.isArray(p.scenarios)||p.scenarios.length<4)throw 0;scenarios=p.scenarios;baseline=p.baseline_co2;holdOutcome=p.hold_outcome||null;document.querySelector("#backendName").textContent=p.backend.toUpperCase();h.className="health ok";h.querySelector("b").textContent="BACKEND ARTIFACT READY"}catch(e){h.className="health fallback";h.querySelector("b").textContent="INTERACTIVE FALLBACK";document.querySelector("#backendName").textContent="FAST FALLBACK"}renderBranches();applyFrame(0,0);updateVector(scenarios[0])}
+async function loadScenarios(){const h=document.querySelector("#health");try{const r=await fetch("./data/scenarios.json",{cache:"no-store"});if(!r.ok)throw 0;const p=await r.json();if(!Array.isArray(p.scenarios)||p.scenarios.length<4)throw 0;scenarios=p.scenarios;baseline=p.baseline_co2;holdOutcome=p.static_hold_snapshot||null;document.querySelector("#backendName").textContent=p.backend.toUpperCase();h.className="health ok";h.querySelector("b").textContent="BACKEND ARTIFACT READY"}catch(e){h.className="health fallback";h.querySelector("b").textContent="INTERACTIVE FALLBACK";document.querySelector("#backendName").textContent="FAST FALLBACK"}renderBranches();applyFrame(0,0);updateVector(scenarios[0])}
 // Filament renderer: persistent pathlines, not decorative dots.
 const PARTICLE_BUDGET=620;
 let particles=[];
@@ -326,9 +326,9 @@ function updateVector(s){
  const hold=document.querySelector("#holdCompare");
  if(holdOutcome){
    const hp=holdOutcome.physical_outcome_vector||{};
-   hold.textContent="HOLD baseline · score "+Number(holdOutcome.score).toFixed(3)+" · CO₂ excess "+(hp.co2_excess_ppm==null?"N/A":Number(hp.co2_excess_ppm).toFixed(0)+" ppm");
+   hold.textContent="STATIC HOLD SNAPSHOT · not a simulated future · illustrative score "+Number(holdOutcome.score).toFixed(3)+" · CO₂ excess "+(hp.co2_excess_ppm==null?"N/A":Number(hp.co2_excess_ppm).toFixed(0)+" ppm");
  }else{
-   hold.textContent="HOLD baseline · unavailable in interactive fallback";
+   hold.textContent="Simulated HOLD forecast unavailable in interactive fallback";
  }
 }
 function spark(series){const min=Math.min(...series),max=Math.max(...series),span=Math.max(1,max-min);return series.map(v=>"▁▂▃▄▅▆▇█"[Math.min(7,Math.floor((v-min)/span*7))]).join("")}function renderBranches(){const best=scenarios.reduce((b,s,i,a)=>objectiveScore(s)>objectiveScore(a[b])?i:b,0);document.querySelector("#branches").innerHTML=scenarios.map((s,i)=>`<article class="branch ${i===best?"best":""}" data-i="${i}"><b>${s.name}</b><div class="outcome">${s.co2} ppm</div><span class="delta">↓ ${baseline-s.co2} ppm · t+30</span><div class="spark">${spark(s.series)}</div><small>return ${s.return}</small></article>`).join("");document.querySelectorAll(".branch").forEach(b=>b.onclick=()=>{const i=+b.dataset.i;applyScenario(i);updateVector(scenarios[i])})}
