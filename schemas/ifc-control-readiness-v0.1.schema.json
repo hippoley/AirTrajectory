@@ -65,6 +65,91 @@
           "detail": {}
         }
       }
+    },
+    "source": {
+      "type": "object",
+      "required": [
+        "format",
+        "sha256",
+        "schema",
+        "units"
+      ],
+      "properties": {
+        "format": {
+          "const": "IFC"
+        },
+        "path": {
+          "type": "string"
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-fA-F]{64}$"
+        },
+        "schema": {
+          "type": "string",
+          "minLength": 1
+        },
+        "units": {
+          "type": "object",
+          "required": [
+            "length_to_m",
+            "volume_to_m3",
+            "geometry_output"
+          ],
+          "properties": {
+            "length_to_m": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            "volume_to_m3": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            "geometry_output": {
+              "const": "SI_METERS"
+            }
+          }
+        }
+      }
+    },
+    "door_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "window_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "space_boundary_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "opening_boundary_coverage": {
+      "type": "object",
+      "required": [
+        "doors_total",
+        "doors_mapped",
+        "windows_total",
+        "windows_mapped"
+      ],
+      "properties": {
+        "doors_total": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "doors_mapped": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "windows_total": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "windows_mapped": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
     }
   },
   "allOf": [
