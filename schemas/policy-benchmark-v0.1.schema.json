@@ -21,20 +21,46 @@
     "evidence_boundary"
   ],
   "properties": {
-    "schema_version": {"const": "0.1"},
-    "benchmark": {"const": "airtrajectory-policy-benchmark-v0.1"},
-    "topology_id": {"type": "string", "minLength": 1},
-    "golden_case_id": {"type": "string", "minLength": 1},
-    "same_origin": {"const": true},
-    "same_horizon": {"const": true},
-    "time_step_s": {"type": "integer", "minimum": 1},
-    "horizon_steps": {"type": "integer", "minimum": 1},
+    "schema_version": {
+      "const": "0.1"
+    },
+    "benchmark": {
+      "const": "airtrajectory-policy-benchmark-v0.1"
+    },
+    "topology_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "golden_case_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "same_origin": {
+      "const": true
+    },
+    "same_horizon": {
+      "const": true
+    },
+    "time_step_s": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "horizon_steps": {
+      "type": "integer",
+      "minimum": 1
+    },
     "required_baselines": {
       "type": "array",
       "prefixItems": [
-        {"const": "HOLD"},
-        {"const": "INDEPENDENT"},
-        {"const": "JOINT"}
+        {
+          "const": "HOLD"
+        },
+        {
+          "const": "INDEPENDENT"
+        },
+        {
+          "const": "JOINT"
+        }
       ],
       "items": false,
       "minItems": 3,
@@ -45,7 +71,10 @@
     },
     "pareto_frontier": {
       "type": "array",
-      "items": {"type": "string", "minLength": 1},
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
       "uniqueItems": true
     },
     "results": {
@@ -61,7 +90,10 @@
           "scalar_return"
         ],
         "properties": {
-          "label": {"type": "string", "minLength": 1},
+          "label": {
+            "type": "string",
+            "minLength": 1
+          },
           "metrics": {
             "type": "object",
             "additionalProperties": false,
@@ -72,32 +104,64 @@
               "worst_zone_id",
               "worst_zone_peak_co2_ppm",
               "zone_seconds_above_threshold",
+              "iaq_discomfort_ppmh_per_zone",
               "time_to_safe_s",
               "actuator_movement_pct_sum",
               "safety_violations",
               "prediction_error"
             ],
             "properties": {
-              "mean_co2_auc_ppm_s": {"type": "number"},
-              "worst_zone_co2_auc_ppm_s": {"type": "number"},
-              "peak_co2_ppm": {"type": "number"},
-              "worst_zone_id": {"type": "string", "minLength": 1},
-              "worst_zone_peak_co2_ppm": {"type": "number"},
-              "zone_seconds_above_threshold": {"type": "integer", "minimum": 0},
+              "mean_co2_auc_ppm_s": {
+                "type": "number"
+              },
+              "worst_zone_co2_auc_ppm_s": {
+                "type": "number"
+              },
+              "peak_co2_ppm": {
+                "type": "number"
+              },
+              "worst_zone_id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "worst_zone_peak_co2_ppm": {
+                "type": "number"
+              },
+              "zone_seconds_above_threshold": {
+                "type": "integer",
+                "minimum": 0
+              },
               "time_to_safe_s": {
                 "anyOf": [
-                  {"type": "integer", "minimum": 0},
-                  {"type": "null"}
+                  {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  {
+                    "type": "null"
+                  }
                 ]
               },
-              "actuator_movement_pct_sum": {"type": "number", "minimum": 0},
+              "actuator_movement_pct_sum": {
+                "type": "number",
+                "minimum": 0
+              },
               "safety_violations": {
                 "anyOf": [
-                  {"type": "integer", "minimum": 0},
-                  {"type": "null"}
+                  {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  {
+                    "type": "null"
+                  }
                 ]
               },
-              "prediction_error": {}
+              "prediction_error": {},
+              "iaq_discomfort_ppmh_per_zone": {
+                "type": "number",
+                "minimum": 0
+              }
             }
           },
           "metric_availability": {
@@ -110,17 +174,40 @@
               "prediction_error"
             ],
             "properties": {
-              "co2": {"enum": ["available", "unavailable"]},
-              "actuator_movement": {"enum": ["available", "unavailable"]},
-              "safety_violations": {"enum": ["available", "unavailable"]},
-              "prediction_error": {"enum": ["available", "unavailable"]}
+              "co2": {
+                "enum": [
+                  "available",
+                  "unavailable"
+                ]
+              },
+              "actuator_movement": {
+                "enum": [
+                  "available",
+                  "unavailable"
+                ]
+              },
+              "safety_violations": {
+                "enum": [
+                  "available",
+                  "unavailable"
+                ]
+              },
+              "prediction_error": {
+                "enum": [
+                  "available",
+                  "unavailable"
+                ]
+              }
             }
           },
           "scalar_return": {}
         }
       }
     },
-    "evidence_boundary": {"type": "string", "minLength": 1}
+    "evidence_boundary": {
+      "type": "string",
+      "minLength": 1
+    }
   },
   "allOf": [
     {
@@ -128,8 +215,14 @@
         "properties": {
           "results": {
             "contains": {
-              "properties": {"label": {"const": "HOLD"}},
-              "required": ["label"]
+              "properties": {
+                "label": {
+                  "const": "HOLD"
+                }
+              },
+              "required": [
+                "label"
+              ]
             }
           }
         }
