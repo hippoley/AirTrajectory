@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/hippoley/AirTrajectory/schemas/ifc-control-readiness-v0.1.schema.json",
+  "title": "AirTrajectory IFC Control Readiness v0.1",
+  "description": "Machine-readable assessment of whether IFC-derived semantics are sufficient to enter a physics-grounded ventilation-control topology without inventing missing engineering facts.",
+  "type": "object",
+  "required": ["schema_version","status","space_count","opening_count","blockers"],
+  "properties": {
+    "schema_version": {"const":"0.1"},
+    "status": {"enum":["READY","BLOCKED"]},
+    "space_count": {"type":"integer","minimum":0},
+    "opening_count": {"type":"integer","minimum":0},
+    "blockers": {
+      "type":"array",
+      "items": {
+        "type":"object",
+        "required":["entity_id","reason"],
+        "properties":{
+          "entity_id":{"type":"string"},
+          "reason":{
+            "enum":[
+              "NO_IFCSPACE",
+              "MISSING_ID",
+              "MISSING_X",
+              "MISSING_Y",
+              "MISSING_W",
+              "MISSING_H",
+              "MISSING_VOLUME_M3",
+              "NONPOSITIVE_VOLUME",
+              "AMBIGUOUS_SPACE_ADJACENCY",
+              "UNKNOWN_ADJACENT_SPACE",
+              "MISSING_WIDTH_M",
+              "MISSING_HEIGHT_M",
+              "MISSING_PROJECTED_X1",
+              "MISSING_PROJECTED_Y1",
+              "MISSING_PROJECTED_X2",
+              "MISSING_PROJECTED_Y2"
+            ]
+          },
+          "detail": {}
+        }
+      }
+    }
+  },
+  "allOf":[
+    {
+      "if":{"properties":{"status":{"const":"READY"}}},
+      "then":{"properties":{"blockers":{"maxItems":0}}}
+    },
+    {
+      "if":{"properties":{"status":{"const":"BLOCKED"}}},
+      "then":{"properties":{"blockers":{"minItems":1}}}
+    }
+  ]
+}
