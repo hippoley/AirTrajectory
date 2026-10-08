@@ -1,0 +1,39 @@
+{
+  "crosswalk_version": "0.1",
+  "target": "emiliaprotocol/emilia-protocol",
+  "discussion": "https://github.com/emiliaprotocol/emilia-protocol/issues/914",
+  "purpose": "identify what Emilia already covers natively and isolate the remaining coverage-completeness gap",
+  "rows": [
+    {
+      "airtrajectory_vector": "explicit-failure-is-covered",
+      "airtrajectory_rule": "explicit negative outcome != missing outcome",
+      "emilia_status": "ALREADY_COVERED",
+      "emilia_evidence": [
+        "security/claims.v1.json:signed-denial-cannot-authorize",
+        "conformance/vectors/resolution.v1.json:accept_declined"
+      ],
+      "interpretation": "An authentic negative outcome remains explicit/verifiable evidence even though it does not authorize the action."
+    },
+    {
+      "airtrajectory_vector": "requirement-omission",
+      "airtrajectory_rule": "positive-only claim set != complete requirement coverage",
+      "emilia_status": "PARTIALLY_COVERED",
+      "emilia_evidence": [
+        "formal/reliance-risk-plane.model.mjs:CoverageDoesNotProveCompleteness",
+        "conformance/composition/portable-state-handoff-v0.1:required-object-omission"
+      ],
+      "remaining_boundary": "existing omission fixtures reject required material, but a general expected-population claim still depends on an independently established population-completeness proof"
+    },
+    {
+      "airtrajectory_vector": "execution-omission",
+      "airtrajectory_rule": "valid included evidence != complete expected execution coverage",
+      "emilia_status": "OPEN_CROSSWALK",
+      "emilia_evidence": [
+        "formal/reliance-risk-plane.model.mjs:CoverageDoesNotProveCompleteness",
+        "draft-schrock-ep-bounded-execution-program-00:outside-plan claim requires external inventory root with population-completeness boundary"
+      ],
+      "remaining_boundary": "which native Emilia object, if any, commits the expected execution population before evidence is evaluated"
+    }
+  ],
+  "conclusion": "The cross-project review can narrow to one question: what authoritative Emilia object establishes the expected population whose completeness is being claimed?"
+}
