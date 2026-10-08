@@ -1,0 +1,112 @@
+{
+  "schema": "playable-correctness-probe-catalog-v0.1",
+  "purpose": "Human-behavior-first entry points into executable external-effect correctness.",
+  "retrieval_principle": "human-behavior-first, not technology-first",
+  "metrics": [
+    "VoluntaryContinuationRate",
+    "ExplorationDepth",
+    "ReturnWithoutPrompt",
+    "GlanceToTouch",
+    "FirstToSecondProbe",
+    "SurpriseToReplay",
+    "DiscoveryToShare"
+  ],
+  "probes": [
+    {
+      "id": "rain-after-approval",
+      "title": "It starts raining after approval",
+      "observed_phenomenon": "A previously valid physical authorization becomes unsafe before dispatch because the world changes.",
+      "behavioral_mechanism": [
+        "curiosity_gap",
+        "mental_simulation",
+        "surprise",
+        "counterfactual_exploration"
+      ],
+      "probe_primitive": "change reality after approval and ask whether the action still executes",
+      "digital_translation": "one-click browser scenario with pre-dispatch state change",
+      "measurable_behavior": [
+        "GlanceToTouch",
+        "FirstToSecondProbe",
+        "SurpriseToReplay"
+      ],
+      "reality_evidence": {
+        "browser": "web probe; explanatory only",
+        "machine_vector": "test-vectors/authorization-use-freshness-v0.1.json",
+        "implementation": "airtrajectory/authorization_freshness.py",
+        "execution_path": "examples/run_replanned_physical_step.py",
+        "physical_field_status": "not yet independently commissioned"
+      },
+      "invariant": "authorization valid at check time != authorization valid at dispatch time",
+      "maturity": "runtime-enforced + browser-playable; field campaign incomplete",
+      "build_double_kill": {
+        "build": "visitor can trigger and understand the blocked stale authorization",
+        "double": "independent runtime reproduces/adapts the vector or external reviewer requests a native fixture",
+        "kill": "users cannot explain the failure boundary after interaction or the vector cannot reproduce the runtime decision"
+      }
+    },
+    {
+      "id": "lost-ack",
+      "title": "The ACK disappears",
+      "observed_phenomenon": "Transport uncertainty is easily mistaken for physical-effect failure, causing unsafe replay.",
+      "behavioral_mechanism": [
+        "curiosity_gap",
+        "surprise",
+        "variable_discovery_reward",
+        "mental_simulation"
+      ],
+      "probe_primitive": "remove the ACK and force the user/system to decide whether to retry or inspect reality",
+      "digital_translation": "one-click lost-ACK story that keeps effect outcome unresolved until readback",
+      "measurable_behavior": [
+        "FirstToSecondProbe",
+        "SurpriseToReplay",
+        "ExplorationDepth"
+      ],
+      "reality_evidence": {
+        "browser": "web probe; explanatory only",
+        "machine_vector": "test-vectors/effect-attempt-trace-v0.1.json",
+        "reconciliation_vector": "test-vectors/physical-effect-reconciliation-v0.1.json",
+        "implementation": "airtrajectory/effect_attempts.py",
+        "reconciliation": "airtrajectory/physical_effect_reconciliation.py",
+        "physical_field_status": "not yet independently commissioned"
+      },
+      "invariant": "transport evidence != physical effect outcome",
+      "maturity": "runtime primitives + portable vectors + browser-playable; field campaign incomplete",
+      "build_double_kill": {
+        "build": "visitor sees why blind retry is unsafe",
+        "double": "another project imports/adapts the vector or cites the distinction",
+        "kill": "probe encourages retry behavior without readback or cannot distinguish attempt identity from effect identity"
+      }
+    },
+    {
+      "id": "stale-readback",
+      "title": "The sensor says 40% — but it is stale",
+      "observed_phenomenon": "A numerically correct observation is treated as proof even though it predates the action.",
+      "behavioral_mechanism": [
+        "processing_fluency_violation",
+        "surprise",
+        "prediction_error",
+        "mental_simulation"
+      ],
+      "probe_primitive": "show a plausible value then reveal that its timestamp invalidates the claim",
+      "digital_translation": "one-click browser scenario that changes CONFIRMED-looking evidence into UNRESOLVED",
+      "measurable_behavior": [
+        "SurpriseToReplay",
+        "FirstToSecondProbe",
+        "DiscoveryToShare"
+      ],
+      "reality_evidence": {
+        "browser": "web probe; explanatory only",
+        "machine_vector": "test-vectors/physical-effect-reconciliation-v0.1.json",
+        "implementation": "airtrajectory/physical_effect_reconciliation.py",
+        "physical_field_status": "not yet independently commissioned"
+      },
+      "invariant": "matching value != fresh attributable evidence",
+      "maturity": "runtime-enforced + portable vector + browser-playable; field campaign incomplete",
+      "build_double_kill": {
+        "build": "visitor understands why timestamp/provenance matter",
+        "double": "third party reproduces the UNRESOLVED result from the vector",
+        "kill": "UI implies numerical agreement alone confirms the physical effect"
+      }
+    }
+  ]
+}

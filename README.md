@@ -2,6 +2,22 @@
 
 **Trajectory-native learning for multi-zone, multi-window ventilation control.**
 
+> **New public-verification target:** make every critical agent-to-world claim independently **playable, machine-replayable, and reality-bounded**.
+
+### Start here: break the agent
+
+Before reading the architecture, use the deployed lab to trigger a failure and see what the system is allowed to claim. The probe layer is intentionally simpler than the research surface below it.
+
+Current reference probes:
+
+- **Rain after approval** → stale authorization must block motion.
+- **Lost ACK** → transport uncertainty must not become physical-effect failure.
+- **Stale readback** → a correct-looking value cannot confirm an effect if the observation is not fresh.
+
+The canonical cross-layer index is [`probes/catalog.v0.1.json`](probes/catalog.v0.1.json). It connects each playable interaction to its behavioral mechanism, machine vector, runtime implementation, evidence boundary, and Build / Double / Kill criterion.
+
+The long-term goal is not to maximize clicks. It is to reduce the cost for an independent reviewer or runtime to **reproduce, challenge, adapt, cite, or depend on** one correctness case without first understanding the whole repository.
+
 AirTrajectory turns room topology + a replaceable physics backend into trajectories that can be used for offline RL, sequence models, counterfactual analysis, and transfer evaluation on unseen floor plans.
 
 ## What stays valuable when models get better
