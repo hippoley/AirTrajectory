@@ -269,6 +269,14 @@ def build_policy_benchmark_report(
         "time_step_s": normalized["time_step_s"],
         "horizon_steps": normalized["horizon_steps"],
         "required_baselines": ["HOLD", "INDEPENDENT", "JOINT"],
+        "metric_parameters": {
+            "iaq_threshold_ppm_by_zone": {
+                zone_id: normalized["metrics"]["iaq_reference_ppm"]
+                for zone_id in sorted(topology.zones)
+            },
+            "time_integration": "discrete-sample-hold",
+            "zone_aggregation": "mean",
+        },
         "ranking_policy": "none; inspect metrics and Pareto frontier",
         "pareto_frontier": sorted(frontier),
         "results": sorted(rows, key=lambda row: row["label"]),
