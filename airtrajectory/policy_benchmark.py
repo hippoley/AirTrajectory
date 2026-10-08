@@ -121,6 +121,16 @@ def _co2_metrics(
         for values in normalized.values()
         for value in values
     )
+    iaq_discomfort_ppmh_per_zone = (
+        sum(
+            max(0.0, value - safe_threshold_ppm)
+            for values in normalized.values()
+            for value in values
+        )
+        * time_step_s
+        / 3600.0
+        / len(normalized)
+    )
     time_to_safe_s = None
     for step in range(step_count):
         if all(
@@ -140,6 +150,9 @@ def _co2_metrics(
         "worst_zone_peak_co2_ppm": round(zone_peak[worst_zone], 3),
         "zone_seconds_above_threshold": int(
             unsafe_zone_steps * time_step_s
+        ),
+        "iaq_discomfort_ppmh_per_zone": round(
+            iaq_discomfort_ppmh_per_zone, 6
         ),
         "time_to_safe_s": time_to_safe_s,
     }
@@ -224,7 +237,7 @@ def build_policy_benchmark_report(
     def vector(row):
         m = row["metrics"]
         return (
-            m["mean_co2_auc_ppm_s"],
+            m["iaq_discomfort_ppmh_per_zone"],
             m["peak_co2_ppm"],
             m["zone_seconds_above_threshold"],
             m["actuator_movement_pct_sum"],
