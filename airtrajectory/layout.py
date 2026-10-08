@@ -1,15 +1,18 @@
 """Layout/topology contract used by UI today and future physics compilers.
 
-The current release intentionally keeps room/wall geometry fixed while allowing
-windows and doors to slide along their declared wall and change opening state.
+The runtime accepts both the built-in fixed-floorplan source and a corrected
+structured-topology source emitted by an external importer. Geometry remains
+immutable during control execution; correction/editing happens before handoff.
 
 The important boundary is the contract itself:
-- today's source_kind is fixed-floorplan;
-- future arbitrary floorplan importers can emit the same schema;
-- future CONTAM compilation should consume this contract, not web-only state.
+- fixed-floorplan preserves the current demo/editor source;
+- structured-topology is the language-neutral handoff for external CAD/SVG/
+  image/3D/semantic importers after correction;
+- downstream UI, trajectory, VentilationPath, and physics consumers use the
+  same contract regardless of importer implementation.
 
-This module does not implement an arbitrary floorplan editor or CONTAM compiler.
-It validates the seam those components will use later.
+This module does not claim automatic floorplan recognition. It validates the
+stable seam that replaceable recognition/correction components hand off to.
 """
 from __future__ import annotations
 
