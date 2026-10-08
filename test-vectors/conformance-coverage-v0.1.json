@@ -1,0 +1,46 @@
+{
+  "schema_version": "0.1",
+  "title": "Conformance Coverage Adversarial Test Vectors",
+  "scope": "Portable semantic vectors for detecting coverage gaps independently of signing format.",
+  "vectors": [
+    {
+      "id": "execution-omission",
+      "kind": "execution_coverage",
+      "expected_execution_ids": ["exec-a", "exec-b"],
+      "observed_execution_ids": ["exec-a"],
+      "expected_status": "MISSING",
+      "expected_missing": ["exec-b"],
+      "principle": "A valid set of included records does not prove that every required execution is present."
+    },
+    {
+      "id": "execution-extra",
+      "kind": "execution_coverage",
+      "expected_execution_ids": ["exec-a"],
+      "observed_execution_ids": ["exec-a", "exec-x"],
+      "expected_status": "UNEXPECTED",
+      "expected_unexpected": ["exec-x"],
+      "principle": "Coverage verification must also surface evidence that falls outside the committed execution obligation."
+    },
+    {
+      "id": "requirement-omission",
+      "kind": "requirement_claim_coverage",
+      "expected_cr_ids": ["MARGO-APP-APPDESC-001", "MARGO-APP-REG-002"],
+      "claims": [
+        {"cr_id": "MARGO-APP-APPDESC-001", "outcome": "SATISFIED"}
+      ],
+      "expected_status": "MISSING",
+      "expected_missing": ["MARGO-APP-REG-002"],
+      "principle": "Positive traceability alone cannot distinguish an unsatisfied requirement from an omitted claim."
+    },
+    {
+      "id": "explicit-failure-is-covered",
+      "kind": "requirement_claim_coverage",
+      "expected_cr_ids": ["MARGO-DEV-MGMT-001"],
+      "claims": [
+        {"cr_id": "MARGO-DEV-MGMT-001", "outcome": "NOT_SATISFIED"}
+      ],
+      "expected_status": "COMPLETE",
+      "principle": "An explicit negative outcome is still complete coverage; NOT_SATISFIED is not MISSING."
+    }
+  ]
+}
