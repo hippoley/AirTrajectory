@@ -1,0 +1,25 @@
+{
+  "vector_set": "physical-effect-reconciliation-v0.1",
+  "purpose": "Resolve physical effect outcome only from fresh measured post-action evidence.",
+  "cases": [
+    {
+      "id": "lost-ack-fresh-readback-confirms",
+      "target_pct": 40,
+      "observation": {"measured": true, "fresh_after_action": true, "measured_position_pct": 39.4, "source": "actuator-encoder"},
+      "expected": "CONFIRMED"
+    },
+    {
+      "id": "lost-ack-fresh-readback-contradicts",
+      "target_pct": 40,
+      "observation": {"measured": true, "fresh_after_action": true, "measured_position_pct": 12.0, "source": "actuator-encoder"},
+      "expected": "CONTRADICTED"
+    },
+    {
+      "id": "stale-readback-cannot-resolve",
+      "target_pct": 40,
+      "observation": {"measured": true, "fresh_after_action": false, "measured_position_pct": 40.0, "source": "actuator-encoder"},
+      "expected": "UNRESOLVED"
+    }
+  ],
+  "invariant": "transport evidence and cached state cannot resolve a physical effect without fresh measured post-action evidence"
+}
