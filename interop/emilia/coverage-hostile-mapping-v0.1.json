@@ -1,0 +1,59 @@
+{
+  "mapping_version": "0.1",
+  "title": "AirTrajectory coverage vectors mapped to Emilia-style hostile checks",
+  "target": {
+    "project": "emiliaprotocol/emilia-protocol",
+    "discussion": "https://github.com/emiliaprotocol/emilia-protocol/issues/914",
+    "purpose": "review-only semantic mapping; not an Emilia conformance claim"
+  },
+  "checks": [
+    {
+      "id": "COVERAGE-MISSING-EXECUTION",
+      "category": "hostile",
+      "description": "A valid subset of execution evidence must not prove completeness when one expected execution is absent.",
+      "source_vector_id": "execution-omission",
+      "expected": {
+        "coverage_status": "MISSING",
+        "missing": ["exec-b"]
+      },
+      "emilia_alignment": [
+        "CoverageDoesNotProveCompleteness",
+        "hostile omission vector"
+      ]
+    },
+    {
+      "id": "COVERAGE-MISSING-REQUIREMENT-CLAIM",
+      "category": "hostile",
+      "description": "Positive-only satisfied requirements must not prove claim completeness when an expected requirement has no explicit outcome.",
+      "source_vector_id": "requirement-omission",
+      "expected": {
+        "coverage_status": "MISSING",
+        "missing": ["MARGO-APP-REG-002"]
+      },
+      "emilia_alignment": [
+        "CoverageDoesNotProveCompleteness",
+        "population-completeness boundary"
+      ]
+    },
+    {
+      "id": "COVERAGE-NEGATIVE-OUTCOME-IS-COVERED",
+      "category": "boundary",
+      "description": "An explicit negative requirement outcome remains covered and must not be collapsed into missing evidence.",
+      "source_vector_id": "explicit-failure-is-covered",
+      "expected": {
+        "coverage_status": "COMPLETE",
+        "outcome": "NOT_SATISFIED"
+      },
+      "emilia_alignment": [
+        "keep verifier/evidence outcome separate from coverage",
+        "do not infer omission from an explicit negative result"
+      ]
+    }
+  ],
+  "non_claims": [
+    "This file does not define an Emilia protocol extension.",
+    "This file does not claim Emilia adoption or endorsement.",
+    "This file does not claim cross-project conformance.",
+    "This file is a review artifact for hostile-vector semantic alignment."
+  ]
+}
