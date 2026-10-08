@@ -1,0 +1,21 @@
+{
+  "vector_set": "compensation-effect-binding-v0.1",
+  "purpose": "Bind a verified compensation effect to the original logical effect without rewriting history.",
+  "cases": [
+    {
+      "id": "verified-closeout-compensates-original",
+      "original_effect_id": "effect-open-001",
+      "compensation_effect_id": "effect-close-001",
+      "verified_closeout": true,
+      "expected_relation": "COMPENSATES",
+      "original_history_rewritten": false
+    },
+    {
+      "id": "same-effect-id-invalid",
+      "original_effect_id": "effect-001",
+      "compensation_effect_id": "effect-001",
+      "expected": "REJECT"
+    }
+  ],
+  "invariant": "successful compensation is a new verified effect related to, not a rewrite of, the original effect"
+}
