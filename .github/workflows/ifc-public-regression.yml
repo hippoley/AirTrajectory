@@ -61,6 +61,27 @@ jobs:
           },indent=2))
           PY
 
+      - name: Render IFC Implementers Forum-style record
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          from airtrajectory.interop.ifc_if_success_record import render_if_success_record
+
+          src=Path("artifacts/ifc/duplex-control-readiness.json")
+          report=json.loads(src.read_text())
+          out=Path("artifacts/ifc/duplex-if-style-success-record.md")
+          out.write_text(
+              render_if_success_record(
+                  report,
+                  test_title="Opening-to-space control readiness",
+                  tool_version="0.1-dev",
+                  source_model="Duplex_A_20110907.ifc",
+              ),
+              encoding="utf-8",
+          )
+          PY
+
       - name: Write job summary
         if: always()
         run: |
@@ -87,5 +108,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: duplex-ifc-control-readiness
-          path: artifacts/ifc/duplex-control-readiness.json
+          path: |
+            artifacts/ifc/duplex-control-readiness.json
+            artifacts/ifc/duplex-if-style-success-record.md
           if-no-files-found: error
