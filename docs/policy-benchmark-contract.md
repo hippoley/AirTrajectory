@@ -58,3 +58,7 @@ metrics with current end-to-end support. PM2.5, temperature, humidity, TVOC,
 HCHO, safety-event, and physical prediction-error metrics are promoted only
 when the corresponding state and physics evidence is real enough to support
 them.
+
+## BOPTEST alignment
+
+The v0.1 IAQ discomfort metric intentionally follows the same physical meaning used by BOPTEST core KPIs: integrate only the CO2 concentration above the declared threshold over time, then average across zones. AirTrajectory retains additional trajectory-native metrics because natural-ventilation control also needs worst-zone, action-movement, prediction-error, and physical-reconciliation evidence.
