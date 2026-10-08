@@ -61,4 +61,4 @@ them.
 
 ## BOPTEST alignment
 
-The v0.1 IAQ discomfort metric intentionally follows the same physical meaning used by BOPTEST core KPIs: integrate only the CO2 concentration above the declared threshold over time, then average across zones. AirTrajectory retains additional trajectory-native metrics because natural-ventilation control also needs worst-zone, action-movement, prediction-error, and physical-reconciliation evidence.
+The v0.1 IAQ discomfort metric intentionally follows the same physical meaning and numerical integration style used by BOPTEST core KPIs: prepend the declared origin to the rollout, integrate only the positive CO2 deviation above the declared threshold with trapezoidal integration over time, then average across zones. AirTrajectory receipts additionally publish the threshold map and integration semantics so the value can be independently recomputed. AirTrajectory retains additional trajectory-native metrics because natural-ventilation control also needs worst-zone, action-movement, prediction-error, and physical-reconciliation evidence.
