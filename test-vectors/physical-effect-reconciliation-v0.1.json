@@ -6,20 +6,44 @@
       "id": "lost-ack-fresh-readback-confirms",
       "target_pct": 40,
       "observation": {"measured": true, "fresh_after_action": true, "measured_position_pct": 39.4, "source": "actuator-encoder"},
-      "expected": "CONFIRMED"
+      "expected": "CONFIRMED",
+      "expected_reason": "WITHIN_TOLERANCE"
     },
     {
       "id": "lost-ack-fresh-readback-contradicts",
       "target_pct": 40,
       "observation": {"measured": true, "fresh_after_action": true, "measured_position_pct": 12.0, "source": "actuator-encoder"},
-      "expected": "CONTRADICTED"
+      "expected": "CONTRADICTED",
+      "expected_reason": "OUTSIDE_TOLERANCE"
     },
     {
       "id": "stale-readback-cannot-resolve",
       "target_pct": 40,
       "observation": {"measured": true, "fresh_after_action": false, "measured_position_pct": 40.0, "source": "actuator-encoder"},
-      "expected": "UNRESOLVED"
+      "expected": "UNRESOLVED",
+      "expected_reason": "OBSERVATION_NOT_FRESH"
+    },
+    {
+      "id": "estimated-state-cannot-resolve",
+      "target_pct": 40,
+      "observation": {"measured": false, "fresh_after_action": true, "measured_position_pct": 40.0, "source": "runtime-estimate"},
+      "expected": "UNRESOLVED",
+      "expected_reason": "OBSERVATION_NOT_MEASURED"
+    },
+    {
+      "id": "missing-observation-cannot-resolve",
+      "target_pct": 40,
+      "observation": null,
+      "expected": "UNRESOLVED",
+      "expected_reason": "NO_AUTHORITATIVE_OBSERVATION"
+    },
+    {
+      "id": "missing-measurement-source-cannot-resolve",
+      "target_pct": 40,
+      "observation": {"measured": true, "fresh_after_action": true, "measured_position_pct": 39.8, "source": ""},
+      "expected": "UNRESOLVED",
+      "expected_reason": "MEASUREMENT_SOURCE_MISSING"
     }
   ],
-  "invariant": "transport evidence and cached state cannot resolve a physical effect without fresh measured post-action evidence"
+  "invariant": "transport evidence, cached state, model estimates, and unprovenanced values cannot resolve a physical effect without fresh measured post-action evidence"
 }
