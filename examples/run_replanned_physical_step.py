@@ -12,6 +12,7 @@ from pathlib import Path
 import time
 
 from airtrajectory.drivers import WindowPilotHTTPDriver
+from airtrajectory.authorization_freshness import validate_authorization_use_freshness
 from airtrajectory.physical_action_snapshot import capture_post_action_snapshot
 from airtrajectory.physical_origin import verify_physical_origin_receipt
 from airtrajectory.physical_origin_lease import (
@@ -286,6 +287,25 @@ def run_replanned_physical_step(
 
     written_summary_sha=None
     try:
+        pre_dispatch_readiness=driver.physical_readiness()
+        if not isinstance(pre_dispatch_readiness,dict):
+            raise RuntimeError(
+                "pre-dispatch WindowPilot physical readiness returned invalid payload"
+            )
+        authorization_use=validate_authorization_use_freshness(
+            authorization=authorization,
+            freshness_checked_at=now,
+            position_feedback=(
+                pre_dispatch_readiness.get("latest_position_feedback") or {}
+            ),
+            sensor_readings=driver.read_sensors(),
+            position_tolerance_pct=1.0,
+        )
+        base={
+            **base,
+            "authorization_use_freshness":authorization_use,
+        }
+
         feedback=driver.set_position(
             str(opening_id),
             float(authorization["authorized_target_pct"]),
