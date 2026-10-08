@@ -78,7 +78,7 @@ On 2026-10-08, an external collision was opened in Veklom:
   execution obligation
 - portable AirTrajectory vectors linked directly in the issue
 
-At creation time, that issue had no external reply yet.
+The issue was later closed by its author after Veklom's published VCGB design resolved the layering question: VCGB binds the expected scenario/run population, while EEE remains the per-execution evidence-integrity layer. This is a scope resolution from external project documentation, not maintainer endorsement.
 
 ### Emilia Protocol / Action Evidence Boundary
 
@@ -107,7 +107,7 @@ As of 2026-10-08:
 third-party dependency on AirTrajectory vectors   NOT YET OBSERVED
 third-party citation of AirTrajectory              NOT YET OBSERVED
 third-party maintainer endorsement                  NOT YET OBSERVED
-external public collisions                          YES (#146, #914)
+external public collisions                          YES (#146 resolved, #914 open)
 independent problem convergence                     YES
 portable executable evidence                        YES
 ```

@@ -1,0 +1,32 @@
+{
+  "resolution_version": "0.1",
+  "target": "reprewindai-dev/veklom-FRONTEND",
+  "discussion": "https://github.com/reprewindai-dev/veklom-FRONTEND/issues/146",
+  "status": "RESOLVED_BY_EXISTING_LAYERING",
+  "question": "what commits the expected execution population before EEE envelopes are verified?",
+  "answer": {
+    "expected_population_layer": "VCGB",
+    "evidence_integrity_layer": "EEE",
+    "vcgb_mechanisms": [
+      "suite version bound by suite_hash over the canonical scenario set",
+      "harness owns the scenario population",
+      "submit_intent creates the execution attempts under test",
+      "fetch_evidence must return EEE envelopes for every submitted intent including denials",
+      "full result bundles are required for headline claims",
+      "failed scenarios must not be omitted",
+      "missing scenario IDs make a result bundle invalid on its face"
+    ],
+    "eee_role": [
+      "per-execution evidence integrity",
+      "independent envelope verification",
+      "denial as first-class evidence"
+    ]
+  },
+  "portable_invariant": "valid included evidence != complete run coverage",
+  "resolution": "Do not extend EEE with a new expected-population object when VCGB already supplies the benchmark population and run-completeness boundary.",
+  "non_claims": [
+    "This is not a Veklom maintainer endorsement.",
+    "This does not claim EEE alone proves production-wide completeness.",
+    "This does not claim VCGB proves a system records every production execution."
+  ]
+}
