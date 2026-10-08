@@ -61,6 +61,12 @@ from
 
 The first is agent behavior. The second is an execution-substrate property.
 
+## Prior-art calibration
+
+This is **not** a novelty claim for stale or missing verification channels. Recent exactly-once work such as LIMBO / *Where Does Exactly-Once Live? Model, Harness, and Tool-Contract Effects on Duplicate Side Effects in LLM Agents* (arXiv:2609.29095) explicitly studies eventually consistent and missing read paths, late commits, redelivery, and partial effects.
+
+The narrower AirTrajectory contribution is to carry the same class of ambiguity into physical-effect evidence, where a readback must also be fresh, measured, attributable, and temporally downstream of the action being resolved — and to expose that boundary as a playable probe plus machine vector.
+
 ## AirTrajectory relation
 
 This fixture is the external-native translation of AirTrajectory's
