@@ -125,3 +125,19 @@ physical device feedback
 
 A third party can adopt the readiness vocabulary or schema without adopting the
 rest of AirTrajectory.
+
+
+## Reproducible IFC importer environment
+
+The optional IFC path is intentionally isolated from the core runtime.
+
+```bash
+python -m pip install -r requirements-ifc.txt
+python examples/import_ifc_layout.py model.ifc --out model.airtrajectory.json
+python examples/verify_imported_topology.py model.airtrajectory.json
+```
+
+The pinned importer dependency is currently `ifcopenshell==0.9.0`.
+
+A future importer-version update must preserve the source provenance and rerun
+the external corpus/readiness regression before compatibility is claimed.
