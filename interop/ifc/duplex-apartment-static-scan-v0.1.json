@@ -1,0 +1,33 @@
+{
+  "schema_version": "0.1",
+  "evidence_class": "EXTERNAL_PUBLIC_IFC_STATIC_SCAN",
+  "status": "PARTIAL_NOT_RUNTIME_EXECUTED",
+  "source": {
+    "repository": "andyward/XBimDemo",
+    "path": "Xbim.TestApp/Duplex_A_20110907.ifc",
+    "git_blob_sha": "8210b5f627e92ea888252c318481babce31059c5",
+    "provenance_note": "Public mirror of the widely used buildingSMART Duplex Apartment sample."
+  },
+  "file_facts": {
+    "step_header": "ISO-10303-21;",
+    "schema": "IFC2X3",
+    "byte_count": 2380763,
+    "entity_counts": {
+      "IfcSpace": 21,
+      "IfcDoor": 14,
+      "IfcWindow": 24,
+      "IfcRelSpaceBoundary": 265
+    }
+  },
+  "discovered_compatibility_gap": {
+    "original_assumption": "Space volume must be available as NetVolume/GrossVolume quantity.",
+    "observed_export_pattern": "Revit IFC2X3 sample contains IfcPropertySingleValue named Volume with IFCVOLUMEMEASURE values.",
+    "correction": "Importer now prefers standard volume quantities and falls back only to one unambiguous positive Volume property.",
+    "regression_added": true
+  },
+  "claim_boundary": [
+    "This receipt is a static source scan, not an IfcOpenShell runtime import result.",
+    "It does not claim the Duplex model is AirTrajectory control-ready.",
+    "A runtime corpus job remains required before READY/BLOCKED classification."
+  ]
+}
