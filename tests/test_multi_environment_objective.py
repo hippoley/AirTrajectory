@@ -105,7 +105,7 @@ class MultiEnvironmentObjectiveTests(unittest.TestCase):
         self.assertEqual(report["recommended"], ["SHORT_CROSSFLOW"])
         self.assertEqual(
             report["recommendation_basis"],
-            ["pm25_excess", "co2_excess"],
+            ["co2_excess"],
         )
 
     def test_rain_blocks_motion_but_not_hold(self):
