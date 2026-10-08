@@ -1,0 +1,111 @@
+{
+  "schema_version": "0.1",
+  "topology_id": "external.structured-two-room.v1",
+  "source_kind": "structured-topology",
+  "outside_id": "OUTSIDE",
+  "capabilities": {
+    "floorplan_geometry_editable": false,
+    "opening_position_editable": true,
+    "opening_state_editable": true,
+    "arbitrary_topology_import": true,
+    "contam_compiler": "reserved"
+  },
+  "rooms": [
+    {
+      "id": "room_north",
+      "name": "NORTH ROOM",
+      "x": 0,
+      "y": 0,
+      "w": 4,
+      "h": 3,
+      "volume_m3": 30
+    },
+    {
+      "id": "room_south",
+      "name": "SOUTH ROOM",
+      "x": 0,
+      "y": 3,
+      "w": 4,
+      "h": 3,
+      "volume_m3": 32
+    }
+  ],
+  "walls": [
+    {
+      "id": "north-exterior",
+      "kind": "exterior",
+      "source": "room_north",
+      "target": "OUTSIDE",
+      "x1": 0,
+      "y1": 0,
+      "x2": 4,
+      "y2": 0
+    },
+    {
+      "id": "south-exterior",
+      "kind": "exterior",
+      "source": "room_south",
+      "target": "OUTSIDE",
+      "x1": 0,
+      "y1": 6,
+      "x2": 4,
+      "y2": 6
+    },
+    {
+      "id": "north-south",
+      "kind": "internal",
+      "source": "room_north",
+      "target": "room_south",
+      "x1": 0,
+      "y1": 3,
+      "x2": 4,
+      "y2": 3
+    }
+  ],
+  "openings": [
+    {
+      "id": "north_window",
+      "kind": "window",
+      "wall_id": "north-exterior",
+      "source": "room_north",
+      "target": "OUTSIDE",
+      "position_t": 0.5,
+      "initial_open_pct": 0,
+      "max_area_m2": 1.2,
+      "render_side": "top",
+      "position_editable": true,
+      "state_editable": true
+    },
+    {
+      "id": "south_window",
+      "kind": "window",
+      "wall_id": "south-exterior",
+      "source": "room_south",
+      "target": "OUTSIDE",
+      "position_t": 0.5,
+      "initial_open_pct": 0,
+      "max_area_m2": 1.0,
+      "render_side": "bottom",
+      "position_editable": true,
+      "state_editable": true
+    },
+    {
+      "id": "inner_door",
+      "kind": "door",
+      "wall_id": "north-south",
+      "source": "room_north",
+      "target": "room_south",
+      "position_t": 0.5,
+      "initial_open_pct": 100,
+      "max_area_m2": 1.8,
+      "render_side": "internal",
+      "position_editable": true,
+      "state_editable": true
+    }
+  ],
+  "compiler_contract": {
+    "current_consumers": ["web-ui", "trajectory-context", "ventilation-paths"],
+    "reserved_consumers": ["contam-layout-compiler"],
+    "note": "Represents a topology emitted by an external importer after user correction."
+  }
+}
