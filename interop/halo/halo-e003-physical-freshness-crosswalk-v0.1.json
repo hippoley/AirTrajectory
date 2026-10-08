@@ -1,0 +1,42 @@
+{
+  "mapping": "halo-e003-physical-freshness-crosswalk-v0.1",
+  "source": {
+    "project": "HALO",
+    "experiment": "E003 — Verdict Freshness / Stale-State Enforcement",
+    "source_url": "https://github.com/songjiun10-collab/Halo/blob/main/experiments/e003_verdict_freshness/README.md"
+  },
+  "airtrajectory": {
+    "implementation": "authorization-use freshness gate",
+    "implementation_pr": "https://github.com/hippoley/AirTrajectory/pull/175",
+    "portable_vector": "../../test-vectors/authorization-use-freshness-v0.1.json"
+  },
+  "crosswalk": [
+    {
+      "halo_protocol": "cached_verdict",
+      "physical_interpretation": "use a prior authorization without re-observing policy-relevant physical state",
+      "airtrajectory_expected": "REJECT_AS_UNSAFE_BASELINE"
+    },
+    {
+      "halo_protocol": "fixed_window_revalidation",
+      "physical_interpretation": "age-bounded reuse may still miss state change inside the permitted window",
+      "airtrajectory_expected": "NOT_MODELED_AS_SUFFICIENT"
+    },
+    {
+      "halo_protocol": "use_time_revalidation",
+      "physical_interpretation": "re-observe measured actuator position and rain state immediately before dispatch",
+      "airtrajectory_expected": "ALLOW_ONLY_IF_FRESH_AND_MATCHING"
+    }
+  ],
+  "physical_only_failure_modes": [
+    "measurement can be stale even when a verdict is young",
+    "measurement can be unavailable",
+    "measured state can contradict the state used by authorization",
+    "hardware identity can remain stable while state validity changes"
+  ],
+  "nonclaims": [
+    "not an implementation of HALO",
+    "not an implementation of Freshness-Bounded Shield",
+    "not evidence that HALO adopts AirTrajectory semantics",
+    "not a claim that physical re-observation eliminates all authorization-execution gaps"
+  ]
+}
