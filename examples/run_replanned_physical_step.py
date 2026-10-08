@@ -46,12 +46,24 @@ def _write(path, payload):
     )
 
 
-def _safe_closeout_after_sensor_failure(driver, opening_id, prior_feedback):
+def _safe_closeout_after_sensor_failure(
+    driver,
+    opening_id,
+    prior_feedback,
+    *,
+    compensates_effect_id,
+):
     """Best-effort measured closeout after an executed step loses fresh sensors."""
+    compensates_effect_id=str(compensates_effect_id or "").strip()
+    if not compensates_effect_id:
+        raise ValueError("compensates_effect_id must not be empty")
     result={
         "attempted":False,
         "required":False,
         "confirmed_closed":False,
+        "effect_class":"mutating",
+        "compensates_effect_id":compensates_effect_id,
+        "compensation_effect_id":None,
         "feedback":None,
         "command_ack":None,
         "error":None,
@@ -67,6 +79,12 @@ def _safe_closeout_after_sensor_failure(driver, opening_id, prior_feedback):
         return result
 
     result["attempted"]=True
+    result["compensation_effect_id"]=_sha256({
+        "kind":"safe-closeout-compensation",
+        "opening_id":str(opening_id),
+        "target_pct":0.0,
+        "compensates_effect_id":compensates_effect_id,
+    })
     try:
         close_feedback=driver.set_position(str(opening_id),0.0)
         result["feedback"]=asdict(close_feedback)
@@ -212,8 +230,19 @@ def run_replanned_physical_step(
             "the target opening's physical-origin identity"
         )
 
+    logical_effect_id=_sha256({
+        "kind":"replanned-physical-effect",
+        "opening_id":str(opening_id),
+        "zone_id":str(zone_id),
+        "authorization_sha256":authorization[
+            "replanned_action_authorization_sha256"
+        ],
+    })
+
     base={
         "schema_version":"0.1",
+        "logical_effect_id":logical_effect_id,
+        "effect_class":"mutating",
         "workflow":"replanned-windowpilot-physical-step-v1",
         "mode":"execute" if execute else "read-only",
         "opening_id":str(opening_id),
@@ -356,6 +385,7 @@ def run_replanned_physical_step(
                 driver,
                 str(opening_id),
                 feedback,
+                compensates_effect_id=logical_effect_id,
             )
             status=(
                 "SAFE_CLOSED_POST_ACTION_SENSORS_BLOCKED"
