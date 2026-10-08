@@ -65,6 +65,59 @@ LEARN
 
 The loop repeats. Reality, not the model, defines the next trusted origin.
 
+## Core research hypothesis — trajectory-driven agent post-training
+
+AirTrajectory is not complete if it only asks an agent or controller to make a fresh one-step decision from the current state.
+
+The central falsifiable hypothesis is:
+
+> A decision system post-trained on topology-aware ventilation trajectories, and then refined through simulated / counterfactual interaction, should make better coordinated multi-window decisions than an otherwise comparable agent that judges each window or each state independently.
+
+This hypothesis is **not yet proven by the current repository**.
+
+The intended learning loop is:
+
+```text
+Rule / expert trajectories
++ CONTAM / fast-model counterfactual trajectories
++ safe exploration trajectories
++ measured physical trajectories
+        ↓
+trajectory dataset
+        ↓
+behavior cloning / supervised post-training
+        ↓
+offline RL / value or ranking refinement
+        ↓
+simulator interaction fine-tuning where justified
+        ↓
+topology-conditioned decision policy / candidate ranker
+        ↓
+held-out topology evaluation
+        ↓
+bounded physical deployment
+        ↓
+measured outcomes return to the dataset
+```
+
+The learned component may be a compact policy, value/ranking model, graph-conditioned controller, or a post-trained agent model. The durable asset is the trajectory/evidence corpus and benchmark contract, not one checkpoint.
+
+The agent must not directly improvise actuator percentages without topology, physics, safety, and benchmark constraints.
+
+### Falsification test
+
+At minimum compare, from the same origin and horizon:
+
+1. independent / one-window-at-a-time judgment;
+2. deterministic joint rule;
+3. agent without trajectory post-training;
+4. behavior-cloned / supervised-post-trained policy;
+5. offline-RL or interaction-refined policy when available.
+
+The post-training hypothesis is supported only if the learned system improves meaningful environmental outcomes on held-out topology families **without safety regression**.
+
+If it does not outperform simpler baselines, the project must report that result and reduce the role of learning rather than preserve the hypothesis by changing the story.
+
 ## Story 1 — Import any home
 
 ### User intent
@@ -530,6 +583,132 @@ Floorplan
 If another project can adopt one contract without adopting all of AirTrajectory,
 that is stronger evidence of infrastructure value than another internal demo.
 
+## Story 14 — Post-train the decision system from trajectories
+
+### User / operator intent
+
+"I want the system to become better at coordinated ventilation from accumulated experience instead of making every decision from scratch."
+
+### Required behavior
+
+Training data may come from:
+
+- deterministic rule / expert demonstrations;
+- CONTAM and other physics-backed rollouts;
+- counterfactual branches from the same origin;
+- safe randomized exploration in simulation;
+- measured physical trajectories;
+- intervention / override / failure trajectories.
+
+Each training sample must remain bound to:
+
+- topology identity;
+- environmental origin;
+- user objective;
+- proposed and executed joint actions;
+- safety intervention;
+- predicted consequence;
+- measured / simulated consequence;
+- provenance / physics backend.
+
+### Training ladder
+
+The intended progression is:
+
+```text
+Rule demonstrations
+→ BC / supervised post-training
+→ Offline RL / value-ranker refinement
+→ simulator interaction refinement
+→ shadow evaluation
+→ bounded physical execution
+→ measured feedback
+```
+
+The exact algorithm is replaceable.
+
+Current dependency-light BC / Offline-Q implementations count only as **learning-plumbing evidence** until they are evaluated on realistic joint action spaces and held-out structural topology families.
+
+### Acceptance boundary
+
+The project must publish an ablation that separates:
+
+- topology-aware joint planning itself;
+- physics/counterfactual search;
+- trajectory post-training;
+- additional RL refinement.
+
+A learning claim passes only when the post-trained system beats the relevant simpler baseline on at least one meaningful environmental metric while:
+
+- using the same origin / horizon;
+- keeping safety non-regressive;
+- not relying on exact training replay;
+- reporting failures and negative results.
+
+## Story 15 — Provide a playable truth-seeking exploration lab
+
+### User intent
+
+"I want to play with different homes, windows, weather, goals, and policies and see what the system actually thinks will happen."
+
+The final public demo is not a decorative UI. It is an interactive experiment surface over real backend artifacts.
+
+### Required interactions
+
+The user should be able to:
+
+- switch among multiple topologies, including a held-out topology;
+- import / load a topology artifact;
+- correct at least opening placement / state, and eventually room/opening structure;
+- open / close multiple windows and doors;
+- set environmental state and user objective;
+- choose or compare policy modes:
+  - HOLD;
+  - Independent;
+  - Rule Joint;
+  - untrained / non-post-trained agent where applicable;
+  - BC / supervised post-trained;
+  - Offline RL / refined policy;
+- fork one immutable origin into several futures;
+- play / pause / scrub trajectories;
+- inspect why a joint action was selected;
+- trigger a world change such as rain / manual opening and watch the trajectory invalidate and replan.
+
+### Visual truth surface
+
+The lab should make visible:
+
+- room / opening topology;
+- active VentilationPath(s);
+- opening percentages through time;
+- CO2 / PM2.5 / temperature / humidity trajectories;
+- airflow direction / vector field where produced by a physics backend;
+- particle / streamline visualization only when its provenance is explicit;
+- dead zones / low-flow regions where supported;
+- policy / checkpoint identity;
+- training-data / post-training provenance;
+- simulator / physics source;
+- safety interventions;
+- predicted vs measured outcome.
+
+No qualitative browser flow proxy may be presented as engineering airflow truth.
+
+### Acceptance boundary
+
+A visitor must be able to answer, without reading the source code:
+
+1. what home/topology is being controlled?
+2. what is the current environmental problem and user goal?
+3. what alternatives were considered?
+4. what did the non-learned baselines do?
+5. what changed after trajectory post-training?
+6. which coordinated windows/path did the policy choose?
+7. what did the physics backend predict?
+8. what actually happened, when physical evidence exists?
+9. when reality changed, did the old plan become stale and replan?
+
+The UI is complete only when it reveals these comparisons; animation alone is not completion.
+
 ## Non-goals
 
 AirTrajectory should not become:
@@ -606,6 +785,33 @@ At least one independent third party:
 
 This is the first credible transition from proof-of-work to proof-of-position.
 
+### G. Post-training result
+
+Publish a same-origin ablation showing:
+
+- independent / one-step baseline;
+- deterministic Joint;
+- non-post-trained agent where applicable;
+- BC / supervised post-training;
+- offline-RL / interaction-refined policy where available.
+
+The learned system is not considered better unless it improves a meaningful held-out-topology outcome without safety regression.
+
+Current toy BC / Offline-Q plumbing does not by itself satisfy this gate.
+
+### H. Playable exploration proof
+
+Publish an interactive lab where a visitor can:
+
+- change topology / opening state / objective;
+- compare HOLD / Independent / Joint / learned policies;
+- fork and replay futures;
+- see active VentilationPath and environmental trajectories;
+- distinguish toy / CONTAM / CFD / physical provenance;
+- trigger a world change and observe invalidation / replan.
+
+The lab must render backend evidence rather than inventing an airflow story in the browser.
+
 ## One-sentence product story
 
-> Give AirTrajectory any home topology and current environmental state; it constructs a physics-grounded, multi-window ventilation trajectory, previews the trade-offs across air quality and comfort, executes conservatively when connected to real devices, learns from measured outcomes, and repeats the same process on homes it has never seen before.
+> Give AirTrajectory any home topology and current environmental state; it constructs physics-grounded multi-window trajectories, uses accumulated simulated and measured trajectories to post-train a topology-aware decision system, compares learned decisions against non-learned baselines, exposes the alternatives in a playable exploration lab, executes conservatively on real devices, and keeps replanning from measured reality on homes it has never seen before.
