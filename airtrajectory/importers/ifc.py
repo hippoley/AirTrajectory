@@ -364,6 +364,7 @@ def inspect_ifc_control_readiness(path: str|Path) -> dict[str, Any]:
         import ifcopenshell
         import ifcopenshell.geom
         import ifcopenshell.util.element
+        import ifcopenshell.util.unit
     except ImportError as exc:
         raise RuntimeError(
             "IFC inspection requires optional dependency ifcopenshell"
