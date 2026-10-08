@@ -29,7 +29,7 @@ class ProbeCatalogTests(unittest.TestCase):
             self.assertIn("field campaign incomplete", probe["maturity"])
 
     def test_referenced_repo_artifacts_exist(self):
-        keys = {"machine_vector","reconciliation_vector","implementation","reconciliation","execution_path"}
+        keys = {"machine_vector","reconciliation_vector","implementation","reconciliation","execution_path","external_native_fixture"}
         for probe in self.catalog["probes"]:
             evidence = probe["reality_evidence"]
             for key in keys.intersection(evidence):
