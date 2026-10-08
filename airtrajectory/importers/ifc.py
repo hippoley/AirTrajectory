@@ -39,6 +39,51 @@ def _room_box(item: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def assess_ifc_semantics(semantics: dict[str, Any]) -> dict[str, Any]:
+    """Return machine-readable blockers before LayoutContract construction."""
+    blockers=[]
+    spaces=semantics.get("spaces") or []
+    if not spaces:
+        blockers.append({"entity_id":"<model>","reason":"NO_IFCSPACE"})
+    room_ids=set()
+    for item in spaces:
+        entity_id=str(item.get("id") or "<space>")
+        room_ids.add(entity_id)
+        for key in ("id","x","y","w","h","volume_m3"):
+            if item.get(key) is None:
+                blockers.append({"entity_id":entity_id,"reason":"MISSING_"+key.upper()})
+        if item.get("volume_m3") is not None and float(item["volume_m3"])<=0:
+            blockers.append({"entity_id":entity_id,"reason":"NONPOSITIVE_VOLUME"})
+
+    for item in semantics.get("openings") or []:
+        entity_id=str(item.get("id") or "<opening>")
+        adjacent=[str(x) for x in (item.get("adjacent_spaces") or [])]
+        if len(adjacent) not in {1,2}:
+            blockers.append({"entity_id":entity_id,"reason":"AMBIGUOUS_SPACE_ADJACENCY"})
+        unknown=sorted(set(adjacent)-room_ids)
+        if unknown:
+            blockers.append({
+                "entity_id":entity_id,
+                "reason":"UNKNOWN_ADJACENT_SPACE",
+                "detail":unknown,
+            })
+        for key in ("width_m","height_m"):
+            value=item.get(key)
+            if value is None or float(value)<=0:
+                blockers.append({"entity_id":entity_id,"reason":"MISSING_"+key.upper()})
+        for key in ("x1","y1","x2","y2"):
+            if item.get(key) is None:
+                blockers.append({"entity_id":entity_id,"reason":"MISSING_PROJECTED_"+key.upper()})
+
+    return {
+        "schema_version":"0.1",
+        "status":"READY" if not blockers else "BLOCKED",
+        "space_count":len(spaces),
+        "opening_count":len(semantics.get("openings") or []),
+        "blockers":blockers,
+    }
+
+
 def layout_from_ifc_semantics(
     semantics: dict[str, Any],
     *,
@@ -54,9 +99,16 @@ def layout_from_ifc_semantics(
     An opening with one adjacent space is exterior; two is internal.
     More/zero spaces are rejected.
     """
+    readiness=assess_ifc_semantics(semantics)
+    if readiness["status"]!="READY":
+        first=readiness["blockers"][0]
+        raise ValueError(
+            "IFC semantics blocked: "
+            + first["reason"]
+            + " @ "
+            + first["entity_id"]
+        )
     spaces=[_room_box(x) for x in semantics.get("spaces") or []]
-    if not spaces:
-        raise ValueError("IFC import requires at least one IfcSpace")
     room_ids={x["id"] for x in spaces}
 
     walls=[]
