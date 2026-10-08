@@ -1,0 +1,204 @@
+{
+  "schema_version": "0.1",
+  "topology_id": "test.imported-four-room.v1",
+  "source_kind": "imported-floorplan",
+  "outside_id": "OUTSIDE",
+  "capabilities": {
+    "floorplan_geometry_editable": true,
+    "opening_position_editable": true,
+    "opening_state_editable": true,
+    "arbitrary_topology_import": "supported",
+    "contam_compiler": "reserved"
+  },
+  "rooms": [
+    {
+      "id": "north_room",
+      "name": "NORTH ROOM",
+      "x": 80,
+      "y": 60,
+      "w": 220,
+      "h": 180,
+      "volume_m3": 42
+    },
+    {
+      "id": "center_room",
+      "name": "CENTER ROOM",
+      "x": 300,
+      "y": 60,
+      "w": 240,
+      "h": 180,
+      "volume_m3": 50
+    },
+    {
+      "id": "south_room",
+      "name": "SOUTH ROOM",
+      "x": 300,
+      "y": 240,
+      "w": 240,
+      "h": 180,
+      "volume_m3": 46
+    },
+    {
+      "id": "east_room",
+      "name": "EAST ROOM",
+      "x": 540,
+      "y": 150,
+      "w": 220,
+      "h": 180,
+      "volume_m3": 44
+    }
+  ],
+  "walls": [
+    {
+      "id": "nw_ext",
+      "kind": "exterior",
+      "source": "north_room",
+      "target": "OUTSIDE",
+      "x1": 80,
+      "y1": 60,
+      "x2": 80,
+      "y2": 240
+    },
+    {
+      "id": "se_ext",
+      "kind": "exterior",
+      "source": "south_room",
+      "target": "OUTSIDE",
+      "x1": 300,
+      "y1": 420,
+      "x2": 540,
+      "y2": 420
+    },
+    {
+      "id": "east_ext",
+      "kind": "exterior",
+      "source": "east_room",
+      "target": "OUTSIDE",
+      "x1": 760,
+      "y1": 150,
+      "x2": 760,
+      "y2": 330
+    },
+    {
+      "id": "north_center",
+      "kind": "internal",
+      "source": "north_room",
+      "target": "center_room",
+      "x1": 300,
+      "y1": 60,
+      "x2": 300,
+      "y2": 240
+    },
+    {
+      "id": "center_south",
+      "kind": "internal",
+      "source": "center_room",
+      "target": "south_room",
+      "x1": 300,
+      "y1": 240,
+      "x2": 540,
+      "y2": 240
+    },
+    {
+      "id": "center_east",
+      "kind": "internal",
+      "source": "center_room",
+      "target": "east_room",
+      "x1": 540,
+      "y1": 150,
+      "x2": 540,
+      "y2": 240
+    }
+  ],
+  "openings": [
+    {
+      "id": "NORTH_AIR",
+      "kind": "window",
+      "wall_id": "nw_ext",
+      "source": "north_room",
+      "target": "OUTSIDE",
+      "position_t": 0.35,
+      "initial_open_pct": 0,
+      "max_area_m2": 1.1,
+      "render_side": "left",
+      "position_editable": true,
+      "state_editable": true
+    },
+    {
+      "id": "SOUTH_AIR",
+      "kind": "window",
+      "wall_id": "se_ext",
+      "source": "south_room",
+      "target": "OUTSIDE",
+      "position_t": 0.55,
+      "initial_open_pct": 0,
+      "max_area_m2": 1.2,
+      "render_side": "bottom",
+      "position_editable": true,
+      "state_editable": true
+    },
+    {
+      "id": "EAST_AIR",
+      "kind": "window",
+      "wall_id": "east_ext",
+      "source": "east_room",
+      "target": "OUTSIDE",
+      "position_t": 0.6,
+      "initial_open_pct": 0,
+      "max_area_m2": 1,
+      "render_side": "right",
+      "position_editable": true,
+      "state_editable": true
+    },
+    {
+      "id": "PASS_NC",
+      "kind": "door",
+      "wall_id": "north_center",
+      "source": "north_room",
+      "target": "center_room",
+      "position_t": 0.5,
+      "initial_open_pct": 100,
+      "max_area_m2": 1.8,
+      "render_side": "internal",
+      "position_editable": true,
+      "state_editable": true
+    },
+    {
+      "id": "PASS_CS",
+      "kind": "door",
+      "wall_id": "center_south",
+      "source": "center_room",
+      "target": "south_room",
+      "position_t": 0.5,
+      "initial_open_pct": 100,
+      "max_area_m2": 1.8,
+      "render_side": "internal-horizontal",
+      "position_editable": true,
+      "state_editable": true
+    },
+    {
+      "id": "PASS_CE",
+      "kind": "door",
+      "wall_id": "center_east",
+      "source": "center_room",
+      "target": "east_room",
+      "position_t": 0.5,
+      "initial_open_pct": 100,
+      "max_area_m2": 1.8,
+      "render_side": "internal",
+      "position_editable": true,
+      "state_editable": true
+    }
+  ],
+  "compiler_contract": {
+    "current_consumers": [
+      "web-payload",
+      "trajectory-context",
+      "spatial-compile"
+    ],
+    "reserved_consumers": [
+      "contam-layout-compiler"
+    ],
+    "note": "Imported-layout acceptance fixture with a new room count and opening vocabulary."
+  }
+}
