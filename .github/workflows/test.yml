@@ -416,3 +416,27 @@ jobs:
           ranked=sorted(c["all_candidates"], key=lambda row:(row["objective_score"],row["label"]))
           print("REAL_CONTAM_VENTILATION_PATH_RANKING_VERIFIED", ranked[0]["label"], ranked[0]["objective_score"])
           '@ | python -
+
+      - name: Verify policy benchmark contract on real ContamX
+        timeout-minutes: 4
+        shell: pwsh
+        run: |
+          python examples/run_contam_joint_golden_case.py artifacts/multispace-transient.prj artifacts/multispace-transient.prj.json --policy-benchmark --out artifacts/policy-benchmark-v0.1.json | Tee-Object -FilePath policy-benchmark-v0.1.log
+          if (-not (Select-String -Path policy-benchmark-v0.1.log -Pattern "REAL_CONTAM_JOINT_GOLDEN_CASE_EXECUTED")) { exit 1 }
+          @'
+          import json
+          p=json.load(open("artifacts/policy-benchmark-v0.1.json",encoding="utf-8"))
+          b=p["policy_benchmark"]
+          assert b["benchmark"]=="airtrajectory-policy-benchmark-v0.1"
+          assert b["same_origin"] is True
+          assert b["same_horizon"] is True
+          labels={row["label"] for row in b["results"]}
+          assert "HOLD" in labels
+          assert "INDEPENDENT" in labels
+          assert any(label.startswith("JOINT:") for label in labels)
+          assert b["ranking_policy"]=="none; inspect metrics and Pareto frontier"
+          assert all("mean_co2_auc_ppm_s" in row["metrics"] for row in b["results"])
+          assert all("peak_co2_ppm" in row["metrics"] for row in b["results"])
+          assert all("actuator_movement_pct_sum" in row["metrics"] for row in b["results"])
+          print("AIRTRAJECTORY_POLICY_BENCHMARK_V01_VERIFIED", sorted(b["pareto_frontier"]))
+          '@ | python -
