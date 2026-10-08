@@ -12,7 +12,7 @@ from __future__ import annotations
 import math
 from typing import Any, Mapping, Iterable
 
-from .environmental_state import (
+HZCONVERT_COMPAT_COMMIT = "6e84f637f5d82968cf67f750dae6b70d19f847ff"\n\nfrom .environmental_state import (
     EnvironmentalState,
     EnvironmentalValue,
     OutdoorEnvironmentalState,
