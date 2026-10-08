@@ -1,0 +1,69 @@
+{
+  "mapping_version": "0.1",
+  "title": "AirTrajectory coverage vectors mapped to Veklom EEE-Core review cases",
+  "target": {
+    "project": "reprewindai-dev/veklom-FRONTEND",
+    "discussion": "https://github.com/reprewindai-dev/veklom-FRONTEND/issues/146",
+    "eee_version": "0.1.0",
+    "purpose": "review-only semantic mapping; not an EEE conformance claim"
+  },
+  "cases": [
+    {
+      "id": "EEE-COVERAGE-MISSING-EXPECTED-EXECUTION",
+      "class": "hostile",
+      "precondition": {
+        "expected_execution_ids": ["exec-a", "exec-b"]
+      },
+      "observed_envelopes": [
+        {
+          "execution_id": "exec-a",
+          "status": "completed",
+          "verification": "VALID"
+        }
+      ],
+      "expected": {
+        "coverage_status": "MISSING",
+        "missing_execution_ids": ["exec-b"]
+      },
+      "eee_alignment": [
+        "issuer MUST produce exactly one terminal Envelope per execution attempt",
+        "omission attacks are security-relevant",
+        "valid included envelopes do not establish the completeness of a separately defined expected execution population"
+      ]
+    },
+    {
+      "id": "EEE-COVERAGE-DENIED-IS-COVERED",
+      "class": "boundary",
+      "precondition": {
+        "expected_execution_ids": ["exec-a", "exec-b"]
+      },
+      "observed_envelopes": [
+        {
+          "execution_id": "exec-a",
+          "status": "completed",
+          "verification": "VALID"
+        },
+        {
+          "execution_id": "exec-b",
+          "status": "denied",
+          "verification": "VALID"
+        }
+      ],
+      "expected": {
+        "coverage_status": "COMPLETE"
+      },
+      "eee_alignment": [
+        "a denial without an Envelope is a spec violation",
+        "denials are first-class evidence",
+        "an explicit denied terminal Envelope is covered and must not be confused with omission"
+      ]
+    }
+  ],
+  "open_boundary": "EEE-Core defines envelope integrity and sequence checks, but this review mapping intentionally leaves the authoritative source of the precommitted expected_execution_ids external until Veklom identifies the canonical CAPPO/authority object, if any.",
+  "non_claims": [
+    "This file does not extend EEE-Core.",
+    "This file does not claim Veklom adoption or endorsement.",
+    "This file does not claim that previous_envelope_hash alone proves population completeness.",
+    "This file is a review artifact for issue #146."
+  ]
+}
