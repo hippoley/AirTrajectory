@@ -234,6 +234,40 @@ def compare_observation_branches(
         raise ValueError("same-origin comparison requires a simulated HOLD branch")
     if len(branches)<2:
         raise ValueError("comparison requires HOLD and at least one alternative")
+    # Structural comparability must precede scoring. Equal field names alone
+    # do not establish equal time horizons or room coverage.
+    lengths={len(obs) for obs in branches.values()}
+    if 0 in lengths or len(lengths)!=1:
+        raise ValueError("candidate branches must share an observation horizon")
+    environment_fields=(
+        "co2_ppm","pm25_ug_m3","temperature_c","relative_humidity_pct"
+    )
+    for field_name in environment_fields:
+        zone_sets=[]
+        for label,obs in branches.items():
+            if any(not isinstance(frame.get(field_name), Mapping)
+                   for frame in obs if field_name in frame):
+                raise ValueError(f"{label}: malformed {field_name} state")
+            frame_sets=[
+                frozenset(frame[field_name])
+                for frame in obs if field_name in frame
+            ]
+            if frame_sets and (
+                len(frame_sets)!=len(obs)
+                or len(set(frame_sets))!=1
+            ):
+                raise ValueError(
+                    f"{label}: incomplete or changing {field_name} zone coverage"
+                )
+            if frame_sets:
+                zone_sets.append((label,frame_sets[0]))
+        if zone_sets and (
+            len(zone_sets)!=len(branches)
+            or len({zones for _,zones in zone_sets})!=1
+        ):
+            raise ValueError(
+                f"candidate branches have different {field_name} zone coverage"
+            )
     outcomes=[
         evaluate_observation_branch(
             label=label,
