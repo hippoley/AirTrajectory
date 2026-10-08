@@ -139,10 +139,29 @@ class LayoutContractTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,"floorplan geometry fixed"):
             LayoutContract.from_dict(payload)
 
-    def test_future_arbitrary_source_is_reserved_not_accidentally_enabled(self):
+    def test_structured_topology_is_accepted_as_external_import_boundary(self):
         payload=self._payload()
-        payload["source_kind"]="uploaded-floorplan"
-        with self.assertRaisesRegex(ValueError,"fixed-floorplan only"):
+        payload["topology_id"]="external.structured.v1"
+        payload["source_kind"]="structured-topology"
+        payload["capabilities"]["arbitrary_topology_import"]=True
+        contract=LayoutContract.from_dict(payload)
+        self.assertEqual(contract.source_kind,"structured-topology")
+        self.assertTrue(contract.capabilities["arbitrary_topology_import"])
+        self.assertEqual(
+            set(contract.to_building_topology().openings),
+            {"W1","W2","W3","D1","D2"},
+        )
+
+    def test_unknown_source_kind_remains_rejected(self):
+        payload=self._payload()
+        payload["source_kind"]="magic-floorplan-parser"
+        with self.assertRaisesRegex(ValueError,"unsupported layout source_kind"):
+            LayoutContract.from_dict(payload)
+
+    def test_structured_topology_must_declare_import_capability(self):
+        payload=self._payload()
+        payload["source_kind"]="structured-topology"
+        with self.assertRaisesRegex(ValueError,"arbitrary_topology_import=true"):
             LayoutContract.from_dict(payload)
 
     def test_opening_must_stay_on_declared_wall(self):
