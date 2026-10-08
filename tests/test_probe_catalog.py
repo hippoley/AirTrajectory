@@ -35,6 +35,8 @@ class ProbeCatalogTests(unittest.TestCase):
             for key in keys.intersection(evidence):
                 path = ROOT / evidence[key]
                 self.assertTrue(path.exists(), msg=f"{probe['id']} references missing {key}: {path}")
+                if key == "external_native_fixture" and path.suffix == ".py":
+                    compile(path.read_text(encoding="utf-8"), str(path), "exec")
 
     def test_browser_probe_never_claims_physical_evidence(self):
         for probe in self.catalog["probes"]:
