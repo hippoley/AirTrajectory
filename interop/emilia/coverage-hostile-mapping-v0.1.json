@@ -28,7 +28,7 @@
       "source_vector_id": "requirement-omission",
       "expected": {
         "coverage_status": "MISSING",
-        "missing": ["MARGO-APP-REG-002"]
+        "missing": ["req-b"]
       },
       "emilia_alignment": [
         "CoverageDoesNotProveCompleteness",
