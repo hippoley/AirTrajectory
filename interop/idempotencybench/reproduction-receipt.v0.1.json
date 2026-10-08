@@ -1,0 +1,39 @@
+{
+  "schema": "external-native-probe-reproduction-receipt-v0.1",
+  "probe_id": "stale-readback",
+  "recorded_at": "2026-10-08T06:40:36Z",
+  "airtrajectory": {
+    "merge_commit": "b0f6a8aef98853d7dce4115ccc250f07bba36bae",
+    "workflow": ".github/workflows/external-probe-idempotencybench.yml",
+    "workflow_run_id": 37738909779,
+    "workflow_run_url": "https://github.com/hippoley/AirTrajectory/actions/runs/37738909779",
+    "fixture": "interop/idempotencybench/test_stale_readback_regression.py"
+  },
+  "upstream": {
+    "repository": "gssanjana4/idempotencybench",
+    "pinned_commit": "1b9b30fd37f983d6e2eb0ebf535bfcb1086fb311",
+    "main_resolved_commit": "1b9b30fd37f983d6e2eb0ebf535bfcb1086fb311"
+  },
+  "results": [
+    {
+      "target": "pinned_commit",
+      "job_id": 113184793186,
+      "tests_run": 3,
+      "result": "PASS"
+    },
+    {
+      "target": "main",
+      "job_id": 113184793449,
+      "tests_run": 3,
+      "result": "PASS"
+    }
+  ],
+  "evidence_class": "cross-runtime-reproduced-by-airtrajectory-ci",
+  "claims": {
+    "upstream_review": false,
+    "upstream_adoption": false,
+    "independent_third_party_reproduction": false,
+    "cross_runtime_reproduction": true
+  },
+  "invariant": "check-before-retry != fresh/authoritative-enough readback"
+}
