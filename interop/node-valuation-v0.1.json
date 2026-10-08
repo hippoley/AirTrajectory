@@ -1,0 +1,33 @@
+{
+  "schema_version": "0.1",
+  "date": "2026-10-08",
+  "nodes": [
+    {
+      "id": "airtrajectory-multi-environment-control",
+      "role": "core",
+      "valuation": "PROMOTE_NOW",
+      "reason": "Largest user-story gap and highest direct product value.",
+      "next_evidence": "same-origin HOLD/strategy outcome vectors from backend candidate futures"
+    },
+    {
+      "id": "ashrae-231-cdl-cxf",
+      "role": "adjacent-control-standard",
+      "valuation": "WATCH_AND_PROTOTYPE_AFTER_CORE",
+      "reason": "New 2026 standard; vendor-independent environmental control sequences; active-facade scope; CXF BAS exchange.",
+      "next_evidence": "one deterministic AirTrajectory safety/fallback sequence simulated or exported through the OpenBuildingControl ecosystem"
+    },
+    {
+      "id": "ifc-control-readiness",
+      "role": "building-context-interoperability",
+      "valuation": "HOLD_CAP",
+      "reason": "Useful durable input boundary, but marginal value declines until public runtime receipt or external pull appears.",
+      "next_evidence": "public IFC runtime receipt plus second exporter/schema or upstream interest"
+    },
+    {
+      "id": "generic-correctness-evidence",
+      "role": "supporting",
+      "valuation": "DEPRIORITIZE",
+      "reason": "Already stronger than product decision loop; add only when it removes a concrete field blocker."
+    }
+  ]
+}
