@@ -1,0 +1,58 @@
+name: external-probe-idempotencybench
+
+on:
+  pull_request:
+    paths:
+      - "interop/idempotencybench/**"
+      - "probes/catalog.v0.1.json"
+      - ".github/workflows/external-probe-idempotencybench.yml"
+  push:
+    branches: ["main"]
+    paths:
+      - "interop/idempotencybench/**"
+      - "probes/catalog.v0.1.json"
+      - ".github/workflows/external-probe-idempotencybench.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  reproduce:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        upstream_ref:
+          - "1b9b30fd37f983d6e2eb0ebf535bfcb1086fb311"
+          - "main"
+    steps:
+      - name: Checkout AirTrajectory
+        uses: actions/checkout@v4
+        with:
+          path: airtrajectory-source
+
+      - name: Checkout IdempotencyBench
+        uses: actions/checkout@v4
+        with:
+          repository: gssanjana4/idempotencybench
+          ref: ${{ matrix.upstream_ref }}
+          path: idempotencybench
+
+      - name: Install native stale-readback regression
+        run: |
+          cp airtrajectory-source/interop/idempotencybench/test_stale_readback_regression.py \
+             idempotencybench/test_stale_readback_regression.py
+
+      - name: Run upstream-native regression
+        working-directory: idempotencybench
+        run: python3 test_stale_readback_regression.py
+
+      - name: Record compatibility boundary
+        run: |
+          echo "AirTrajectory fixture:"
+          echo "  interop/idempotencybench/test_stale_readback_regression.py"
+          echo "IdempotencyBench ref:"
+          echo "  ${{ matrix.upstream_ref }}"
+          echo "Evidence class:"
+          echo "  external-native reproduction; not upstream adoption"
