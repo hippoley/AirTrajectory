@@ -11,6 +11,14 @@ class IfcImporterTests(unittest.TestCase):
         self.assertAlmostEqual(value,71.3906897089998)
         self.assertEqual(source,"PSet_Revit_Dimensions.Volume")
 
+    def test_space_volume_normalizes_project_units_to_m3(self):
+        value,source=_volume_from_property_sets(
+            {"Legacy":{"Volume":2_000_000_000.0}},
+            volume_unit_scale=1e-9,
+        )
+        self.assertAlmostEqual(value,2.0)
+        self.assertEqual(source,"Legacy.Volume")
+
     def test_conflicting_fallback_volumes_fail_closed(self):
         with self.assertRaisesRegex(ValueError,"conflicting"):
             _volume_from_property_sets({
