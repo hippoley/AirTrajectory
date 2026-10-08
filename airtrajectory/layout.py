@@ -28,6 +28,7 @@ from .topology import BuildingTopology, OpeningEdge, ZoneNode
 
 _ALLOWED_OPENING_KINDS={"window","door","vent"}
 _ALLOWED_WALL_KINDS={"exterior","internal"}
+_ALLOWED_SOURCE_KINDS={"fixed-floorplan","structured-topology"}
 
 
 @dataclass(frozen=True)
@@ -160,10 +161,9 @@ class LayoutContract:
             raise ValueError("unsupported layout schema_version")
         if not self.topology_id:
             raise ValueError("layout topology_id is required")
-        if self.source_kind!="fixed-floorplan":
+        if self.source_kind not in _ALLOWED_SOURCE_KINDS:
             raise ValueError(
-                "current runtime accepts source_kind=fixed-floorplan only; "
-                "future topology sources are reserved"
+                "unsupported layout source_kind; expected fixed-floorplan or structured-topology"
             )
 
         if self.capabilities.get("floorplan_geometry_editable") is not False:
@@ -174,9 +174,15 @@ class LayoutContract:
             raise ValueError(
                 "current layout contract must allow opening position edits"
             )
-        if self.capabilities.get("arbitrary_topology_import")!="reserved":
+        arbitrary_import=self.capabilities.get("arbitrary_topology_import")
+        if self.source_kind=="fixed-floorplan":
+            if arbitrary_import!="reserved":
+                raise ValueError(
+                    "fixed-floorplan arbitrary_topology_import must remain reserved"
+                )
+        elif arbitrary_import is not True:
             raise ValueError(
-                "arbitrary_topology_import must remain reserved in current schema"
+                "structured-topology requires arbitrary_topology_import=true"
             )
         if self.capabilities.get("contam_compiler")!="reserved":
             raise ValueError(
