@@ -1,0 +1,21 @@
+{
+  "schema_version": "0.1",
+  "topic": "opening-to-space relationship pressure",
+  "external_nodes": [
+    {
+      "repository": "Autodesk/revit-ifc",
+      "issue": 91,
+      "title": "How to get IfcDoor relation to IfcSpace (using IfcRelContainedInSpatialStructure)?",
+      "status": "OPEN",
+      "relevance": "Direct evidence that door/space attribution remains an exporter/interoperability concern. Space Boundaries are discussed as one route; downstream BEM/COBie use cases require spatial assignment.",
+      "airtrajectory_boundary": "AirTrajectory does not prescribe the exporter relation. It requires a resolved one-space/two-space control adjacency and reports ambiguity instead of inventing it.",
+      "interaction_status": "NOT_COMMENTED",
+      "reason": "Wait for merged public-corpus runtime evidence before contributing."
+    }
+  ],
+  "project_evidence": [
+    "interop/ifc/duplex-boundary-coverage-v0.1.json",
+    "schemas/ifc-control-readiness-v0.1.schema.json",
+    "docs/ifc-ids-control-readiness-boundary.md"
+  ]
+}
