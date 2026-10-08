@@ -7,6 +7,7 @@ from airtrajectory.objectives import (
     hold_candidate,
     rank_candidate_outcomes,
     evaluate_observation_branch,
+    compare_observation_branches,
 )
 
 
@@ -105,6 +106,50 @@ class MultiEnvironmentObjectiveTests(unittest.TestCase):
             row["physical_outcome_vector"]["actuator_motion_pct"],
             50,
         )
+
+    def test_comparison_refuses_missing_simulated_hold(self):
+        with self.assertRaisesRegex(ValueError,"simulated HOLD"):
+            compare_observation_branches(
+                branches={"OPEN":[{"co2_ppm":{"living":900}}]},
+                objective=self.objective,
+                origin=self.origin,
+            )
+
+    def test_comparison_refuses_unequal_pollutant_coverage(self):
+        branches={
+            "HOLD":[{"co2_ppm":{"living":1400},"pm25_ug_m3":{"living":20}}],
+            "OPEN":[{"co2_ppm":{"living":850}}],
+        }
+        with self.assertRaisesRegex(ValueError,"incomparable evidence coverage"):
+            compare_observation_branches(
+                branches=branches,
+                objective=self.objective,
+                origin=self.origin,
+            )
+
+    def test_real_simulated_hold_can_be_worse_than_action(self):
+        branches={
+            "HOLD":[{
+                "co2_ppm":{"living":1600},
+                "pm25_ug_m3":{"living":10},
+                "temperature_c":{"living":24},
+                "relative_humidity_pct":{"living":50},
+            }],
+            "OPEN":[{
+                "co2_ppm":{"living":850},
+                "pm25_ug_m3":{"living":10},
+                "temperature_c":{"living":24},
+                "relative_humidity_pct":{"living":50},
+            }],
+        }
+        result=compare_observation_branches(
+            branches=branches,
+            objective=self.objective,
+            origin=self.origin,
+        )
+        self.assertEqual(result["status"],"COMPARABLE")
+        self.assertEqual(result["selected"]["label"],"OPEN")
+        self.assertEqual(result["hold_source"],"backend-simulated")
 
     def test_safety_dominates_nominal_air_quality_gain(self):
         unsafe=evaluate_candidate_outcome(
