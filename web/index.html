@@ -1,5 +1,27 @@
 <!doctype html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>AirTrajectory — Stage 0.3</title><link rel="stylesheet" href="./styles.css"></head><body><main class="shell">
 <header><div><div class="tagrow"><span class="stage-tag">STAGE 0.3</span><span class="eyebrow">PHYSICAL LEARNING LAB</span></div><h1>How should this home breathe?</h1><p class="lede">A trajectory-native experiment for multi-window ventilation. Change the world, fork a state, compare its futures.</p></div><div id="health" class="health loading"><i></i><div><small>SYSTEM</small><b>LOADING BACKEND</b></div></div></header>
+<section class="probe-deck" id="probeDeck">
+<div class="probe-intro">
+  <div><p class="eyebrow">START HERE · BREAK THE AGENT</p><h2>Can the system avoid a wrong real-world claim?</h2><p class="sub">No setup. Pick one failure. The browser will show what changed, what the agent was allowed to claim, and what evidence is still missing.</p></div>
+  <div class="probe-session"><small>YOUR SESSION</small><b id="probeSessionCount">0 probes tried</b><span id="probeSessionSignal">Try a failure to create evidence.</span></div>
+</div>
+<div class="probe-cards">
+  <button class="probe-card" data-correctness-probe="rain-after-approval"><small>01 · WORLD CHANGES</small><b>It starts raining after approval</b><span>Should an old approval still open the window?</span></button>
+  <button class="probe-card" data-correctness-probe="lost-ack"><small>02 · NETWORK LIES BY OMISSION</small><b>The ACK disappears</b><span>Should the agent retry blindly or check reality?</span></button>
+  <button class="probe-card" data-correctness-probe="stale-readback"><small>03 · VALUE LOOKS RIGHT</small><b>The sensor says 40% — but it is stale</b><span>Can an old measurement prove the physical effect?</span></button>
+</div>
+<div class="probe-story" id="probeStory" aria-live="polite">
+  <div class="probe-story-head"><small>PLAYABLE CORRECTNESS PROBE</small><b id="probeStoryTitle">Pick a failure above.</b><span id="probeEvidenceClass">BROWSER EXPLANATION · NOT PHYSICAL EVIDENCE</span></div>
+  <div class="probe-trace" id="probeTrace">
+    <div><small>YOU CHANGE</small><b>—</b></div><i>→</i>
+    <div><small>WORLD RESPONSE</small><b>—</b></div><i>→</i>
+    <div><small>SYSTEM DECISION</small><b>—</b></div><i>→</i>
+    <div><small>CLAIM</small><b>—</b></div>
+  </div>
+  <div class="probe-verdict"><span id="probeVerdict">Run one probe to see whether the system blocks, confirms, or stays unresolved.</span><button class="ghost" id="probeDetails">SHOW TECHNICAL EVIDENCE</button></div>
+  <pre id="probeTechnical" class="probe-technical hidden"></pre>
+</div>
+</section>
 <nav class="modebar"><button class="mode active">01 · LIVE HOUSE</button><button class="mode">02 · FORK LAB</button><button class="mode">03 · UNSEEN TOPOLOGY <em>LIVE</em></button><div class="backend"><span id="topologyRevision">TOPOLOGY r0</span> · BACKEND <b id="backendName">FAST FALLBACK</b></div></nav><section id="episodeLab" class="episode-lab">
 <div class="episode-rail">
   <div><p class="eyebrow">LEARNING LOOP / BACKEND ARTIFACT</p><h2>Watch the agent breathe a home.</h2><p class="sub">Train on 2–4 rooms. Test here on a five-room topology the policy never saw.</p></div>

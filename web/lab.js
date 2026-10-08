@@ -447,6 +447,50 @@ document.querySelector("#resetTau").addEventListener("click",()=>{browserTau=[];
 renderPhysicalObservation();
 loadMockFallbackArtifact();
 
+
+/* Probe-first onboarding: browser-only explanatory scenarios, never physical evidence. */
+const correctnessProbeSession={runs:0,unique:new Set(),replays:0,last:null};
+const correctnessProbes={
+ "rain-after-approval":{
+  title:"Approval expires when the world changes",
+  trace:["Approve OPEN 40% while dry","Rain becomes TRUE before dispatch","BLOCK · revalidation fails","NO MOTION"],
+  verdict:"The old approval is still cryptographically intact, but it is no longer valid for the current world.",
+  evidence:{scenario:"authorization-use freshness",authorization_state:{rain:false,target_pct:40},pre_dispatch_observation:{rain:true,fresh:true},expected_decision:"REJECT",physical_motion:false,invariant:"valid at check time != valid at dispatch time"}
+ },
+ "lost-ack":{
+  title:"A lost ACK does not prove failure",
+  trace:["Dispatch OPEN 40%","Transport ACK is lost","READ BACK reality before retry","UNRESOLVED → CONFIRMED only by readback"],
+  verdict:"The system must not turn a transport error into a physical-effect failure or blindly create a second mutation.",
+  evidence:{scenario:"logical effect vs transport attempt",logical_effect_id:"effect-demo-001",attempt_1:{status:"TRANSPORT_ERROR",detail:"ACK lost"},required_next_step:"authoritative post-action readback",blind_retry:"FORBIDDEN",invariant:"transport evidence != physical effect outcome"}
+ },
+ "stale-readback":{
+  title:"A correct-looking value can still be invalid evidence",
+  trace:["Target OPEN 40%","Sensor reports 40%","Timestamp is older than the action","UNRESOLVED"],
+  verdict:"Matching numbers are not enough. The observation must be fresh, measured, and attributable after the action.",
+  evidence:{scenario:"physical-effect reconciliation",target_pct:40,observation:{measured:true,position_pct:40,fresh_after_action:false,source:"actuator-encoder"},expected_status:"UNRESOLVED",reason:"OBSERVATION_NOT_FRESH",invariant:"fresh-looking value != fresh attributable evidence"}
+ }
+};
+function renderCorrectnessProbe(id){
+ const p=correctnessProbes[id];if(!p)return;
+ if(correctnessProbeSession.last===id)correctnessProbeSession.replays++;
+ correctnessProbeSession.last=id;correctnessProbeSession.runs++;correctnessProbeSession.unique.add(id);
+ document.querySelectorAll("[data-correctness-probe]").forEach(el=>el.classList.toggle("active",el.dataset.correctnessProbe===id));
+ document.querySelector("#probeStoryTitle").textContent=p.title;
+ const cells=document.querySelectorAll("#probeTrace div b");p.trace.forEach((v,i)=>{if(cells[i])cells[i].textContent=v});
+ document.querySelector("#probeVerdict").textContent=p.verdict;
+ document.querySelector("#probeTechnical").textContent=JSON.stringify({...p.evidence,evidence_class:"browser-explanation",physical_evidence:false},null,2);
+ document.querySelector("#probeTechnical").classList.add("hidden");
+ document.querySelector("#probeDetails").textContent="SHOW TECHNICAL EVIDENCE";
+ document.querySelector("#probeSessionCount").textContent=correctnessProbeSession.runs+" probe"+(correctnessProbeSession.runs===1?"":"s")+" tried";
+ const unique=correctnessProbeSession.unique.size,replays=correctnessProbeSession.replays;
+ document.querySelector("#probeSessionSignal").textContent=unique+" unique failure"+(unique===1?"":"s")+" explored"+(replays?" · "+replays+" replay"+(replays===1?"":"s"):" · try another failure");
+}
+document.querySelectorAll("[data-correctness-probe]").forEach(el=>el.addEventListener("click",()=>renderCorrectnessProbe(el.dataset.correctnessProbe)));
+document.querySelector("#probeDetails").addEventListener("click",()=>{
+ const el=document.querySelector("#probeTechnical"),hidden=el.classList.toggle("hidden");
+ document.querySelector("#probeDetails").textContent=hidden?"SHOW TECHNICAL EVIDENCE":"HIDE TECHNICAL EVIDENCE";
+});
+
 /* Backend-generated learning Episode Lab */
 (() => {
  const root=document.querySelector("#episodeLab");
