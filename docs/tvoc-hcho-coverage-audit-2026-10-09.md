@@ -51,3 +51,9 @@ Resume: latest HEAD CI plus end-to-end sensor fixture -> canonical state -> Obje
 - Code `260eab071` constrains occupancy_count to nonnegative integers and confidence to finite numeric probabilities excluding bool; tests `ea735c453` inject negative, fractional, boolean, string occupancy and boolean/string/NaN confidence, plus zero occupancy acceptance.
 - Latest relevant test workflow https://github.com/hippoley/AirTrajectory/actions/runs/37892728460 was queued when checked. The prior green software baseline remains `6a336b52c` at run 37892333430; newer commits are *not* accepted until current HEAD CI completes.
 - Cross-story impact: US3 environmental state, US4 user goals, US6/7 candidate futures, US8/10 readback/learning. Real TVOC/HCHO sensor fidelity and physical multi-species forecast are still not validated. No complete User Story closed.
+
+## Sensor provenance follow-up — 2026-10-09
+- Baseline HEAD test CI `37892747885` passed on `fa4e2974c`; there is also a passing workflow `37892751377` on a different commit, not proof of later changes on main.
+- US3/8/9/10 P0: sensor lineage timestamp used float conversion and `<=0` only, allowing NaN to bypass a positivity comparison. The application receipt similarly required timestamp equality but not explicit finite validity.
+- `18ef9e9c` now rejects non-finite live sensor timestamps and apply-receipt timestamps before lineage can be regarded as valid; `707b7be0` adds adversarial NaN/Infinity cases for both sensor channels and application receipt.
+- This is a software provenance check only, not independently authenticated source data or measured field commissioning. All applicable story closures stay OPEN pending HEAD test workflow and actual device evidence.
