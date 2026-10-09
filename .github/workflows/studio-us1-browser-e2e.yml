@@ -1,0 +1,39 @@
+name: studio-us1-browser-e2e
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "web/studio.html"
+      - "web/studio.js"
+      - "web/vendor/**"
+      - "tests/studio-browser-e2e.cjs"
+      - ".github/workflows/studio-us1-browser-e2e.yml"
+  pull_request:
+    paths:
+      - "web/studio.html"
+      - "web/studio.js"
+      - "web/vendor/**"
+      - "tests/studio-browser-e2e.cjs"
+      - ".github/workflows/studio-us1-browser-e2e.yml"
+
+jobs:
+  browser-e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install browser harness
+        run: |
+          npm install --no-save --no-package-lock playwright@1.56.1
+          npx playwright install --with-deps chromium
+      - name: Start static website
+        run: |
+          python3 -m http.server 8765 --bind 127.0.0.1 > /tmp/airtrajectory-studio-http.log 2>&1 &
+          echo $! > /tmp/airtrajectory-studio-http.pid
+          sleep 2
+      - name: Verify US1 in Chromium
+        run: node tests/studio-browser-e2e.cjs
