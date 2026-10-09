@@ -21,6 +21,8 @@ jobs:
       - run: node --check web/studio.js
       - run: node --check web/vendor/openplan-wall-projection.js
       - run: node tests/test_studio_wall_projection.cjs
+      - run: node --check web/vendor/floor-planner-snap.js
+      - run: node tests/test_studio_floor_planner_snap.cjs
       - run: python -m unittest discover -s tests -v
       - run: python examples/compare_multi_environment_futures.py --out artifacts/multi-environment-conflict-report.json
       - run: python -c 'import json; p=json.load(open("artifacts/multi-environment-conflict-report.json")); assert p["recommended"] == ["SHORT_CROSSFLOW"]; assert p["execution_authorized"] is False; assert p["status"] == "EXPLORATORY_COMPARISON"; assert len(p["origin_sha256"]) == 64'
