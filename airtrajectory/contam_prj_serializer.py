@@ -62,6 +62,14 @@ def _dynamic_window_controls(manifest: dict[str, Any]) -> list[dict[str, Any]]:
         if path.get("kind") == "window"
         and path.get("boundary_kind") == "exterior"
     ]
+    selected = manifest.get("approved_control_opening_ids")
+    if selected is not None:
+        if not isinstance(selected, list) or len(selected) != len(set(selected)):
+            raise ValueError("approved controls must be a unique list")
+        available = {str(path["layout_opening_id"]) for path in paths}
+        if set(selected) - available:
+            raise ValueError("approved control not a modeled exterior window")
+        paths = [path for path in paths if path["layout_opening_id"] in selected]
     paths.sort(key=lambda item: str(item["layout_opening_id"]))
     return [
         {
