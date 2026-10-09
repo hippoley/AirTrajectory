@@ -75,7 +75,7 @@ def generate_structured_scenario(seed: int, rooms: int = 5, family: str = "hub")
     elif family == "loop":
         edges = [(i, i+1) for i in range(rooms-1)] + [(rooms-1, 0)]
     else:
-        edges = [(0, 1), (0, 2)] + [(i-1, i) for i in range(3, rooms)]
+        edges = [(0, 1), (0, 2), (0, 3)] + [(i-1, i) for i in range(4, rooms)]
     for i, (a, z) in enumerate(edges):
         openings.append(OpeningEdge(f"D{i+1}", zones[a].id, zones[z].id,
                                     "door", rng.uniform(1.4, 2.0)))
