@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from dataclasses import asdict
 from math import isfinite
+import time
 from typing import Mapping
 
 from .physical import PhysicalWindowDriver
@@ -26,6 +27,8 @@ class MultiWindowPhysicalEnvironment:
         fixed_openings: Mapping[str, float] | None = None,
         initial_openings: Mapping[str, float] | None = None,
         require_write_ready: bool = True,
+        max_sensor_age_s: float = 10.0,
+        clock_fn=time.time,
     ):
         self.topology = topology
         self.drivers = dict(drivers)
@@ -42,6 +45,10 @@ class MultiWindowPhysicalEnvironment:
             if not isfinite(position) or not 0 <= position <= 100:
                 raise ValueError(f"invalid initial opening percentage: {opening_id}")
         self.require_write_ready = bool(require_write_ready)
+        self.max_sensor_age_s = float(max_sensor_age_s)
+        if not isfinite(self.max_sensor_age_s) or self.max_sensor_age_s <= 0:
+            raise ValueError("max_sensor_age_s must be finite and positive")
+        self._clock = clock_fn
         self.last_feedback: dict[str, ActuatorFeedback] = {}
 
         topology.validate()
@@ -108,6 +115,7 @@ class MultiWindowPhysicalEnvironment:
 
     def _observe(self):
         co2_candidates: dict[str, list] = {}
+        now = self._clock()
         rain = None
         sensor_rows = []
         for opening_id, driver in self.drivers.items():
@@ -115,6 +123,10 @@ class MultiWindowPhysicalEnvironment:
             for reading in driver.read_sensors():
                 if not isinstance(reading.timestamp,(int,float)) or not isfinite(reading.timestamp) or reading.timestamp<=0:
                     raise RuntimeError(f"{opening_id} invalid sensor timestamp")
+                if reading.timestamp > now + 1.0:
+                    raise RuntimeError(f"{opening_id} future sensor timestamp")
+                if now - reading.timestamp > self.max_sensor_age_s:
+                    raise RuntimeError(f"{opening_id} stale sensor timestamp")
                 if not isinstance(reading.value,(int,float)) or not isfinite(reading.value):
                     raise RuntimeError(f"{opening_id} invalid sensor value")
                 sensor_rows.append(reading)
