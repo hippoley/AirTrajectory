@@ -2,6 +2,7 @@
 import unittest
 
 from airtrajectory.benchmark import unseen_topology_benchmark
+from airtrajectory.dataset import transition_rows
 
 
 class BenchmarkReproducibilityTests(unittest.TestCase):
@@ -18,6 +19,11 @@ class BenchmarkReproducibilityTests(unittest.TestCase):
             self.assertEqual(result["paired_vs_rule"][name]["n"],2)
             self.assertEqual([t.context["scenario_seed"] for t in result["trajectories"][name]],[10017,10018])
             self.assertTrue(all(t.context["benchmark_split_sha256"]==contract["split_sha256"] for t in result["trajectories"][name]))
+            row=next(transition_rows(result["trajectories"][name][0]))
+            self.assertEqual(row["scenario_seed"],10017)
+            self.assertEqual(row["room_count"],5)
+            self.assertEqual(row["physics_fidelity"],"toy")
+            self.assertEqual(row["benchmark_split_sha256"],contract["split_sha256"])
 
     def test_seeds_must_not_overlap_and_bad_counts_rejected(self):
         with self.assertRaisesRegex(ValueError,"collision"):
