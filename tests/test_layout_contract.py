@@ -133,16 +133,40 @@ class LayoutContractTests(unittest.TestCase):
                 opening_positions={"W404":0.5},
             )
 
-    def test_current_contract_rejects_floorplan_geometry_editing(self):
+    def test_fixed_floorplan_still_rejects_geometry_editing(self):
         payload=self._payload()
         payload["capabilities"]["floorplan_geometry_editable"]=True
-        with self.assertRaisesRegex(ValueError,"floorplan geometry fixed"):
+        with self.assertRaisesRegex(ValueError,"keep floorplan geometry fixed"):
             LayoutContract.from_dict(payload)
 
-    def test_future_arbitrary_source_is_reserved_not_accidentally_enabled(self):
+    def test_unknown_floorplan_source_is_rejected(self):
         payload=self._payload()
         payload["source_kind"]="uploaded-floorplan"
-        with self.assertRaisesRegex(ValueError,"fixed-floorplan only"):
+        with self.assertRaisesRegex(ValueError,"unsupported source_kind"):
+            LayoutContract.from_dict(payload)
+
+    def test_imported_floorplan_contract_is_first_class(self):
+        path=ROOT/"tests"/"data"/"topology.imported-four-room.json"
+        contract=LayoutContract.from_file(path)
+        self.assertEqual(contract.source_kind,"imported-floorplan")
+        self.assertTrue(contract.capabilities["floorplan_geometry_editable"])
+        self.assertEqual(
+            contract.capabilities["arbitrary_topology_import"],
+            "supported",
+        )
+        self.assertEqual(len(contract.rooms),4)
+        self.assertEqual(len(contract.openings),6)
+        self.assertEqual(contract.source_provenance["format"],"synthetic-structured-floorplan")
+        self.assertEqual(len(contract.source_provenance["source_sha256"]),64)
+
+    def test_imported_floorplan_requires_supported_import_capability(self):
+        path=ROOT/"tests"/"data"/"topology.imported-four-room.json"
+        payload=json.loads(path.read_text(encoding="utf-8"))
+        payload["capabilities"]["arbitrary_topology_import"]="reserved"
+        with self.assertRaisesRegex(
+            ValueError,
+            "imported-floorplan requires arbitrary_topology_import=supported",
+        ):
             LayoutContract.from_dict(payload)
 
     def test_opening_must_stay_on_declared_wall(self):

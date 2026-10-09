@@ -1,0 +1,32 @@
+{
+  "schema_version": "0.1",
+  "purpose": "External IFC corpus candidates for future control-readiness regression. Presence in this manifest is not a claim of passing AirTrajectory import.",
+  "datasets": [
+    {
+      "id": "buildingsmart-community-duplex-apartment",
+      "provider": "buildingSMART community",
+      "license": "CC BY 4.0",
+      "role": "architectural reference model",
+      "source_repository": "buildingsmart-community/Community-Sample-Test-Files",
+      "expected_use": [
+        "IfcSpace coverage",
+        "IfcDoor/IfcWindow coverage",
+        "opening-space adjacency readiness",
+        "geometry/readiness blockers"
+      ],
+      "status": "NOT_YET_EXECUTED_BY_AIRTRAJECTORY"
+    },
+    {
+      "id": "buildingsmart-certification-datasets",
+      "provider": "buildingSMART International",
+      "role": "schema/version regression corpus",
+      "source_repository": "buildingSMART/Certification-datasets",
+      "expected_use": [
+        "IFC version compatibility",
+        "strict blocker classification",
+        "importer regression"
+      ],
+      "status": "NOT_YET_EXECUTED_BY_AIRTRAJECTORY"
+    }
+  ]
+}

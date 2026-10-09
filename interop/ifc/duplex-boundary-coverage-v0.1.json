@@ -1,0 +1,38 @@
+{
+  "schema_version": "0.1",
+  "evidence_class": "EXTERNAL_PUBLIC_IFC_STATIC_BOUNDARY_COVERAGE",
+  "status": "OBSERVED",
+  "source": {
+    "repository": "andyward/XBimDemo",
+    "path": "Xbim.TestApp/Duplex_A_20110907.ifc",
+    "git_blob_sha": "8210b5f627e92ea888252c318481babce31059c5"
+  },
+  "counts": {
+    "IfcSpace": 21,
+    "IfcDoor": 14,
+    "IfcWindow": 24,
+    "IfcRelSpaceBoundary": 265
+  },
+  "opening_boundary_coverage": {
+    "doors": {
+      "total": 14,
+      "mapped": 14,
+      "unmapped": 0
+    },
+    "windows": {
+      "total": 24,
+      "mapped": 14,
+      "unmapped": 10
+    }
+  },
+  "interpretation": [
+    "Door coverage is complete under the static relationship scan.",
+    "Ten windows are not referenced by any IfcRelSpaceBoundary in this public IFC2X3 sample.",
+    "AirTrajectory must not silently infer those window-to-space relationships as engineering truth.",
+    "A future partial-control scope must be explicit if unmapped openings are intentionally excluded."
+  ],
+  "claim_boundary": [
+    "Static STEP relationship scan only.",
+    "Runtime IfcOpenShell control-readiness classification is produced separately by CI."
+  ]
+}

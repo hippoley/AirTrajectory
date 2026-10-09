@@ -1,0 +1,227 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/hippoley/AirTrajectory/schemas/ifc-control-readiness-v0.1.schema.json",
+  "title": "AirTrajectory IFC Control Readiness v0.1",
+  "description": "Machine-readable assessment of whether IFC-derived semantics are sufficient to enter a physics-grounded ventilation-control topology without inventing missing engineering facts.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "status",
+    "space_count",
+    "opening_count",
+    "blockers"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "0.1"
+    },
+    "status": {
+      "enum": [
+        "READY",
+        "BLOCKED"
+      ]
+    },
+    "space_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "opening_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "blockers": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "entity_id",
+          "reason"
+        ],
+        "properties": {
+          "entity_id": {
+            "type": "string"
+          },
+          "reason": {
+            "enum": [
+              "NO_IFCSPACE",
+              "MISSING_ID",
+              "MISSING_X",
+              "MISSING_Y",
+              "MISSING_W",
+              "MISSING_H",
+              "MISSING_VOLUME_M3",
+              "NONPOSITIVE_VOLUME",
+              "AMBIGUOUS_SPACE_ADJACENCY",
+              "UNKNOWN_ADJACENT_SPACE",
+              "MISSING_WIDTH_M",
+              "MISSING_HEIGHT_M",
+              "MISSING_PROJECTED_X1",
+              "MISSING_PROJECTED_Y1",
+              "MISSING_PROJECTED_X2",
+              "MISSING_PROJECTED_Y2",
+              "GEOMETRY_UNAVAILABLE",
+              "UNKNOWN_CONTROL_OPENING"
+            ]
+          },
+          "detail": {}
+        }
+      }
+    },
+    "source": {
+      "type": "object",
+      "required": [
+        "format",
+        "sha256",
+        "schema",
+        "units"
+      ],
+      "properties": {
+        "format": {
+          "const": "IFC"
+        },
+        "path": {
+          "type": "string"
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-fA-F]{64}$"
+        },
+        "schema": {
+          "type": "string",
+          "minLength": 1
+        },
+        "units": {
+          "type": "object",
+          "required": [
+            "length_to_m",
+            "volume_to_m3",
+            "geometry_output"
+          ],
+          "properties": {
+            "length_to_m": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            "volume_to_m3": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            "geometry_output": {
+              "const": "SI_METERS"
+            }
+          }
+        }
+      }
+    },
+    "door_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "window_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "space_boundary_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "opening_boundary_coverage": {
+      "type": "object",
+      "required": [
+        "doors_total",
+        "doors_mapped",
+        "windows_total",
+        "windows_mapped"
+      ],
+      "properties": {
+        "doors_total": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "doors_mapped": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "windows_total": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "windows_mapped": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "control_scope": {
+      "type": "object",
+      "required": [
+        "mode",
+        "requested_opening_ids",
+        "resolved_opening_ids"
+      ],
+      "properties": {
+        "mode": {
+          "enum": [
+            "ALL_OPENINGS",
+            "DECLARED_SUBSET"
+          ]
+        },
+        "requested_opening_ids": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "uniqueItems": true
+            }
+          ]
+        },
+        "resolved_opening_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "uniqueItems": true
+        }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "READY"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "blockers": {
+            "maxItems": 0
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "BLOCKED"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "blockers": {
+            "minItems": 1
+          }
+        }
+      }
+    }
+  ]
+}
