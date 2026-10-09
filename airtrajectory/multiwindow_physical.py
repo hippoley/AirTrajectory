@@ -18,6 +18,20 @@ from .physical import PhysicalWindowDriver
 from .trajectory import ActuatorFeedback, RewardVector, TransitionAction
 
 
+class PhysicalDispatchUnresolved(RuntimeError):
+    """A physical write may have occurred; never blindly retry the batch."""
+
+    def __init__(self, *, attempted: list[str], confirmed: list[str], reason: str):
+        self.attempted_openings = tuple(attempted)
+        self.confirmed_feedback_openings = tuple(confirmed)
+        self.physical_effect_unresolved = True
+        super().__init__(
+            "physical dispatch outcome unresolved; manual measured reconciliation required: "
+            + reason + " (attempted=" + ",".join(attempted)
+            + "; feedback=" + ",".join(confirmed) + ")"
+        )
+
+
 class MultiWindowPhysicalEnvironment:
     def __init__(
         self,
@@ -50,6 +64,8 @@ class MultiWindowPhysicalEnvironment:
             raise ValueError("max_sensor_age_s must be finite and positive")
         self._clock = clock_fn
         self.last_feedback: dict[str, ActuatorFeedback] = {}
+        # Session-local quarantine only; not durable field evidence.
+        self.dispatch_unresolved = False
 
         topology.validate()
         unknown_fixed = set(self.fixed_openings) - set(topology.openings)
@@ -168,6 +184,11 @@ class MultiWindowPhysicalEnvironment:
         }
 
     def step(self, actions):
+        if self.dispatch_unresolved:
+            raise RuntimeError(
+                "physical dispatch outcome unresolved; no new writes before "
+                "independent measured reconciliation"
+            )
         actions = list(actions)
         # Validate all action identities and ranges before dispatching any
         # command. No atomicity is claimed across independent drivers.
@@ -217,21 +238,33 @@ class MultiWindowPhysicalEnvironment:
 
         feedback = []
         previous = dict(self.openings)
+        attempted: list[str] = []
+        confirmed: list[str] = []
         for action in physical_actions:
             driver = self.drivers[action.opening_id]
-            item = driver.set_position(action.opening_id, action.target_pct)
-            feedback.append(item)
-            self.last_feedback[action.opening_id] = item
-            measured = (
-                item.measured_position_pct
-                if item.measured_position_pct is not None
-                else item.estimated_position_pct
-            )
-            if measured is None:
-                raise RuntimeError(
-                    f"{action.opening_id} returned no actuator position feedback"
-                )
-            self.openings[action.opening_id] = float(measured)
+            attempted.append(action.opening_id)
+            try:
+                item = driver.set_position(action.opening_id, action.target_pct)
+                if item.actuator_id != action.opening_id:
+                    raise RuntimeError("actuator feedback identity mismatch")
+                measured = item.measured_position_pct
+                if measured is None:
+                    raise RuntimeError("measured position unavailable after write")
+                if not isfinite(measured) or not 0 <= measured <= 100:
+                    raise RuntimeError("invalid measured actuator position")
+                feedback.append(item)
+                self.last_feedback[action.opening_id] = item
+                self.openings[action.opening_id] = float(measured)
+                confirmed.append(action.opening_id)
+            except Exception as exc:
+                # A transport error does NOT mean the write was not applied.
+                # Quarantine this instance rather than retrying or returning
+                # a falsely complete next origin.
+                self.dispatch_unresolved = True
+                raise PhysicalDispatchUnresolved(
+                    attempted=attempted, confirmed=confirmed,
+                    reason=str(exc),
+                ) from exc
 
         observation = self._observe()
         wear = -sum(
