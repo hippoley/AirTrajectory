@@ -55,7 +55,7 @@ function exportLayout(scene,options={}){
  });
  const result={schema_version:"0.1",topology_id:options.topology_id||"pascal-import-v1",source_kind:"imported-floorplan",
   outside_id:outside,source_provenance:{format:"Pascal SceneNodes",source_sha256:options.source_sha256,importer:"airtrajectory-pascal-scene-bridge-v0.1"},
-  capabilities:{floorplan_geometry_editable:true,opening_position_editable:true,opening_state_editable:true,arbitrary_topology_import:"supported"},
+  capabilities:{floorplan_geometry_editable:true,opening_position_editable:true,opening_state_editable:true,arbitrary_topology_import:"supported",contam_compiler:"reserved"},
   canvas:{width:1100,height:650},rooms,walls,openings,compiler_contract:{current_consumers:["web-ui","trajectory-context"],reserved_consumers:["contam-layout-compiler"],note:"Visual scene imported with explicit geometry/adjacency evidence; no engineering solver authorization."}};
  return result;
 }
