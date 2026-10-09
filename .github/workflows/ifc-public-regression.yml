@@ -7,6 +7,7 @@ on:
     paths:
       - "examples/build_public_upstream_receipt.py"
       - "examples/select_ifc_control_scope.py"
+      - "examples/build_ifc_adjacency_review_queue.py"
       - "examples/audit_ifc_contam_engineering_handoff.py"
       - ".github/workflows/ifc-public-regression.yml"
   pull_request:
@@ -69,6 +70,23 @@ jobs:
           assert p["original_full_scope_status"] == "BLOCKED"
           assert p["candidate_count"] + p["excluded_count"] == 38
           print("candidate openings:",p["candidate_count"],"excluded:",p["excluded_count"])
+          PY
+
+      - name: Generate native-IFC adjacency review queue
+        run: |
+          python examples/build_ifc_adjacency_review_queue.py \
+            artifacts/ifc/duplex-control-readiness.json \
+            --out artifacts/ifc/duplex-adjacency-review.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          r=json.loads(Path("artifacts/ifc/duplex-adjacency-review.json").read_text())
+          assert len(r["items"]) == 11, len(r["items"])
+          assert r["automatically_approved_count"] == 0
+          assert r["contam_prj_authorized"] is False
+          print("Review queue:",len(r["items"]))
+          print("host boundary candidates:",sum(bool(x["host_boundary_candidates"]) for x in r["items"]))
+          print("geometry candidates:",sum(bool(x["bbox_intersection_candidates"]) for x in r["items"]))
           PY
 
       - name: Audit genuine IFC engineering inputs for CONTAM
@@ -166,5 +184,6 @@ jobs:
             artifacts/ifc/duplex-upstream-evidence.json
             artifacts/ifc/duplex-candidate-scope.json
             artifacts/ifc/duplex-contam-engineering-gate.json
+            artifacts/ifc/duplex-adjacency-review.json
             artifacts/ifc/duplex-if-style-success-record.md
           if-no-files-found: error
