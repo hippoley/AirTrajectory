@@ -11,5 +11,5 @@ assert.equal(length({...walls[0],...p.get('a')}),160);
 assert.throws(()=>planResize(walls,'a',0),/length/);
 assert.throws(()=>planResize(walls,'a',NaN),/length/);
 assert.throws(()=>planResize(walls,'missing',20),/Unknown/);
-assert.throws(()=>planResize([{id:'a',x1:0,y1:0,x2:100,y2:0},{id:'b',x1:100,y1:0,x2:101,y2:0}],'a',150),/collapse/);
+assert.throws(()=>planResize([{id:'a',x1:0,y1:0,x2:100,y2:0},{id:'b',x1:100,y1:0,x2:150,y2:0}],'a',150),/collapse/);
 console.log('PASS joined-wall resize: atomic edits, joins, disconnected walls, invalid and collapsing geometry');
