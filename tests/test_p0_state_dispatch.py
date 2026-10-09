@@ -21,11 +21,12 @@ def topology():
 
 
 class RecordingDriver:
-    def __init__(self, *, rain=0, duplicate=False, future=False):
+    def __init__(self, *, rain=0, duplicate=False, future=False, stale=False):
         self.calls = []
         self.rain = rain
         self.duplicate = duplicate
         self.future = future
+        self.stale = stale
 
     def capabilities(self):
         return DriverCapabilities("adversarial-test", True, True, ("co2", "rain"))
@@ -34,7 +35,7 @@ class RecordingDriver:
         return {"physical_write_ready": True, "write_blockers": []}
 
     def read_sensors(self):
-        ts = time.time() + (600 if self.future else 0)
+        ts = time.time() + (600 if self.future else -600 if self.stale else 0)
         rows = [
             SensorReading("c", "co2", 1100, "ppm", ts),
         ]
@@ -118,6 +119,20 @@ class P0StateAndDispatchTests(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "missing rain"):
             env.step([TransitionAction("W1", 25)])
         self.assertEqual(a.calls, [])
+
+    def test_multiwindow_stale_or_future_rain_blocks_before_write(self):
+        for kwargs, expected in [
+            ({"stale": True}, "stale sensor timestamp"),
+            ({"future": True}, "future sensor timestamp"),
+        ]:
+            with self.subTest(kwargs=kwargs):
+                a = RecordingDriver(**kwargs)
+                env = MultiWindowPhysicalEnvironment(
+                    topology(), {"W1": a}, fixed_openings={"W2": 0, "D1": 100}
+                )
+                with self.assertRaisesRegex(RuntimeError, expected):
+                    env.step([TransitionAction("W1", 25)])
+                self.assertEqual(a.calls, [])
 
     def test_multiwindow_rain_allows_safe_closing(self):
         a = RecordingDriver(rain=1)
