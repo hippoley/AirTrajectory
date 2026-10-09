@@ -50,8 +50,9 @@ simulator produced authentic results.
 4. If none are feasible, return `NO_FEASIBLE_CANDIDATE`.
 5. Always return `execution_authorized=false`.
 
-Rain blocks *increasing* an exterior window opening, not closing it or
-changing an interior door. The caller must still enforce real hardware,
+With `rain_hard_constraint=true`, every exterior window must end closed;
+HOLD is infeasible if a window starts open. Closing a window and changing
+an interior door remain permitted. The caller must still enforce real hardware,
 weather, sensor freshness, manual override and physical authorization.
 
 ## Strict boundary
