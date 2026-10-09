@@ -14,6 +14,11 @@ def transition_rows(trajectory: Trajectory):
             "topology_id":trajectory.topology_id,
             "policy_id":trajectory.policy_id,
             "environment_kind":trajectory.environment_kind,
+            "scenario_seed":trajectory.context.get("scenario_seed"),
+            "room_count":trajectory.context.get("room_count"),
+            "physics_fidelity":trajectory.context.get("physics_fidelity"),
+            "benchmark_split_sha256":trajectory.context.get("benchmark_split_sha256"),
+            "topology_family":trajectory.context.get("topology_family"),
             "commissioning_identity_sha256":trajectory.context.get("commissioning_identity_sha256"),
             "runtime_hardware_identity_sha256":(
                 trajectory.context.get("runtime_hardware_identity",{}).get("identity_sha256")
