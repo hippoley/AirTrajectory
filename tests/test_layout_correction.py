@@ -105,6 +105,19 @@ class LayoutCorrectionTests(unittest.TestCase):
                 "wall_assignment":{"w1":"r3"},
             }])
 
+    def test_merge_roundtrip_through_shared_topology_runtime(self):
+        from airtrajectory.topology_acceptance import verify_topology_runtime
+        edited=correct_layout(fixture(),[{
+            "op":"merge_rooms","source_ids":["r1","r2"],
+            "merged_room":{"id":"combined","name":"Combined",
+                           "x":0,"y":0,"w":8,"h":4,"volume_m3":80},
+        }])
+        receipt=verify_topology_runtime(edited)
+        self.assertEqual(receipt["status"],"PASS")
+        self.assertEqual(receipt["expected"]["zone_ids"],["combined"])
+        self.assertEqual(receipt["expected"]["opening_ids"],["o1"])
+        self.assertTrue(all(receipt["checks"].values()))
+
     def test_merge_rooms_preserves_external_opening(self):
         edited=correct_layout(fixture(),[{
             "op":"merge_rooms","source_ids":["r1","r2"],
