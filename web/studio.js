@@ -65,6 +65,23 @@ window.AirTrajectoryStudio={
   apply:edit,
   refresh:update,
   getSelected:find,
+  placeOpening:(kind,wallId,t)=>{
+    if(!doc||!["window","door"].includes(kind))throw Error("unsupported opening kind");
+    const wall=doc.walls.find(w=>w.id===wallId);
+    if(!wall||!Number.isFinite(t)||t<0.02||t>0.98)throw Error("invalid opening host or position");
+    const length=Math.hypot(wall.x2-wall.x1,wall.y2-wall.y1);
+    if(length<20)throw Error("host wall is too short");
+    if(doc.openings.some(o=>o.wall_id===wallId&&Math.abs(o.position_t-t)*length<30))throw Error("opening conflicts with existing opening");
+    if(kind==="window"&&wall.kind!=="exterior")throw Error("window requires exterior wall");
+    const id=kind+"-"+Date.now()+"-"+Math.floor(Math.random()*1000);
+    edit(()=>{
+      doc.openings.push({id,kind,wall_id:wall.id,source:wall.source,target:wall.target,
+       position_t:+t.toFixed(4),initial_open_pct:0,max_area_m2:kind==="window"?1.2:1.8,
+       render_side:"imported",position_editable:true,state_editable:true});
+      selected={type:"opening",id};
+    });
+    return id;
+  },
   addWallBetween:(start,end,source,target)=>{
     if(!doc||!doc.rooms.some(r=>r.id===source)||!(target===(doc.outside_id||"OUTSIDE")||doc.rooms.some(r=>r.id===target)))throw Error("invalid room connectivity");
     if(source===target||Math.hypot(end.x-start.x,end.y-start.y)<8)throw Error("wall is too short");
