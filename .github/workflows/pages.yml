@@ -8,6 +8,7 @@ on:
       - "airtrajectory/**"
       - "examples/export_web_scenarios.py"
       - "examples/export_experiment_lab.py"
+      - "examples/export_toy_ablation.py"
       - "examples/export_demo_runtime_snapshot.py"
       - ".github/workflows/pages.yml"
   workflow_dispatch:
@@ -34,6 +35,7 @@ jobs:
         run: |
           python examples/export_web_scenarios.py
           python examples/export_experiment_lab.py
+          python examples/export_toy_ablation.py --train-count 12 --test-count 3 --horizon 20 --test-families hub,loop,irregular
           python examples/export_demo_runtime_snapshot.py
       - name: Validate generated artifact
         run: |
@@ -71,6 +73,21 @@ jobs:
           assert all(len(ep["context"]["topology"]["openings"]) >= 9 for ep in p["episode"].values())
           assert "not engineering truth" in p["provenance"]
           print("validated learning experiment")
+          PY
+      - name: Validate same-origin five-policy toy ablation
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          from airtrajectory.toy_ablation import verify_toy_ablation
+          p=json.loads(Path("web/data/toy_ablation.json").read_text(encoding="utf-8"))
+          assert verify_toy_ablation(p)
+          assert len(p["episodes"])==3
+          assert set(p["evaluation"]["policies"])=={"HOLD","Independent","Rule Joint","BC","Offline-Q"}
+          assert p["status"]=="EXPLORATORY_NOT_ENGINEERING_TRUTH"
+          assert p["evaluation"]["structural_family_holdout"] is True
+          assert set(p["evaluation"]["test_topology_families"])=={"hub","loop","irregular"}
+          print("TOY_ABLATION_PAGES_ARTIFACT_VERIFIED",p["artifact_sha256"])
           PY
       - name: Validate fixed layout contract
         run: |
@@ -132,6 +149,8 @@ jobs:
       - name: Validate filament renderer
         run: |
           node --check web/lab.js
+          node --check web/ablation.js
+          test -f web/ablation.html
           grep -q 'function advect' web/lab.js
           grep -q 'function backendVelocity' web/lab.js
           grep -q 'function openingFlow' web/lab.js
