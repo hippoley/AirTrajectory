@@ -5,6 +5,8 @@ on:
     branches: [main]
     paths:
       - "scripts/run-pascal-native.sh"
+      - "scripts/start-full-editor.sh"
+      - "compose.pascal-native.yml"
       - "integrations/pascal-studio/**"
       - ".github/workflows/pascal-native-upstream-smoke.yml"
 
