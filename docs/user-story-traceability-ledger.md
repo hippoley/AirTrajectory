@@ -71,3 +71,10 @@ Audit date: 2026-10-09. **Source of requirements:** `docs/product-user-story.md`
 - D-P0-001 remains **OPEN**: topology runtime verification uses a toy rollout and cannot substitute for imported-layout actual CONTAM execution.
 - D-P0-002 remains **OPEN**: code-level correction operations do not satisfy interactive graphical room/wall editing.
 - Story 08 **BLOCKED** on field evidence; Story 13 **BLOCKED** on third-party adoption. No simulation or PR is a replacement.
+
+## 2026-10-09 — P0 solver-evidence boundary checkpoint
+
+- Added `airtrajectory/imported_contam_readiness.py`: combines portable topology acceptance with actual `compile_contam_ir` readiness, names the output `COMPILE_READINESS_ONLY_NOT_SOLVED`, and binds positive readiness to the real `contam_semantics_sha256`. Missing metric geometry is BLOCKED, not PASS.
+- Added `tests/test_imported_contam_readiness.py`: missing metric input rejection, positive metric-complete symbolic IR, and fixed demo rejection. Also extended `tests/test_layout_correction.py` with canonical JSON roundtrip and runtime assertions.
+- Evidence classification: toy topology PASS != ContamX simulated output != physical hardware measurements. D-P0-001 remains OPEN until real PRJ generation, actual solver run, immutable receipt, and browser integration for the same imported topology.
+- Latest PR #222 head must pass Core and Pages CI before merge. No complete Story 01/02 closure claimed.
