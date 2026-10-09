@@ -390,6 +390,8 @@ class ReplannedPhysicalStepTests(unittest.TestCase):
                 encoding="utf-8",
             )
             driver=FakeDriver()
+            # Fresh pre-dispatch measured position must match recovered W1=3.0.
+            driver.pre_dispatch_position=3.0
             out=module.run_replanned_physical_step(
                 driver=driver,
                 physical_origin_receipt=physical,
