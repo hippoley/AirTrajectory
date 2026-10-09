@@ -153,3 +153,10 @@ Audit date: 2026-10-09. **Source of requirements:** `docs/product-user-story.md`
 - Added `tests/test_structural_generalization.py`, commit `af328a19067e81595ab2e19690f211c77b5dcba5`: checks exact five-room graph degree sequences (star=[1,1,1,1,4], cycle=[2,2,2,2,2], fork=[1,1,1,2,3]), deterministic edges, train/test seed separation and Dataset transition provenance.
 - This is a structural toy benchmark only (`TOY_ONLY_NOT_CONTAM_OR_FIELD`); it is **not** a real imported building sample, physical model, independent field validation or statistical superiority claim. Cross-family invariants do not prove that physical distributions match.
 - **Status: PENDING CI / independent execution**. Preserve D-P4-001 as PARTIAL until results, repeated seeds with uncertainty intervals, adversarial physical scenarios and real ContamX validation exist. Story 11, Story 12 and Story 14 remain PARTIAL.
+
+## 2026-10-09 — Execution-mode switch: vertical product integration
+
+- **Active delivery contract:** [Product Mainline Integration and Independent Acceptance](product-mainline-integration-acceptance.md), introduced by commit `92cb8feead313fa85044cb18e8cbf9de8d7e2bf3`.
+- Stop prioritizing scattered defect hunts and standalone benchmark features. Only fix failures directly blocking the integrated journey or evidence correctness.
+- Next acceptance target: two previously unfamiliar layout inputs → browser correction/reload → revision-bound PRJ → **native ContamX execution** → real numeric receipt. Follow with matched-origin HOLD/Independent/Joint comparison and user-visible provenance.
+- This policy change does **not** close D-P0-001/002/003 or any individual user story; status remains INTEGRATION_INCOMPLETE pending runnable independent evidence.
