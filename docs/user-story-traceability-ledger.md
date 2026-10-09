@@ -122,3 +122,10 @@ Audit date: 2026-10-09. **Source of requirements:** `docs/product-user-story.md`
 - A stale profile could match `topology_id` and all room/wall/opening IDs despite a revised layout (e.g. edited room volume). Imported metric overlays now require `layout_contract_sha256` to equal the **current base LayoutContract** hash; optional hashes on fixed demo overlays are also checked. Change: `ff8a0b86cf5977582f0370f1b2a890b35a778a07`.
 - Expanded `tests/test_contam_metric_overlay.py`: reject missing hash, accept matching hash, and independently mutate room volume while retaining topology/entity IDs to verify stale-hash rejection. Change: `cde675634b40b2bc2e524f5b3eeee3c3260e1bf6`.
 - This is a source-to-metric binding integrity guard, not an engineering-validation claim. Imported CLI users must supply a profile derived from their exact source layout, including this fingerprint. Actual foreign-layout PRJ serialization, ContamX execution and browser workflow remain unverified.
+
+## 2026-10-09 — Failing Core CI: duplicate prediction-steps counterexample
+
+- For PR head `8fbb55c320382ad1eb8d42e5b87d9a5014df4d6f`, Core CI run https://github.com/hippoley/AirTrajectory/actions/runs/37882284237 failed: 701 tests, 1 failure. `contam-real` job passed separately; Pages run https://github.com/hippoley/AirTrajectory/actions/runs/37882284454 succeeded.
+- The failing test `test_reject_duplicate_runtime_prediction_steps` mutated `prediction_series[1].step` but left both `prediction_series_sha256` and `runtime_receipt_sha256` stale; hence the runtime integrity gate correctly rejected it before the duplicate-step semantics gate.
+- Fix commit `acdb61d1a913f9d528180c5dfcfaf5d7117e37f9` rebinds both hashes after mutation, preserving integrity validation while making the semantic duplicate-step rejection reachable. The current working branch previously lacked this test from the newer main; it now includes the main test collection plus the corrected case.
+- Verification remains **PENDING** for the updated head until new Core CI confirms the changed test and full suite. No claims of Story Verified Closed; D-P0-001/002/003 are unchanged.
