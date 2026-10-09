@@ -17,7 +17,8 @@ from .factory import TrajectoryFactory
 from .learning import TopologyBCPolicy, TopologyOfflineQPolicy
 from .physical import SafetyResolver
 from .rollout import rollout
-from .scenario import generate_chain_scenario, topology_manifest
+from .scenario import topology_manifest
+from .structural_scenarios import generate_structural_scenario
 from .trajectory import TransitionAction, Trajectory
 
 
@@ -123,6 +124,7 @@ def same_origin_toy_ablation(
     *, train_count: int = 24, test_count: int = 8,
     horizon_steps: int = 30, seed: int = 100,
     co2_threshold_ppm: float = 1000.0,
+    test_families: tuple[str, ...] = ("chain",),
 ) -> dict[str, Any]:
     """Train current BC/Offline-Q and replay five policies on identical toy origins.
 
@@ -133,6 +135,8 @@ def same_origin_toy_ablation(
         raise ValueError("train_count, test_count and horizon_steps must be positive")
     if co2_threshold_ppm <= 0:
         raise ValueError("co2_threshold_ppm must be positive")
+    if not test_families or any(f not in {"chain", "branch", "hub", "loop", "irregular"} for f in test_families):
+        raise ValueError("test_families must be non-empty supported graph families")
 
     factory = TrajectoryFactory(horizon_steps=horizon_steps, rooms=(2, 3, 4))
     train = [factory.rule_episode(seed + i) for i in range(train_count)]
@@ -146,7 +150,8 @@ def same_origin_toy_ablation(
     policy_names = ("HOLD", "Independent", "Rule Joint", "BC", "Offline-Q")
     for i in range(test_count):
         test_seed = seed + 10000 + i
-        scenario = generate_chain_scenario(test_seed, rooms=5)
+        family = test_families[i % len(test_families)]
+        scenario = generate_structural_scenario(test_seed, family)
         policies = {
             "HOLD": HoldPolicy(),
             "Independent": IndependentWindowPolicy(),
@@ -185,6 +190,7 @@ def same_origin_toy_ablation(
             }
         episodes.append({
             "scenario_id": scenario.id,
+            "topology_family": family,
             "test_seed": test_seed,
             "topology": topology_manifest(scenario.topology),
             "origin": dict(trajectory.steps[0].observation),
@@ -215,17 +221,18 @@ def same_origin_toy_ablation(
 
     payload = {
         "schema_version": "airtrajectory-toy-ablation-v0.1",
-        "experiment_id": "same-origin-toy-chain5-v0.1",
+        "experiment_id": "same-origin-toy-structural-v0.1",
         "status": "EXPLORATORY_NOT_ENGINEERING_TRUTH",
         "claim_boundary": (
-            "Toy CO2 mixing and chain-size transfer only. No CONTAM/CFD "
-            "physics, no structural-family holdout, no LLM-agent baseline, "
+            "Toy CO2 mixing only. Declared graph-family holdouts are toy "
+            "topology tests, not CONTAM/CFD physics, no LLM-agent baseline, "
             "no measured physical tau0, and no demonstrated post-training gain."
         ),
         "training": {
             "physics_backend": "toy-scenario-v1",
             "data_source": "rule-policy-demonstrations",
             "train_room_counts": [2, 3, 4],
+            "train_topology_families": ["chain"],
             "train_seeds": [seed + i for i in range(train_count)],
             "bc_samples": bc_samples,
             "offline_q_samples": q_samples,
@@ -234,8 +241,8 @@ def same_origin_toy_ablation(
             "physics_backend": "toy-scenario-v1",
             "test_room_counts": [5],
             "test_seeds": [seed + 10000 + i for i in range(test_count)],
-            "topology_family": "chain",
-            "structural_family_holdout": False,
+            "test_topology_families": list(dict.fromkeys(episode["topology_family"] for episode in episodes)),
+            "structural_family_holdout": all(episode["topology_family"] != "chain" for episode in episodes),
             "horizon_steps": horizon_steps,
             "dt_minutes": 1.0,
             "co2_threshold_ppm": co2_threshold_ppm,
@@ -257,8 +264,13 @@ def verify_toy_ablation(payload: Mapping[str, Any]) -> bool:
     if payload.get("status") != "EXPLORATORY_NOT_ENGINEERING_TRUTH":
         raise ValueError("toy evidence cannot be promoted to physical truth")
     ev = payload["evaluation"]
-    if ev["physics_backend"] != "toy-scenario-v1" or ev["structural_family_holdout"]:
+    if ev["physics_backend"] != "toy-scenario-v1":
         raise ValueError("toy evidence boundary is inconsistent")
+    families = ev["test_topology_families"]
+    if not families or any(f not in {"chain", "branch", "hub", "loop", "irregular"} for f in families):
+        raise ValueError("invalid topology family")
+    if ev["structural_family_holdout"] != ("chain" not in families):
+        raise ValueError("structural holdout boundary is inconsistent")
     if set(payload["training"]["train_seeds"]) & set(ev["test_seeds"]):
         raise ValueError("training and test seeds overlap")
     expected = set(ev["policies"])
@@ -269,6 +281,8 @@ def verify_toy_ablation(payload: Mapping[str, Any]) -> bool:
     for episode, seed in zip(payload["episodes"], ev["test_seeds"]):
         if episode["test_seed"] != seed:
             raise ValueError("test seed mismatch")
+        if episode["topology_family"] not in families:
+            raise ValueError("episode topology family mismatch")
         digest = _sha(episode["origin"])
         if episode["origin_sha256"] != digest:
             raise ValueError("origin hash mismatch")
