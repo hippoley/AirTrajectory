@@ -86,6 +86,12 @@ doc.walls.push({id,kind:target===(doc.outside_id||"OUTSIDE")?"exterior":"interna
 x1:from.x,y1:from.y,x2:to.x,y2:to.y});
 selected={type:"wall",id};});};
 function addOpening(kind){if(!doc)return;const w=selected?.type==="wall"?find():doc.walls[0];if(!w)return;edit(()=>{const id=kind+"-"+Date.now();doc.openings.push({id,kind,wall_id:w.id,source:w.source,target:w.target,position_t:.5,initial_open_pct:0,max_area_m2:kind==="window"?1.2:1.8,render_side:"imported",position_editable:true,state_editable:true});selected={type:"opening",id};});}
+el("merge-room").onclick=()=>{
+ if(!doc||selected?.type!=="room"){alert("请先选择原始拆分房间");return;}
+ try{const merged=AirTrajectoryRoomPartition.mergeSplitRoom(doc,selected.id);
+ checkpoint();doc=merged;selected=null;update();
+ }catch(err){alert(err.message);}
+};
 el("split-room").onclick=()=>{
  if(!doc||selected?.type!=="room"){alert("请先在画布中选择需要拆分的房间");return;}
  try{
