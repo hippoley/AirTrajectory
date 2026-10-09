@@ -67,6 +67,23 @@ class EnvironmentalStateTests(unittest.TestCase):
         self.assertGreater(payload["quality"]["measured_fraction"], 0)
         self.assertLess(payload["quality"]["measured_fraction"], 1)
 
+    def test_tvoc_and_formaldehyde_measurements_preserve_distinct_units(self):
+        zone = ZoneEnvironmentalState("living", {
+            "tvoc_ug_m3": EnvironmentalValue(240.0, "measured", source_id="tvoc-sensor"),
+            "hcho_mg_m3": EnvironmentalValue(0.06, "measured", source_id="hcho-sensor"),
+        })
+        self.assertEqual(zone.as_dict()["values"]["tvoc_ug_m3"]["value"], 240.0)
+        self.assertEqual(zone.as_dict()["values"]["hcho_mg_m3"]["value"], 0.06)
+
+    def test_invalid_voc_and_hcho_rejected_but_negative_celsius_allowed(self):
+        for field in ("tvoc_ug_m3", "hcho_mg_m3"):
+            for bad in (-0.1, float("nan"), float("inf"), True):
+                with self.subTest(field=field, bad=bad):
+                    with self.assertRaises(ValueError):
+                        ZoneEnvironmentalState("living", {field: EnvironmentalValue(bad, "measured")})
+        zone = ZoneEnvironmentalState("living", {"temperature_c": EnvironmentalValue(-4.0, "measured")})
+        self.assertEqual(zone.values["temperature_c"].value, -4.0)
+
     def test_unavailable_cannot_carry_fake_value(self):
         with self.assertRaisesRegex(ValueError, "unavailable"):
             EnvironmentalValue(12.0, "unavailable")
