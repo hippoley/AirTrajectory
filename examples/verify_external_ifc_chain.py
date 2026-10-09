@@ -22,6 +22,18 @@ def verify(layout, native, scoring, source_bytes):
         raise ValueError("IFC source bytes do not match imported layout provenance")
     if provenance.get("geometry_fidelity") in (None, "", "synthetic", "illustrative"):
         raise ValueError("IFC geometry provenance unavailable")
+    if not isinstance(native, dict) or not isinstance(scoring, dict):
+        raise ValueError("native and scoring receipts must be objects")
+    # A matching SHA field alone is not a verified receipt: recompute its
+    # canonical digest and reject changed outputs even when source IDs match.
+    native_payload = dict(native)
+    signed_native = native_payload.pop("receipt_sha256", None)
+    if signed_native != _sha(native_payload):
+        raise ValueError("native receipt SHA-256 integrity check failed")
+    scoring_payload = dict(scoring)
+    signed_scoring = scoring_payload.pop("receipt_sha256", None)
+    if signed_scoring != _sha(scoring_payload):
+        raise ValueError("scoring receipt SHA-256 integrity check failed")
     if native.get("marker") != "IMPORTED_CONTAM_NATIVE_EXECUTED":
         raise ValueError("native solver execution receipt missing")
     if native.get("topology_id") != layout.get("topology_id"):
