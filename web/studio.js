@@ -2,7 +2,7 @@
 let doc=null,selected=null,history=[],future=[],drag=null;
 const el=id=>document.getElementById(id),svg=el("plan"),NS="http://www.w3.org/2000/svg",clone=x=>structuredClone(x);
 const find=()=>selected&&doc?.[selected.type+"s"]?.find(x=>x.id===selected.id);
-function update(){if(!doc)return;el("summary").textContent=`${doc.rooms.length} rooms · ${doc.walls.length} walls · ${doc.openings.length} openings`;draw();fields();check();}
+function update(){if(!doc)return;el("summary").textContent=`${doc.rooms.length} rooms · ${doc.walls.length} walls · ${doc.openings.length} openings`;draw();fields();check();renderTopologyPaths();}
 function checkpoint(){history.push(clone(doc));if(history.length>80)history.shift();future=[];}
 function edit(fn){checkpoint();try{fn();update();}catch(e){doc=history.pop();update();alert(e.message);}}
 async function load(x){if(!x||x.schema_version!=="0.1"||!Array.isArray(x.rooms)||!Array.isArray(x.walls)||!Array.isArray(x.openings))throw Error("需要 LayoutContract v0.1 JSON");doc=clone(x);
@@ -29,6 +29,27 @@ svg.addEventListener("pointerup",()=>{if(!drag)return;history.push(drag.start);f
 function fields(){const f=el("fields");f.replaceChildren();const x=find();el("selected-title").textContent=x?`${selected.type.toUpperCase()} / ${x.id}`:"选择对象查看属性";if(!x)return;
 const keys=selected.type==="room"?["name","x","y","w","h","volume_m3"]:selected.type==="wall"?["source","target","kind","x1","y1","x2","y2"]:["kind","wall_id","position_t","initial_open_pct","max_area_m2","width_m","height_m"];
 for(const k of keys){const label=document.createElement("label");label.textContent=k;const input=document.createElement("input");input.value=x[k]??"";input.addEventListener("change",()=>{const next=input.value;edit(()=>{if(k==="id")throw Error("ID must remain stable");if(next===""){delete x[k];return;}x[k]=typeof x[k]==="number"?Number(next):next;if(k==="wall_id"){const w=doc.walls.find(w=>w.id===next);if(!w)throw Error("unknown wall");x.source=w.source;x.target=w.target;}if(k==="position_t"&&(x[k]<0||x[k]>1))throw Error("position_t must be 0..1");});});label.append(input);f.append(label);}
+}
+function renderTopologyPaths(){
+ const target=el("vent-paths");if(!target)return;
+ target.replaceChildren();
+ try{
+  const result=AirTrajectoryPathExplorer.discover(doc);
+  if(!result.paths.length){target.textContent="当前户型没有由内门连接的外窗对。";return;}
+  const title=document.createElement("p");title.className="inspector-lede";
+  title.textContent=result.paths.length+" 条外窗间拓扑候选 · 仅连接关系";target.append(title);
+  for(const path of result.paths.slice(0,16)){
+   const item=document.createElement("div");item.className="scene-entry";
+   item.style.display="block";
+   const label=document.createElement("strong");
+   label.textContent=path.entry_window+" → "+path.rooms.join(" → ")+" → "+path.exit_window;
+   item.append(label);
+   const note=document.createElement("small");note.style.display="block";
+   note.textContent="经由门: "+(path.doors.join(", ")||"同一房间")+" · 无物理流向证明";
+   item.append(note);target.append(item);
+  }
+  if(result.paths.length>16){const more=document.createElement("small");more.textContent="另有 "+(result.paths.length-16)+" 条，导出全部请使用拓扑接口";target.append(more);}
+ }catch(e){target.textContent="拓扑候选不可用："+e.message;}
 }
 function check(){if(!doc)return;const issues=[],roomIDs=new Set(doc.rooms.map(x=>x.id)),wallIDs=new Set(doc.walls.map(x=>x.id)),outside=doc.outside_id||"OUTSIDE";
 for(const group of ["rooms","walls","openings"]){const ids=doc[group].map(x=>x.id);if(new Set(ids).size!==ids.length)issues.push("duplicate IDs in "+group);}
