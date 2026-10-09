@@ -65,5 +65,51 @@ function splitRectRoom(layout,roomId,axis="x",fraction=.5){
  next.topology_id=String(next.topology_id||"layout")+".partition";
  return next;
 }
-return {splitRectRoom};
+function mergeSplitRoom(layout,primaryId){
+ const part=layout.walls.find(w=>w.id.startsWith("partition-")&&w.source===primaryId);
+ if(!part)throw Error("No supported partition for this room");
+ const secondId=part.target,first=layout.rooms.find(r=>r.id===primaryId),second=layout.rooms.find(r=>r.id===secondId);
+ if(!first||!second)throw Error("Missing split room");
+ const vertical=Math.abs(part.x1-part.x2)<EPS;
+ const union={x:Math.min(first.x,second.x),y:Math.min(first.y,second.y),
+   w:Math.max(first.x+first.w,second.x+second.w)-Math.min(first.x,second.x),
+   h:Math.max(first.y+first.h,second.y+second.h)-Math.min(first.y,second.y)};
+ if(Math.abs(first.w*first.h+second.w*second.h-union.w*union.h)>EPS)throw Error("Split rooms no longer form a rectangle");
+ if(vertical&&Math.abs(first.y-second.y)>EPS)throw Error("Split rooms misaligned");
+ if(!vertical&&Math.abs(first.x-second.x)>EPS)throw Error("Split rooms misaligned");
+ if(layout.openings.some(o=>o.wall_id===part.id))throw Error("Partition still hosts openings; manual review required");
+ const next=structuredClone(layout),a=next.rooms.find(r=>r.id===primaryId),b=next.rooms.find(r=>r.id===secondId);
+ Object.assign(a,union,{volume_m3:a.volume_m3+b.volume_m3,name:(a.name||primaryId).replace(/ A$/,"")});
+ next.rooms=next.rooms.filter(r=>r.id!==secondId);
+ next.walls=next.walls.filter(w=>w.id!==part.id);
+ // Reconstitute the original host walls created by splitRectRoom.
+ for(const extra of next.walls.filter(w=>w.id.endsWith("-part-"+secondId)).slice()){
+  const originalId=extra.id.slice(0,-("-part-"+secondId).length);
+  const original=next.walls.find(w=>w.id===originalId);
+  if(!original)throw Error("Missing original split host");
+  const len1=Math.hypot(original.x2-original.x1,original.y2-original.y1);
+  const len2=Math.hypot(extra.x2-extra.x1,extra.y2-extra.y1);
+  const total=len1+len2;
+  if(len1<EPS||len2<EPS||Math.hypot(original.x2-extra.x1,original.y2-extra.y1)>EPS)throw Error("Edited split wall cannot be safely merged");
+  for(const opening of next.openings.filter(o=>o.wall_id===original.id||o.wall_id===extra.id)){
+   opening.position_t=opening.wall_id===original.id?opening.position_t*len1/total:(len1+opening.position_t*len2)/total;
+   opening.wall_id=original.id;
+  }
+  original.x2=extra.x2;original.y2=extra.y2;
+  next.walls=next.walls.filter(w=>w.id!==extra.id);
+ }
+ for(const wall of next.walls){
+  if(wall.source===secondId)wall.source=primaryId;
+  if(wall.target===secondId)wall.target=primaryId;
+  if(wall.source===wall.target)throw Error("Cannot merge: leftover internal boundary");
+ }
+ for(const opening of next.openings){
+  const host=next.walls.find(w=>w.id===opening.wall_id);
+  if(!host)throw Error("Dangling opening");
+  opening.source=host.source;opening.target=host.target;
+ }
+ next.topology_id=String(next.topology_id||"layout")+".merged";
+ return next;
+}
+return {splitRectRoom,mergeSplitRoom};
 });
