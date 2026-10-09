@@ -56,3 +56,9 @@ Do not remove third-party notices when distributing this repository.
 - Local adaptation: `web/vendor/openplan-wall-editing.js`
 - License and copyright: MIT; Copyright (c) 2026 theLodgeStudio (license text above)
 - Changes: coordinate adapter to AirTrajectory `x1/y1/x2/y2`, connected-wall atomic resize and browser/Node exports.
+
+## Room partition adaptation
+
+- Local implementation: `web/vendor/room-partition.js`.
+- Architectural pattern adapted from openPlan3D's MIT-licensed atomic connected-wall edits (`src/lib/utils/wallEditing.ts`), copyright (c) 2026 theLodgeStudio, license above.
+- AirTrajectory-specific new functionality: rectangular room partition, wall segmentation, position remapping and fail-closed crossing detection. Not a general IFC geometry repair or automatic physical adjacency proof.
