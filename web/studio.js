@@ -43,8 +43,10 @@ if(choice===null)return;
 const target=choice.trim();
 if(target===source||!(target===(doc.outside_id||"OUTSIDE")||doc.rooms.some(r=>r.id===target))){alert("连接必须指向不同的已存在空间或 OUTSIDE");return;}
 edit(()=>{const room=doc.rooms.find(r=>r.id===source),id="wall-"+Date.now();
+const from=AirTrajectorySnapGeometry.snapEndpoint({x:room.x+room.w,y:room.y+25},doc.walls,15);
+const to=AirTrajectorySnapGeometry.snapEndpoint({x:room.x+room.w,y:room.y+room.h-25},doc.walls,15);
 doc.walls.push({id,kind:target===(doc.outside_id||"OUTSIDE")?"exterior":"internal",source,target,
-x1:room.x+room.w,y1:room.y+25,x2:room.x+room.w,y2:room.y+room.h-25});
+x1:from.x,y1:from.y,x2:to.x,y2:to.y});
 selected={type:"wall",id};});};
 function addOpening(kind){if(!doc)return;const w=selected?.type==="wall"?find():doc.walls[0];if(!w)return;edit(()=>{const id=kind+"-"+Date.now();doc.openings.push({id,kind,wall_id:w.id,source:w.source,target:w.target,position_t:.5,initial_open_pct:0,max_area_m2:kind==="window"?1.2:1.8,render_side:"imported",position_editable:true,state_editable:true});selected={type:"opening",id};});}
 el("add-window").onclick=()=>addOpening("window");el("add-door").onclick=()=>addOpening("door");
