@@ -31,6 +31,25 @@ class ImportedContamReadinessTests(unittest.TestCase):
         self.assertIn("metric-input ready",receipt["blockers"][0])
         self.assertEqual(receipt["evidence_level"],"COMPILE_READINESS_ONLY_NOT_SOLVED")
 
+    def test_metric_complete_layout_reaches_symbolic_contam_ir_only(self):
+        source=fixture()
+        payload={
+            "schema_version":source.schema_version,"topology_id":source.topology_id,
+            "source_kind":source.source_kind,"outside_id":source.outside_id,
+            "capabilities":source.capabilities,"source_provenance":source.source_provenance,
+            "rooms":[asdict(v) for v in source.rooms],
+            "walls":[asdict(v) for v in source.walls],
+            "openings":[asdict(v) for v in source.openings],
+            "compiler_contract":source.compiler_contract,
+        }
+        payload["walls"][0].update(length_m=4.0,azimuth_deg=270.0)
+        payload["openings"][0].update(width_m=1.0,height_m=1.0,sill_height_m=1.0)
+        ready=verify_imported_contam_readiness(LayoutContract.from_dict(payload))
+        self.assertEqual(ready["status"],"PASS")
+        self.assertEqual(ready["contam_ir_status"],"PASS")
+        self.assertEqual(len(ready["contam_ir_sha256"]),64)
+        self.assertEqual(ready["evidence_level"],"COMPILE_READINESS_ONLY_NOT_SOLVED")
+
     def test_fixed_demo_is_not_mislabeled_imported_layout(self):
         source=fixture()
         payload={
