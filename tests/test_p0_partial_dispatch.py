@@ -2,6 +2,7 @@
 import time
 import unittest
 
+from airtrajectory.physical import DriverCapabilities
 from airtrajectory.multiwindow_physical import (
     MultiWindowPhysicalEnvironment, PhysicalDispatchUnresolved,
 )
@@ -14,6 +15,9 @@ class Driver:
         self.calls = []
         self.fail = fail
         self.wrong_feedback = wrong_feedback
+
+    def capabilities(self):
+        return DriverCapabilities("adversarial-test", True, True, ("co2", "rain"))
 
     def physical_readiness(self):
         return {"physical_write_ready": True, "write_blockers": []}
