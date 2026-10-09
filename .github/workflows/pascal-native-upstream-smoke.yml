@@ -39,7 +39,7 @@ jobs:
           bash -n scripts/run-pascal-native.sh
           mkdir -p .upstream
           ln -s ../_pascal_native .upstream/pascal-editor
-          docker compose -f compose.pascal-native.yml config --quiet
+          docker compose -f compose.pascal-native.yml config
           test -f _pascal_native/Dockerfile
           grep -q 'PASCAL_DATA_DIR=/data' _pascal_native/Dockerfile
       - name: Install upstream workspace dependencies
