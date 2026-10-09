@@ -51,7 +51,7 @@ class EnvironmentalValue:
         if isinstance(self.value, (int, float)) and not isinstance(self.value, bool):
             if not isfinite(self.value):
                 raise ValueError("environmental measurement must be finite and nonnegative")
-        if self.confidence is not None and not isfinite(self.confidence):
+        if self.confidence is not None and (isinstance(self.confidence, bool) or not isinstance(self.confidence, (int, float)) or not isfinite(self.confidence)):
             raise ValueError("confidence must be finite")
         if self.confidence is not None and not 0.0 <= self.confidence <= 1.0:
             raise ValueError("confidence must be within [0,1]")
@@ -78,6 +78,10 @@ class ZoneEnvironmentalState:
             if item is not None and item.value is not None:
                 if isinstance(item.value, bool) or not isinstance(item.value, (int, float)) or item.value < 0:
                     raise ValueError(f"{name} must be nonnegative numeric")
+        occupancy = self.values.get("occupancy_count")
+        if occupancy is not None and occupancy.value is not None:
+            if type(occupancy.value) is not int or occupancy.value < 0:
+                raise ValueError("occupancy_count must be a nonnegative integer")
         humidity = self.values.get("relative_humidity_pct")
         if humidity is not None and humidity.value is not None:
             if isinstance(humidity.value, bool) or not isinstance(humidity.value, (int, float)) or not 0 <= humidity.value <= 100:
