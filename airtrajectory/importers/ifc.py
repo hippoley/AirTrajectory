@@ -317,6 +317,17 @@ def extract_ifc_semantics(path: str|Path) -> dict[str, Any]:
         adjacency.setdefault(elem.GlobalId,set()).add(space.GlobalId)
 
     opening_rows=[]
+    # IFC-native host boundary cross-reference. This is a review candidate,
+    # not an inferred direct opening-space connection.
+    host_spaces = {}
+    for rel in model.by_type("IfcRelSpaceBoundary"):
+        elem = getattr(rel, "RelatedBuildingElement", None)
+        space = getattr(rel, "RelatingSpace", None)
+        host_id = getattr(elem, "GlobalId", None)
+        space_id = getattr(space, "GlobalId", None)
+        if host_id and space_id:
+            host_spaces.setdefault(str(host_id), set()).add(str(space_id))
+
     for kind,ifc_type in (("door","IfcDoor"),("window","IfcWindow")):
         for elem in model.by_type(ifc_type):
             adj=sorted(adjacency.get(elem.GlobalId) or [])
@@ -512,11 +523,28 @@ def inspect_ifc_control_readiness(
             except (AttributeError, TypeError):
                 pass
             host_ids=sorted(set(host_ids))
+            host_candidates=sorted(set().union(*(host_spaces.get(h, set()) for h in host_ids)))
+            # Plan-view geometry can provide a second, weak proximity hint,
+            # but bounding box intersection must never approve adjacency.
+            geometric_candidates=[]
+            if box is not None:
+                bx1,by1,bx2,by2=box
+                for space_row in spaces:
+                    if any(space_row.get(k) is None for k in ("x","y","w","h")):
+                        continue
+                    sx1,sy1=space_row["x"],space_row["y"]
+                    sx2,sy2=sx1+space_row["w"],sy1+space_row["h"]
+                    if bx1 <= sx2 and bx2 >= sx1 and by1 <= sy2 and by2 >= sy1:
+                        geometric_candidates.append(space_row["id"])
+            geometric_candidates=sorted(set(geometric_candidates))
+
             row={
                 "id":gid,
                 "kind":kind,
                 "adjacent_spaces":adj,
                 "ifc_host_element_ids":host_ids,
+                "host_boundary_space_candidates":host_candidates,
+                "bbox_intersection_space_candidates":geometric_candidates,
                 "host_evidence_level":"IFC_REL_FILLS_VOIDS_DIAGNOSTIC_ONLY",
                 "width_m":width if width>0 else None,
                 "height_m":height if height>0 else None,
