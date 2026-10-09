@@ -59,6 +59,7 @@ def native_receipt(prj: Path, provenance_path: Path) -> dict:
             "execution_authorized": False,
             "topology_id": provenance["topology_id"],
             "layout_contract_sha256": provenance["layout_contract_sha256"],
+            "source_ifc_sha256": (provenance.get("source_provenance") or {}).get("source_sha256") if str((provenance.get("source_provenance") or {}).get("format", "")).upper() == "IFC" else None,
             "prj_sha256": digest(prj),
             "generator_provenance_sha256": digest(provenance_path),
             "solver_version": meta.get("version"),
