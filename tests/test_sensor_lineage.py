@@ -143,6 +143,41 @@ class SensorLineageTests(unittest.TestCase):
             commissioning_bundle_sha256="b"*64,
         )
 
+    def test_nonfinite_live_sensor_timestamps_rejected(self):
+        for role in ("co2_ppm", "rain"):
+            for invalid in (float("nan"), float("inf"), float("-inf")):
+                with self.subTest(role=role, invalid=invalid):
+                    readiness = _readiness(probe=False)
+                    readiness["sensor_evidence_lineage"][role]["timestamp"] = invalid
+                    with self.assertRaisesRegex(RuntimeError, "timestamp must be positive"):
+                        build_sensor_evidence(
+                            readiness=readiness,
+                            site_lineage=_site_lineage(),
+                            commissioning_identity_sha256="same-hardware",
+                            commissioning_bundle_sha256="b"*64,
+                        )
+
+    def test_nonfinite_apply_timestamp_rejected(self):
+        for invalid in (float("nan"), float("inf")):
+            with self.subTest(invalid=invalid), tempfile.TemporaryDirectory() as d:
+                root=Path(d)
+                records=[]
+                for role in ("co2", "rain"):
+                    receipt=_apply_receipt(role, "b"*64)
+                    if role == "co2":
+                        receipt["sample_timestamp"]=invalid
+                    path=root/f"{role}.json"
+                    path.write_text(json.dumps(receipt), encoding="utf-8")
+                    records.append(path)
+                with self.assertRaisesRegex(RuntimeError, "sample_timestamp must be finite"):
+                    build_sensor_evidence(
+                        readiness=_readiness(probe=True),
+                        site_lineage=_site_lineage(),
+                        commissioning_identity_sha256="same-hardware",
+                        commissioning_bundle_sha256="b"*64,
+                        sensor_apply_receipts=records,
+                    )
+
     def test_probe_labeled_sources_are_not_audited_without_apply_receipts(self):
         evidence=build_sensor_evidence(
             readiness=_readiness(probe=True),
