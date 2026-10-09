@@ -164,5 +164,6 @@ jobs:
             artifacts/ifc/duplex-control-readiness.json
             artifacts/ifc/duplex-upstream-evidence.json
             artifacts/ifc/duplex-candidate-scope.json
+            artifacts/ifc/duplex-contam-engineering-gate.json
             artifacts/ifc/duplex-if-style-success-record.md
           if-no-files-found: error
