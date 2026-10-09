@@ -15,12 +15,12 @@ ROOT=Path(__file__).resolve().parents[1]
 class IFCEngineeringPackageTests(unittest.TestCase):
     def setUp(self):
         base=LayoutContract.from_file(ROOT/"web/data/home_topology.fixed.json")
-        self.layout=replace(base,source_kind="imported-floorplan")
+        self.layout=replace(base,source_kind="imported-floorplan", openings=tuple(replace(x,state_editable=False) if n==len(base.openings)-1 else x for n,x in enumerate(base.openings)))
         self.sha="a"*64
         ids=[x.id for x in self.layout.openings]
         self.scope={"source_ifc_sha256":self.sha,"receipt_sha256":"b"*64,
                     "prj_compilation_authorized":False,
-                    "candidate_openings":[{"opening_id":i} for i in ids[:-1]],
+                    "candidate_openings":[{"opening_id":x.id,"adjacent_spaces":sorted({x.source,x.target}-{self.layout.outside_id})} for x in self.layout.openings[:-1]],
                     "excluded_openings":[{"opening_id":ids[-1]}],
                     "candidate_count":len(ids)-1,"excluded_count":1}
         self.readiness={"source":{"sha256":self.sha},"control_scope":{"mode":"ALL_OPENINGS"}}
@@ -30,7 +30,8 @@ class IFCEngineeringPackageTests(unittest.TestCase):
                       "scope_receipt_sha256":"b"*64,
                       "opening_treatments":{
                           i:{"disposition":"controllable" if n<len(ids)-1 else "excluded-modeled",
-                             "approved":True,"engineering_reference":"review-123"}
+                             "approved":True,"engineering_reference":"review-123",
+                             **({"airflow_model":{"mode":"excluded-modeled","evidence_id":"calibration-123"}} if n==len(ids)-1 else {})}
                           for n,i in enumerate(ids)},
                       "approval":{"approved":True,"reviewer":"engineer","reviewer_role":"MEP",
                                   "reviewed_source_sha256":self.sha}}
