@@ -105,6 +105,32 @@ class LayoutCorrectionTests(unittest.TestCase):
                 "wall_assignment":{"w1":"r3"},
             }])
 
+    def test_merge_rooms_preserves_external_opening(self):
+        edited=correct_layout(fixture(),[{
+            "op":"merge_rooms","source_ids":["r1","r2"],
+            "merged_room":{"id":"combined","name":"Combined","x":0,"y":0,
+                           "w":8,"h":4,"volume_m3":80},
+        }])
+        self.assertEqual([r.id for r in edited.rooms],["combined"])
+        self.assertEqual(edited.walls[0].source,"combined")
+        self.assertEqual(edited.openings[0].source,"combined")
+
+    def test_merge_rejects_unresolved_shared_wall(self):
+        with self.assertRaisesRegex(ValueError,"shared internal walls"):
+            correct_layout(fixture(),[
+                {"op":"add_wall","id":"shared","kind":"internal",
+                 "source":"r1","target":"r2","x1":4,"y1":0,"x2":4,"y2":4},
+                {"op":"merge_rooms","source_ids":["r1","r2"],
+                 "merged_room":{"id":"combined","x":0,"y":0,"w":8,"h":4,"volume_m3":80}},
+            ])
+
+    def test_merge_rejects_unknown_room(self):
+        with self.assertRaisesRegex(ValueError,"unknown source room"):
+            correct_layout(fixture(),[{
+                "op":"merge_rooms","source_ids":["r1","missing"],
+                "merged_room":{"id":"combined","x":0,"y":0,"w":8,"h":4,"volume_m3":80},
+            }])
+
     def test_rejects_invalid_opening_geometry(self):
         with self.assertRaises(ValueError):
             correct_layout(fixture(),[
