@@ -187,7 +187,7 @@ def _validate_candidate(
         if band.hard_maximum is not None and max(values) > band.hard_maximum:
             hard_violations.append(f"{field}:max>{band.hard_maximum:g}")
 
-    movement, opening_increase = _movement(
+    movement, _opening_increase = _movement(
         candidate, origin_openings, origin["opening_kind"]
     )
     metrics["movement"] = round(movement, 6)
@@ -202,9 +202,20 @@ def _validate_candidate(
         and duration_min > objective.max_intervention_min
     ):
         hard_violations.append(f"duration_min>{objective.max_intervention_min:g}")
-    # Closing an already-open window during rain remains permissible.
-    if objective.rain_hard_constraint and origin["rain"] and opening_increase > 0:
-        hard_violations.append("rain:no-opening-increase")
+    # Conservative wet-weather envelope: every exterior window must end
+    # closed. Merely refusing further opening is unsafe if one starts open.
+    # Interior doors and vents are not silently treated as exterior windows.
+    if objective.rain_hard_constraint and origin["rain"]:
+        targets = dict(origin_openings)
+        targets.update({
+            str(action["opening_id"]): float(action["target_pct"])
+            for action in candidate["actions"]
+        })
+        if any(
+            origin["opening_kind"][opening_id] == "window" and target > 0
+            for opening_id, target in targets.items()
+        ):
+            hard_violations.append("rain:exterior-window-must-close")
     if label == "HOLD":
         if movement != 0 or duration_min != 0:
             raise ValueError("HOLD must not change openings or intervene")
