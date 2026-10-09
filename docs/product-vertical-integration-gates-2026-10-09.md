@@ -30,3 +30,18 @@ Functional PARTIAL; State PARTIAL; Integration PARTIAL; Safety/Correctness PARTI
 
 ## Reuse and scope
 Continue using NIST CONTAM/ContamX and the existing portable policy-benchmark contract. Evaluate BOPTEST/BACnet/IFC interface compatibility separately against version, licensing, interface fit and actual execution; do not add packages solely for naming a standard. Never convert toy E2, solver E3, physical E4, independent use E5 into one claim.
+
+## Saved-artifact independent replay entry
+Runner (actual ContamX, with generated PRJ and matched provenance):
+```bash
+python -m examples.run_contam_joint_golden_case model.prj provenance.json --layout layout.json --golden-case case.json --policy-benchmark --out benchmark-artifact.json
+```
+Independent offline semantic verifier (no ContamX invocation):
+```bash
+python -m examples.verify_contam_benchmark_artifact benchmark-artifact.json --layout layout.json --out benchmark-verification.json
+```
+- Production-independent executable: `examples/verify_contam_benchmark_artifact.py` (`0b8f1947`) reads a saved artifact, checks topology and physical-promotion guard, then rebuilds all policy benchmark results and Pareto frontier from saved solver branch series.
+- Separate regression tests `tests/test_contam_benchmark_artifact_replay.py` (`8ae212bd`) verify valid semantic replay, forged metric rejection, truncated solver branch rejection and false physical-promotion rejection.
+- **Critical boundary:** offline result PASS proves *consistency of submitted files only*. A malicious generator can forge mutually consistent case, branches and result; real solver provenance requires independently retained solver log, PRJ digest and environment/build identity. No new E4/E5 claims.
+- Full product vertical Gate 1 remains PARTIAL: fixed layout source must be replaced with an independently imported geometry passing physical readiness and real PRJ compilation.
+- Current CI check for latest test commit: https://github.com/hippoley/AirTrajectory/actions/runs/37899497125 (pending when recorded).
