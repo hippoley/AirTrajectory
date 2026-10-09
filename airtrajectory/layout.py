@@ -228,6 +228,16 @@ class LayoutContract:
                         raise ValueError(f"{obj.id} {key} must be finite")
         if not self.rooms:
             raise ValueError("layout requires at least one room")
+        # Canonical IDs are used as dictionary keys, PRJ mappings and replay identities.
+        # Blank or ambient-colliding IDs can otherwise survive uniqueness checks.
+        if not self.outside_id.strip():
+            raise ValueError("outside_id must be nonblank")
+        for group_name, group in (("room", self.rooms), ("wall", self.walls), ("opening", self.openings)):
+            for item in group:
+                if not item.id.strip():
+                    raise ValueError(f"{group_name} id must be nonblank")
+        if any(room.id == self.outside_id for room in self.rooms):
+            raise ValueError("room id cannot equal outside_id")
         room_ids=[room.id for room in self.rooms]
         if len(room_ids)!=len(set(room_ids)):
             raise ValueError("room ids must be unique")
