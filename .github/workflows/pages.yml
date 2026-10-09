@@ -35,7 +35,7 @@ jobs:
         run: |
           python examples/export_web_scenarios.py
           python examples/export_experiment_lab.py
-          python examples/export_toy_ablation.py --train-count 12 --test-count 3 --horizon 20
+          python examples/export_toy_ablation.py --train-count 12 --test-count 3 --horizon 20 --test-families hub,loop,irregular
           python examples/export_demo_runtime_snapshot.py
       - name: Validate generated artifact
         run: |
@@ -85,6 +85,8 @@ jobs:
           assert len(p["episodes"])==3
           assert set(p["evaluation"]["policies"])=={"HOLD","Independent","Rule Joint","BC","Offline-Q"}
           assert p["status"]=="EXPLORATORY_NOT_ENGINEERING_TRUTH"
+          assert p["evaluation"]["structural_family_holdout"] is True
+          assert set(p["evaluation"]["test_topology_families"])=={"hub","loop","irregular"}
           print("TOY_ABLATION_PAGES_ARTIFACT_VERIFIED",p["artifact_sha256"])
           PY
       - name: Validate fixed layout contract
