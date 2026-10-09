@@ -7,6 +7,7 @@ on:
     paths:
       - "examples/build_public_upstream_receipt.py"
       - "examples/select_ifc_control_scope.py"
+      - "examples/audit_ifc_contam_engineering_handoff.py"
       - ".github/workflows/ifc-public-regression.yml"
   pull_request:
     paths:
@@ -68,6 +69,26 @@ jobs:
           assert p["original_full_scope_status"] == "BLOCKED"
           assert p["candidate_count"] + p["excluded_count"] == 38
           print("candidate openings:",p["candidate_count"],"excluded:",p["excluded_count"])
+          PY
+
+      - name: Audit genuine IFC engineering inputs for CONTAM
+        run: |
+          python examples/audit_ifc_contam_engineering_handoff.py \
+            artifacts/ifc/duplex-control-readiness.json \
+            artifacts/ifc/duplex-candidate-scope.json
+            artifacts/ifc/duplex-contam-engineering-gate.json \
+            --out artifacts/ifc/duplex-contam-engineering-gate.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p=json.loads(Path("artifacts/ifc/duplex-contam-engineering-gate.json").read_text())
+          assert p["status"] == "BLOCKED"
+          assert p["prj_compilation_authorized"] is False
+          assert p["contam_solver_executed"] is False
+          assert p["candidate_count"] + p["excluded_count"] == 38
+          assert p["space_count"] == 21
+          print("Engineering gate blockers:",len(p["issues"]))
+          print("Missing categories:",sorted({x["reason"] for x in p["issues"]}))
           PY
 
       - name: Verify external sample identity and coverage
