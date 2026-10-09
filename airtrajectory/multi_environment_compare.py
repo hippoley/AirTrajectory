@@ -166,7 +166,12 @@ def _validate_candidate(
             raise ValueError("candidate metrics have different zone coverage")
         zone_coverage = zones
         values = _values(series)
-        short = "co2" if field == "co2_ppm" else "pm25" if field == "pm25_ug_m3" else field
+        short = {
+            "co2_ppm": "co2",
+            "pm25_ug_m3": "pm25",
+            "tvoc_ug_m3": "tvoc",
+            "hcho_mg_m3": "hcho",
+        }[field]
         metrics[f"{short}_excess"] = round(_mean_excess(series, goal.target_max), 6)
         metrics[f"{short}_peak"] = round(max(values), 6)
         if goal.hard_max is not None and max(values) > goal.hard_max:
