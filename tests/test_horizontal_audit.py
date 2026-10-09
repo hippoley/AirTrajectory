@@ -1,6 +1,6 @@
 import unittest
 from airtrajectory.horizontal_audit import (
-    DIMENSIONS,DEPENDENCIES,validate_horizontal_matrix,
+    DIMENSIONS,DEPENDENCIES,validate_horizontal_matrix,impacted_stories,
 )
 
 
@@ -43,6 +43,17 @@ class HorizontalAuditTests(unittest.TestCase):
         }
         with self.assertRaisesRegex(ValueError,"requires rationale"):
             validate_horizontal_matrix(data)
+
+    def test_changed_import_story_cascades_to_downstream_stories(self):
+        self.assertEqual(impacted_stories({1}),list(range(1,16)))
+
+    def test_local_change_does_not_mark_unrelated_upstream_stories(self):
+        affected=impacted_stories({14})
+        self.assertEqual(affected,[14])
+
+    def test_unknown_story_change_is_rejected(self):
+        with self.assertRaisesRegex(ValueError,"unknown story IDs"):
+            impacted_stories({0})
 
     def test_missing_dimension_is_rejected(self):
         data=matrix()
