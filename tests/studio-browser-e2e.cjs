@@ -10,6 +10,8 @@ const path=require('node:path');
   try{
     await page.goto(process.env.STUDIO_URL||'http://127.0.0.1:8765/web/studio.html',{waitUntil:'load'});
     await page.locator('#summary').getByText('3 rooms').waitFor({timeout:12000});
+    await fs.mkdir('artifacts/studio',{recursive:true});
+    await page.screenshot({path:'artifacts/studio/studio-premium-initial.png',fullPage:true});
     await page.locator('#zoom-in').click();
     assert.match(await page.locator('#zoom-label').innerText(),/115%/);
     await page.locator('#zoom-fit').click();
@@ -26,6 +28,7 @@ const path=require('node:path');
     await page.locator('#add-window').click();
     assert.match(await page.locator('#summary').innerText(),/6 openings/);
     assert.match(await page.locator('#report').innerText(),/基本检查通过/);
+    await page.screenshot({path:'artifacts/studio/studio-premium-edited.png',fullPage:true});
     const selected=await page.locator('#selected-title').innerText();
     assert.match(selected,/opening/i);
     // Persist current canonical contract and load it in a new browser session.
