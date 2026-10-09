@@ -51,5 +51,18 @@ selected={type:"wall",id};});};
 function addOpening(kind){if(!doc)return;const w=selected?.type==="wall"?find():doc.walls[0];if(!w)return;edit(()=>{const id=kind+"-"+Date.now();doc.openings.push({id,kind,wall_id:w.id,source:w.source,target:w.target,position_t:.5,initial_open_pct:0,max_area_m2:kind==="window"?1.2:1.8,render_side:"imported",position_editable:true,state_editable:true});selected={type:"opening",id};});}
 el("add-window").onclick=()=>addOpening("window");el("add-door").onclick=()=>addOpening("door");
 el("remove").onclick=()=>{if(!doc||!selected)return;const x=find();if(!x)return;edit(()=>{if(selected.type==="wall"&&doc.openings.some(o=>o.wall_id===x.id))throw Error("先删除所在墙的开口");if(selected.type==="room"&&doc.walls.some(w=>w.source===x.id||w.target===x.id))throw Error("先处理该房间连接的墙");doc[selected.type+"s"]=doc[selected.type+"s"].filter(a=>a.id!==x.id);selected=null;});};
+window.AirTrajectoryStudio={
+  getLayout:()=>doc?clone(doc):null,
+  getSelection:()=>selected?{...selected}:null,
+  select:pick,
+  apply:edit,
+  refresh:update,
+  getSelected:find,
+  addWallBetween:(start,end,source,target)=>{
+    if(!doc||!doc.rooms.some(r=>r.id===source)||!(target===(doc.outside_id||"OUTSIDE")||doc.rooms.some(r=>r.id===target)))throw Error("invalid room connectivity");
+    if(source===target||Math.hypot(end.x-start.x,end.y-start.y)<8)throw Error("wall is too short");
+    edit(()=>{const id="wall-"+Date.now();doc.walls.push({id,kind:target===(doc.outside_id||"OUTSIDE")?"exterior":"internal",source,target,x1:start.x,y1:start.y,x2:end.x,y2:end.y});selected={type:"wall",id};});
+  }
+};
 el("load-demo").click();
 })();
