@@ -2,7 +2,7 @@
 import hashlib
 import unittest
 
-from examples.verify_external_ifc_chain import verify
+from examples.verify_external_ifc_chain import verify, _sha
 
 
 class ExternalIfcChainTests(unittest.TestCase):
@@ -23,12 +23,13 @@ class ExternalIfcChainTests(unittest.TestCase):
             "source_ifc_sha256": digest, "receipt_sha256": "a" * 64,
             "engineering_truth": False,
         }
+        self.native["receipt_sha256"] = _sha(self.native)
         self.scoring = {
             "status": "NATIVE_CONTAM_SCORED",
             "source_ifc_sha256": digest,
-            "native_receipt_sha256": "a" * 64,
-            "receipt_sha256": "b" * 64,
+            "native_receipt_sha256": self.native["receipt_sha256"],
         }
+        self.scoring["receipt_sha256"] = _sha(self.scoring)
 
     def test_matching_identity_is_only_evidence_present_not_closed(self):
         result = verify(self.layout, self.native, self.scoring, self.source)
@@ -53,6 +54,16 @@ class ExternalIfcChainTests(unittest.TestCase):
                 if field == "native_receipt": scoring["native_receipt_sha256"] = value
                 with self.assertRaises(ValueError):
                     verify(layout, native, scoring, source)
+
+    def test_tampered_numerical_output_with_stale_receipt_is_rejected(self):
+        self.native["zone_mass_fraction"] = {"zone:x": 0.0003}
+        with self.assertRaisesRegex(ValueError, "native receipt SHA-256"):
+            verify(self.layout, self.native, self.scoring, self.source)
+
+    def test_missing_scoring_integrity_is_rejected(self):
+        self.scoring.pop("receipt_sha256")
+        with self.assertRaisesRegex(ValueError, "scoring receipt SHA-256"):
+            verify(self.layout, self.native, self.scoring, self.source)
 
     def test_synthetic_import_is_not_external_evidence(self):
         self.layout["source_provenance"]["format"] = "synthetic-json"
