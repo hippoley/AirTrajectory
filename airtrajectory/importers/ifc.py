@@ -489,6 +489,15 @@ def inspect_ifc_control_readiness(
             continue
         adjacency.setdefault(elem.GlobalId,set()).add(space.GlobalId)
 
+    host_spaces = {}
+    for relation in model.by_type("IfcRelSpaceBoundary"):
+        related = getattr(relation, "RelatedBuildingElement", None)
+        room = getattr(relation, "RelatingSpace", None)
+        host_id = getattr(related, "GlobalId", None)
+        space_id = getattr(room, "GlobalId", None)
+        if host_id and space_id:
+            host_spaces.setdefault(str(host_id), set()).add(str(space_id))
+
     for kind,ifc_type in (("door","IfcDoor"),("window","IfcWindow")):
         for elem in model.by_type(ifc_type):
             gid=elem.GlobalId
