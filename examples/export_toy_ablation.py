@@ -17,6 +17,7 @@ def main() -> int:
     parser.add_argument("--test-count", type=int, default=8)
     parser.add_argument("--horizon", type=int, default=30)
     parser.add_argument("--seed", type=int, default=100)
+    parser.add_argument("--test-families", default="chain", help="comma-separated: chain,branch,hub,loop,irregular")
     parser.add_argument("--out", type=Path, default=Path("web/data/toy_ablation.json"))
     args = parser.parse_args()
     artifact = same_origin_toy_ablation(
@@ -24,6 +25,7 @@ def main() -> int:
         test_count=args.test_count,
         horizon_steps=args.horizon,
         seed=args.seed,
+        test_families=tuple(x.strip() for x in args.test_families.split(",")),
     )
     verify_toy_ablation(artifact)
     args.out.parent.mkdir(parents=True, exist_ok=True)
