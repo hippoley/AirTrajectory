@@ -33,11 +33,19 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 
+## floor-planner geometry
+
+- Source: https://github.com/RobinWeitzel/floor-planner
+- Original file: `src/core/geometry.ts`
+- Local adaptation: `web/vendor/floor-planner-snap.js`
+- License: MIT (the upstream package.json declares MIT)
+- Adaptation: standalone geometric segment projection, distance measurement, and endpoint snapping for the wall-editing UI.
+- Copyright belongs to the respective upstream contributors; this notice accompanies the redistributed adaptation.
+
 ## Other editors evaluated, not copied
 
 - Pascal Editor: https://github.com/pascalorg/editor — MIT; optional host uses npm package, separate from the current production studio.
 - blueprint-js: https://github.com/aalavandhaann/blueprint-js — MIT; geometry architecture reference only.
-- floor-planner: https://github.com/RobinWeitzel/floor-planner — check licensing of exact source before copying; no code vendored in this change.
 - tldraw: https://github.com/tldraw/tldraw — licensing requires case-by-case review; no code vendored in this change.
 
 Do not remove third-party notices when distributing this repository.
