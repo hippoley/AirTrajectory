@@ -55,6 +55,12 @@ def validate_ifc_engineering_package(
     if layout_ids != all_ids | excluded:
         raise ValueError("imported layout opening inventory does not match complete IFC scope")
     allowed = {"controllable", "fixed-flow", "closed-calibrated", "excluded-modeled"}
+    # A reviewed disposition must correspond to a physical connection in the
+    # compiled layout, not just a text label in a standalone approval.
+    layout_openings = {row.id: row for row in layout.openings}
+    layout_walls = {row.id: row for row in layout.walls}
+    candidate_rows = {row["opening_id"]: row for row in scope["candidate_openings"]}
+
     for opening_id, treatment in reviewed.items():
         if not isinstance(treatment, dict) or treatment.get("disposition") not in allowed:
             raise ValueError(f"invalid opening disposition: {opening_id}")
@@ -64,6 +70,24 @@ def validate_ifc_engineering_package(
             raise ValueError(f"opening {opening_id} lacks review reference")
         if treatment.get("approved") is not True:
             raise ValueError(f"opening {opening_id} is not approved")
+        opening = layout_openings[opening_id]
+        wall = layout_walls.get(opening.wall_id)
+        if wall is None or {opening.source, opening.target} != {wall.source, wall.target}:
+            raise ValueError(f"opening {opening_id} has no matching compiled wall path")
+        if opening_id in candidate_rows:
+            adjacent = candidate_rows[opening_id].get("adjacent_spaces")
+            if not isinstance(adjacent, list) or len(adjacent) not in (1, 2):
+                raise ValueError(f"opening {opening_id} has invalid source IFC adjacency")
+            if set(adjacent) != {opening.source, opening.target} - {layout.outside_id}:
+                raise ValueError(f"opening {opening_id} IFC/layout adjacency drift")
+        if treatment["disposition"] != "controllable":
+            if opening.state_editable:
+                raise ValueError(f"non-controllable opening {opening_id} remains editable")
+            airflow_model = treatment.get("airflow_model")
+            if not isinstance(airflow_model, dict) or not airflow_model.get("evidence_id"):
+                raise ValueError(f"opening {opening_id} missing fixed airflow evidence")
+            if airflow_model.get("mode") != treatment["disposition"]:
+                raise ValueError(f"opening {opening_id} fixed airflow mode drift")
     approvals = package.get("approval")
     if not isinstance(approvals, dict) or approvals.get("approved") is not True or not approvals.get("reviewer") or not approvals.get("reviewer_role"):
         raise ValueError("engineering package requires attributable human review")
