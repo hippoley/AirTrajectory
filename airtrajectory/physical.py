@@ -36,11 +36,27 @@ class SafetyDecision:
 class SafetyResolver:
     def resolve(self, observation: dict, actions: Iterable[TransitionAction]) -> SafetyDecision:
         proposed=list(actions)
-        opening=any(a.target_pct>0 for a in proposed)
+        # Scenario observations expose exterior opening IDs. Physical single-
+        # window adapters may not; fail closed by treating every requested
+        # opening as exterior when the classification is unavailable.
+        exterior=observation.get("exterior_openings")
+        if isinstance(exterior,(list,tuple,set)) and all(isinstance(x,str) for x in exterior):
+            exterior_ids=set(exterior)
+        else:
+            exterior_ids={a.opening_id for a in proposed}
+        opening=any(a.target_pct>0 and a.opening_id in exterior_ids for a in proposed)
         if opening and observation.get("rain") is None:
-            return SafetyDecision(proposed,[TransitionAction(a.opening_id,0) for a in proposed],"RAIN_EVIDENCE_MISSING")
+            return SafetyDecision(
+                proposed,
+                [TransitionAction(a.opening_id,0) if a.opening_id in exterior_ids else a for a in proposed],
+                "RAIN_EVIDENCE_MISSING",
+            )
         if observation.get("rain") and opening:
-            return SafetyDecision(proposed,[TransitionAction(a.opening_id,0) for a in proposed],"RAIN_SAFE_CLOSE")
+            return SafetyDecision(
+                proposed,
+                [TransitionAction(a.opening_id,0) if a.opening_id in exterior_ids else a for a in proposed],
+                "RAIN_SAFE_CLOSE",
+            )
         return SafetyDecision(proposed,list(proposed))
 
 class RulePolicy:
