@@ -150,6 +150,7 @@ jobs:
           print(f"- IfcWindow: {p['window_count']}")
           print(f"- IfcRelSpaceBoundary: {p['space_boundary_count']}")
           print(f"- blockers: {len(p['blockers'])}")
+          print(f"- host-relations present: {sum(bool(row.get('ifc_host_element_ids')) for row in p['semantics']['openings'])}/{p['opening_count']}")
           for reason in sorted({b["reason"] for b in p["blockers"]}):
               print(f"  - {reason}")
           PY
