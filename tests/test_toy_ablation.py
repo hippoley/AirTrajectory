@@ -108,6 +108,45 @@ class ToyAblationTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "policy coverage"):
             verify_toy_ablation(broken)
 
+    def test_toy_structural_family_holdout_is_explicit(self):
+        payload = same_origin_toy_ablation(
+            train_count=4,
+            test_count=3,
+            horizon_steps=4,
+            seed=90,
+            test_families=("hub", "loop", "irregular"),
+        )
+        self.assertTrue(verify_toy_ablation(payload))
+        self.assertTrue(payload["evaluation"]["structural_family_holdout"])
+        self.assertEqual(
+            {episode["topology_family"] for episode in payload["episodes"]},
+            {"hub", "loop", "irregular"},
+        )
+        self.assertEqual(payload["training"]["train_topology_families"], ["chain"])
+        # Interior door graph topology really differs, not just room IDs.
+        edge_counts = [
+            sum(edge["kind"] == "door" for edge in episode["topology"]["openings"])
+            for episode in payload["episodes"]
+        ]
+        self.assertEqual(edge_counts, [4, 5, 5])
+        hub = payload["episodes"][0]["topology"]
+        degree = {
+            zone["id"]: sum(
+                edge["kind"] == "door"
+                and zone["id"] in (edge["source"], edge["target"])
+                for edge in hub["openings"]
+            )
+            for zone in hub["zones"]
+        }
+        self.assertEqual(max(degree.values()), 4)
+
+    def test_unsupported_structural_family_fails_closed(self):
+        with self.assertRaisesRegex(ValueError, "test_families"):
+            same_origin_toy_ablation(
+                train_count=1, test_count=1, horizon_steps=1,
+                test_families=("not-a-topology",),
+            )
+
     def test_independent_policy_no_eligible_window(self):
         policy = IndependentWindowPolicy()
         obs = {
