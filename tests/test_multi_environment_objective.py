@@ -11,7 +11,7 @@ from airtrajectory.objective import (
 )
 
 
-FIXTURE = Path(__file__).resolve().parents[1] / "examples" / "multi_environment_conflict_v0.1.json"
+FIXTURE = Path(__file__).resolve().parents[1] / "examples" / "multi_environment_conflict_v0.2.json"
 
 
 def scenario():
