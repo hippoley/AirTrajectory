@@ -69,6 +69,14 @@ class P0StateAndDispatchTests(unittest.TestCase):
                 [OpeningEdge("W", "A", "OUTSIDE", "window", float("inf"))],
             )
 
+    def test_invalid_actuator_numbers_rejected_at_construction(self):
+        for invalid in [float("nan"), float("inf"), True]:
+            with self.subTest(invalid=invalid):
+                with self.assertRaisesRegex(ValueError, "finite numeric"):
+                    TransitionAction("W1", invalid)
+                with self.assertRaisesRegex(ValueError, "finite numeric"):
+                    ActuatorFeedback("W1", time.time(), measured_position_pct=invalid)
+
     def test_single_window_prevalidates_entire_batch(self):
         driver = RecordingDriver()
         env = PhysicalWindowEnvironment(driver, "W1")
