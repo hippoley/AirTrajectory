@@ -86,6 +86,13 @@ doc.walls.push({id,kind:target===(doc.outside_id||"OUTSIDE")?"exterior":"interna
 x1:from.x,y1:from.y,x2:to.x,y2:to.y});
 selected={type:"wall",id};});};
 function addOpening(kind){if(!doc)return;const w=selected?.type==="wall"?find():doc.walls[0];if(!w)return;edit(()=>{const id=kind+"-"+Date.now();doc.openings.push({id,kind,wall_id:w.id,source:w.source,target:w.target,position_t:.5,initial_open_pct:0,max_area_m2:kind==="window"?1.2:1.8,render_side:"imported",position_editable:true,state_editable:true});selected={type:"opening",id};});}
+el("split-room").onclick=()=>{
+ if(!doc||selected?.type!=="room"){alert("请先在画布中选择需要拆分的房间");return;}
+ try{
+  const updated=AirTrajectoryRoomPartition.splitRectRoom(doc,selected.id,"x",.5);
+  checkpoint();doc=updated;selected=null;update();
+ }catch(err){alert(err.message);}
+};
 el("add-window").onclick=()=>addOpening("window");el("add-door").onclick=()=>addOpening("door");
 el("remove").onclick=()=>{if(!doc||!selected)return;const x=find();if(!x)return;edit(()=>{if(selected.type==="wall"&&doc.openings.some(o=>o.wall_id===x.id))throw Error("先删除所在墙的开口");if(selected.type==="room"&&doc.walls.some(w=>w.source===x.id||w.target===x.id))throw Error("先处理该房间连接的墙");doc[selected.type+"s"]=doc[selected.type+"s"].filter(a=>a.id!==x.id);selected=null;});};
 window.AirTrajectoryStudio={
