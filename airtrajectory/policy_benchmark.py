@@ -7,8 +7,18 @@ backend.
 from __future__ import annotations
 
 from typing import Any, Mapping
+from math import isfinite
 
 from .contam_joint_golden_case import independent_action_vector, normalize_golden_case
+
+
+def _finite(value: Any, name: str, *, minimum: float | None = None) -> float:
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or not isfinite(value):
+        raise ValueError(f"{name} must be finite numeric")
+    number = float(value)
+    if minimum is not None and number < minimum:
+        raise ValueError(f"{name} must be >= {minimum}")
+    return number
 
 
 def build_required_benchmark_candidates(
@@ -78,7 +88,9 @@ def _movement_pct_sum(
         if action.get("kind") != "opening":
             continue
         opening_id = str(action["opening_id"])
-        target = float(action["target_pct"])
+        target = _finite(action["target_pct"], "benchmark action target_pct", minimum=0)
+        if target > 100:
+            raise ValueError("benchmark action target_pct outside [0,100]")
         if opening_id not in origin_openings:
             raise ValueError(f"benchmark action references unknown opening {opening_id}")
         if opening_id in seen:
@@ -105,7 +117,13 @@ def _co2_metrics(
     if set(origin_co2) != set(series_by_zone):
         raise ValueError("benchmark origin CO2 must cover the same zones as rollout series")
     normalized = {
-        zone: [float(origin_co2[zone]), *[float(value) for value in values]]
+        zone: [
+            _finite(origin_co2[zone], f"origin CO2:{zone}", minimum=0),
+            *[
+                _finite(value, f"rollout CO2:{zone}", minimum=0)
+                for value in values
+            ],
+        ]
         for zone, values in series_by_zone.items()
     }
     all_values = [value for values in normalized.values() for value in values]
@@ -191,6 +209,12 @@ def score_benchmark_branch(
     )
     safety = branch.get("safety_violations")
     prediction_error = branch.get("prediction_error")
+    if safety is not None and (
+        isinstance(safety,bool) or not isinstance(safety,int) or safety<0
+    ):
+        raise ValueError("safety_violations must be nonnegative integer")
+    if prediction_error is not None:
+        prediction_error = _finite(prediction_error, "prediction_error", minimum=0)
 
     return {
         "label": str(branch.get("label") or ""),
@@ -231,7 +255,12 @@ def build_policy_benchmark_report(
     if not isinstance(branches, list) or not branches:
         raise ValueError("benchmark response contains no branches")
 
-    labels = {str(branch.get("label") or "") for branch in branches}
+    labels_list = [str(branch.get("label") or "") for branch in branches]
+    if any(not label for label in labels_list) or len(set(labels_list)) != len(labels_list):
+        raise ValueError("benchmark labels must be nonempty and unique")
+    labels = set(labels_list)
+    if normalized["time_step_s"] <= 0 or normalized["horizon_steps"] <= 0:
+        raise ValueError("benchmark horizon and time step must be positive")
     required = {"HOLD", "INDEPENDENT"}
     missing = sorted(required - labels)
     if missing:
@@ -240,6 +269,29 @@ def build_policy_benchmark_report(
         )
     if not any(label.startswith("JOINT:") for label in labels):
         raise ValueError("benchmark requires at least one JOINT candidate")
+
+    # HOLD is an actual backend rollout, not a repeated t0 snapshot.
+    # Validate the declared no-movement action against all exterior openings.
+    exterior = {
+        edge.id for edge in topology.openings.values()
+        if edge.controllable and topology.outside_id in (edge.source,edge.target)
+    }
+    hold_branch = next(branch for branch in branches if branch["label"] == "HOLD")
+    hold_actions = [action for action in hold_branch.get("actions", []) if action.get("kind")=="opening"]
+    if {action.get("opening_id") for action in hold_actions} != exterior or len(hold_actions)!=len(exterior):
+        raise ValueError("HOLD must explicitly cover all exterior openings")
+    if _movement_pct_sum(hold_branch, normalized["origin"]["opening_pct"]) != 0:
+        raise ValueError("HOLD cannot change any opening")
+    for branch in branches:
+        series = branch.get("co2_series_by_zone")
+        if not isinstance(series, Mapping) or set(series) != set(normalized["origin"]["co2_ppm"]):
+            raise ValueError("benchmark branch has missing or extra CO2 zones")
+        if any(
+            not isinstance(values,(list,tuple))
+            or len(values) != normalized["horizon_steps"]
+            for values in series.values()
+        ):
+            raise ValueError("benchmark branch CO2 horizon does not match golden case")
 
     rows = [
         score_benchmark_branch(
