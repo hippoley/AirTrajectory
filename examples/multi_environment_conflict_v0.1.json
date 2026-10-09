@@ -1,50 +1,227 @@
 {
-  "schema_version": "0.1",
-  "scenario_id": "co2-vs-outdoor-pm25-v0.1",
-  "note": "Product-semantics fixture only; predicted consequence series are illustrative and not engineering truth.",
+  "schema_version": "0.2",
+  "scenario_id": "co2-vs-outdoor-pm25-v0.2",
+  "note": "Illustrative product-semantics fixture only; no solver, CFD, sensor or engineering truth. All candidates share identical time-zero environmental state and horizon.",
   "user_goal": "今天外面 PM2.5 很高，尽量改善 CO₂，但别大量吸进室外污染。",
   "origin_opening_pct": {
-    "W1": 0.0
+    "W1": 0
   },
   "candidates": [
     {
       "label": "HOLD",
-      "series_by_metric": {
-        "co2_ppm": {"living": [1450, 1440, 1430]},
-        "pm25_ug_m3": {"living": [18, 18, 18]},
-        "temperature_c": {"living": [22, 22, 22]},
-        "relative_humidity_pct": {"living": [52, 52, 52]}
+      "origin": {
+        "opening_pct": {
+          "W1": 0
+        },
+        "rain": false,
+        "co2_ppm": {
+          "living": 1450
+        },
+        "pm25_ug_m3": {
+          "living": 18
+        },
+        "temperature_c": {
+          "living": 22
+        },
+        "relative_humidity_pct": {
+          "living": 52
+        },
+        "outdoor": {
+          "pm25_ug_m3": 90
+        }
       },
-      "actions": [{"opening_id": "W1", "target_pct": 0}],
-      "duration_min": 10,
+      "time_grid_min": [
+        0,
+        5,
+        10
+      ],
+      "series_by_metric": {
+        "co2_ppm": {
+          "living": [
+            1450,
+            1440,
+            1430
+          ]
+        },
+        "pm25_ug_m3": {
+          "living": [
+            18,
+            18,
+            18
+          ]
+        },
+        "temperature_c": {
+          "living": [
+            22,
+            22,
+            22
+          ]
+        },
+        "relative_humidity_pct": {
+          "living": [
+            52,
+            52,
+            52
+          ]
+        }
+      },
+      "actions": [
+        {
+          "opening_id": "W1",
+          "target_pct": 0
+        }
+      ],
+      "duration_min": 0,
       "rain": false,
-      "provenance": {"kind": "fixture", "engineering_truth": false}
+      "provenance": {
+        "kind": "fixture",
+        "backend": "illustrative-only",
+        "engineering_truth": false
+      }
     },
     {
       "label": "LARGE_OPEN",
-      "series_by_metric": {
-        "co2_ppm": {"living": [1200, 900, 760]},
-        "pm25_ug_m3": {"living": [28, 41, 58]},
-        "temperature_c": {"living": [20, 17.5, 16]},
-        "relative_humidity_pct": {"living": [52, 50, 48]}
+      "origin": {
+        "opening_pct": {
+          "W1": 0
+        },
+        "rain": false,
+        "co2_ppm": {
+          "living": 1450
+        },
+        "pm25_ug_m3": {
+          "living": 18
+        },
+        "temperature_c": {
+          "living": 22
+        },
+        "relative_humidity_pct": {
+          "living": 52
+        },
+        "outdoor": {
+          "pm25_ug_m3": 90
+        }
       },
-      "actions": [{"opening_id": "W1", "target_pct": 80}],
+      "time_grid_min": [
+        0,
+        5,
+        10
+      ],
+      "series_by_metric": {
+        "co2_ppm": {
+          "living": [
+            1450,
+            900,
+            760
+          ]
+        },
+        "pm25_ug_m3": {
+          "living": [
+            18,
+            41,
+            58
+          ]
+        },
+        "temperature_c": {
+          "living": [
+            22,
+            17.5,
+            16
+          ]
+        },
+        "relative_humidity_pct": {
+          "living": [
+            52,
+            50,
+            48
+          ]
+        }
+      },
+      "actions": [
+        {
+          "opening_id": "W1",
+          "target_pct": 80
+        }
+      ],
       "duration_min": 10,
       "rain": false,
-      "provenance": {"kind": "fixture", "engineering_truth": false}
+      "provenance": {
+        "kind": "fixture",
+        "backend": "illustrative-only",
+        "engineering_truth": false
+      }
     },
     {
       "label": "SHORT_CROSSFLOW",
-      "series_by_metric": {
-        "co2_ppm": {"living": [1320, 1120, 980]},
-        "pm25_ug_m3": {"living": [20, 24, 29]},
-        "temperature_c": {"living": [21.5, 20.8, 20.3]},
-        "relative_humidity_pct": {"living": [52, 51, 50]}
+      "origin": {
+        "opening_pct": {
+          "W1": 0
+        },
+        "rain": false,
+        "co2_ppm": {
+          "living": 1450
+        },
+        "pm25_ug_m3": {
+          "living": 18
+        },
+        "temperature_c": {
+          "living": 22
+        },
+        "relative_humidity_pct": {
+          "living": 52
+        },
+        "outdoor": {
+          "pm25_ug_m3": 90
+        }
       },
-      "actions": [{"opening_id": "W1", "target_pct": 25}],
+      "time_grid_min": [
+        0,
+        5,
+        10
+      ],
+      "series_by_metric": {
+        "co2_ppm": {
+          "living": [
+            1450,
+            1120,
+            980
+          ]
+        },
+        "pm25_ug_m3": {
+          "living": [
+            18,
+            24,
+            29
+          ]
+        },
+        "temperature_c": {
+          "living": [
+            22,
+            20.8,
+            20.3
+          ]
+        },
+        "relative_humidity_pct": {
+          "living": [
+            52,
+            51,
+            50
+          ]
+        }
+      },
+      "actions": [
+        {
+          "opening_id": "W1",
+          "target_pct": 25
+        }
+      ],
       "duration_min": 5,
       "rain": false,
-      "provenance": {"kind": "fixture", "engineering_truth": false}
+      "provenance": {
+        "kind": "fixture",
+        "backend": "illustrative-only",
+        "engineering_truth": false
+      }
     }
   ]
 }
