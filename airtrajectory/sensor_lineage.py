@@ -193,7 +193,10 @@ def _normalize_apply_receipt(
     }
     for key,expected in numeric_expect.items():
         try:
-            actual=int(payload.get(key))
+            raw=payload.get(key)
+            if type(raw) is not int:
+                raise ValueError("non-integer receipt counter")
+            actual=raw
         except Exception as exc:
             raise RuntimeError(
                 f"{role} sensor_apply receipt missing/invalid {key}"
