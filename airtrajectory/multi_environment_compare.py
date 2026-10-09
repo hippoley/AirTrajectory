@@ -1,150 +1,249 @@
-"""Multi-environment consequence comparison for candidate futures."""
+"""Fail-closed comparison of *supplied* same-origin multi-environment futures.
+
+This module ranks outcomes; it never generates physical forecasts. A fixture
+or a claimed backend result is NOT evidence of a verified solver run.
+"""
 from __future__ import annotations
 
+import hashlib
+import json
+from math import isfinite
 from typing import Any, Mapping, Sequence
 
 from .objective import ObjectiveContract
 
 
-def _series(candidate: Mapping[str, Any], field: str) -> Mapping[str, Sequence[float]]:
-    series = (candidate.get("series_by_metric") or {}).get(field)
+def _finite(value: Any, label: str) -> float:
+    if isinstance(value, bool):
+        raise ValueError(f"{label} must be a finite number")
+    try:
+        number = float(value)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"{label} must be a finite number") from exc
+    if not isfinite(number):
+        raise ValueError(f"{label} must be a finite number")
+    return number
+
+
+def _fingerprint(origin: Mapping[str, Any]) -> str:
+    try:
+        encoded = json.dumps(
+            origin, sort_keys=True, ensure_ascii=False, allow_nan=False,
+            separators=(",", ":"),
+        ).encode("utf-8")
+    except (TypeError, ValueError) as exc:
+        raise ValueError("origin must be a finite JSON-compatible state") from exc
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def _validated_origin(origin: Any, origin_openings: Mapping[str, float]) -> str:
+    if not isinstance(origin, Mapping):
+        raise ValueError("candidate requires an explicit origin state")
+    if not isinstance(origin.get("opening_pct"), Mapping):
+        raise ValueError("origin opening_pct mapping is required")
+    if set(origin["opening_pct"]) != set(origin_openings):
+        raise ValueError("origin opening coverage differs from supplied origin")
+    for opening, pct in origin_openings.items():
+        if not 0 <= _finite(pct, f"origin opening {opening}") <= 100:
+            raise ValueError("origin opening percentage outside [0,100]")
+        if _finite(origin["opening_pct"][opening], f"origin opening {opening}") != float(pct):
+            raise ValueError("candidate opening origin mismatch")
+    if not isinstance(origin.get("rain"), bool):
+        raise ValueError("origin requires observed or declared boolean rain")
+    return _fingerprint(origin)
+
+
+def _grid(candidate: Mapping[str, Any]) -> tuple[float, ...]:
+    values = candidate.get("time_grid_min")
+    if not isinstance(values, (list, tuple)) or len(values) < 2:
+        raise ValueError("candidate requires a common time_grid_min with >=2 points")
+    grid = tuple(_finite(x, "time_grid_min") for x in values)
+    if grid[0] != 0.0 or any(b <= a for a, b in zip(grid, grid[1:])):
+        raise ValueError("time_grid_min must start at 0 and strictly increase")
+    return grid
+
+
+def _series(
+    candidate: Mapping[str, Any], field: str,
+    grid: tuple[float, ...], origin: Mapping[str, Any],
+) -> Mapping[str, Sequence[float]]:
+    series = candidate.get("series_by_metric", {}).get(field)
+    initial = origin.get(field)
     if not isinstance(series, Mapping) or not series:
         raise ValueError(f"candidate {candidate.get('label')} lacks {field} series")
-    lengths = {len(values) for values in series.values()}
-    if len(lengths) != 1 or not lengths or next(iter(lengths)) <= 0:
-        raise ValueError(f"candidate {candidate.get('label')} has invalid {field} series")
+    if not isinstance(initial, Mapping) or set(series) != set(initial):
+        raise ValueError(f"candidate {candidate.get('label')} has inconsistent {field} zones")
+    for zone, values in series.items():
+        if not isinstance(values, (list, tuple)) or len(values) != len(grid):
+            raise ValueError(f"{field}: series must match the common time grid")
+        floats = [_finite(v, f"{field}:{zone}") for v in values]
+        if floats[0] != _finite(initial[zone], f"origin {field}:{zone}"):
+            raise ValueError(f"{field}: candidate series does not start at origin")
+        if field == "relative_humidity_pct" and any(not 0 <= v <= 100 for v in floats):
+            raise ValueError("relative humidity outside [0,100]")
+        if field in {"co2_ppm", "pm25_ug_m3", "tvoc_ug_m3", "hcho_mg_m3"} and any(
+            v < 0 for v in floats
+        ):
+            raise ValueError(f"{field} concentration cannot be negative")
     return series
 
 
+def _values(series: Mapping[str, Sequence[float]]) -> list[float]:
+    return [float(value) for zone_values in series.values() for value in zone_values]
+
+
 def _mean_excess(series: Mapping[str, Sequence[float]], threshold: float) -> float:
-    values = [float(value) for zone_values in series.values() for value in zone_values]
+    values = _values(series)
     return sum(max(0.0, value - threshold) for value in values) / len(values)
 
 
-def _max_value(series: Mapping[str, Sequence[float]]) -> float:
-    return max(float(value) for values in series.values() for value in values)
-
-
 def _band_discomfort(
-    series: Mapping[str, Sequence[float]],
-    minimum: float,
-    maximum: float,
+    series: Mapping[str, Sequence[float]], minimum: float, maximum: float,
 ) -> float:
-    values = [float(value) for zone_values in series.values() for value in zone_values]
-    return sum(
-        max(0.0, minimum - value, value - maximum)
-        for value in values
-    ) / len(values)
+    values = _values(series)
+    return sum(max(0.0, minimum - value, value - maximum) for value in values) / len(values)
 
 
-def _movement(candidate: Mapping[str, Any], origin_openings: Mapping[str, float]) -> float:
+def _movement(
+    candidate: Mapping[str, Any], origin_openings: Mapping[str, float],
+) -> tuple[float, float]:
+    actions = candidate.get("actions")
+    if not isinstance(actions, list):
+        raise ValueError("candidate actions list is required")
     seen: set[str] = set()
-    total = 0.0
-    for action in candidate.get("actions") or []:
+    total = increase = 0.0
+    for action in actions:
+        if not isinstance(action, Mapping) or "opening_id" not in action:
+            raise ValueError("invalid opening action")
         opening_id = str(action["opening_id"])
         if opening_id not in origin_openings:
             raise ValueError(f"candidate references unknown opening {opening_id}")
         if opening_id in seen:
             raise ValueError(f"candidate repeats opening {opening_id}")
         seen.add(opening_id)
-        total += abs(float(action["target_pct"]) - float(origin_openings[opening_id]))
-    return total
+        target = _finite(action.get("target_pct"), f"{opening_id} target_pct")
+        if not 0 <= target <= 100:
+            raise ValueError("target_pct outside [0,100]")
+        delta = target - float(origin_openings[opening_id])
+        total += abs(delta)
+        increase += max(0.0, delta)
+    return total, increase
 
 
-def evaluate_candidate(
+def _validate_candidate(
     candidate: Mapping[str, Any],
-    *,
     objective: ObjectiveContract,
     origin_openings: Mapping[str, float],
 ) -> dict[str, Any]:
     label = str(candidate.get("label") or "")
     if not label:
         raise ValueError("candidate label is required")
+    origin = candidate.get("origin")
+    origin_sha = _validated_origin(origin, origin_openings)
+    grid = _grid(candidate)
+    if candidate.get("rain") is not origin["rain"] or not isinstance(candidate.get("rain"), bool):
+        raise ValueError("candidate rain must equal the declared common origin")
+    provenance = candidate.get("provenance")
+    if not isinstance(provenance, Mapping) or not provenance.get("kind"):
+        raise ValueError("candidate provenance.kind is required")
+    if provenance.get("engineering_truth") is True and provenance.get("kind") == "fixture":
+        raise ValueError("illustrative fixture cannot claim engineering truth")
 
     metrics: dict[str, float] = {}
     hard_violations: list[str] = []
-
+    zone_coverage: set[str] | None = None
     for field, goal in objective.pollutants.items():
-        values = _series(candidate, field)
+        series = _series(candidate, field, grid, origin)
+        zones = set(series)
+        if zone_coverage is not None and zones != zone_coverage:
+            raise ValueError("candidate metrics have different zone coverage")
+        zone_coverage = zones
+        values = _values(series)
         short = "co2" if field == "co2_ppm" else "pm25" if field == "pm25_ug_m3" else field
-        metrics[f"{short}_excess"] = round(_mean_excess(values, goal.target_max), 6)
-        metrics[f"{short}_peak"] = round(_max_value(values), 6)
-        if goal.hard_max is not None and _max_value(values) > goal.hard_max:
-            hard_violations.append(
-                f"{field}:peak>{goal.hard_max:g}"
-            )
-
+        metrics[f"{short}_excess"] = round(_mean_excess(series, goal.target_max), 6)
+        metrics[f"{short}_peak"] = round(max(values), 6)
+        if goal.hard_max is not None and max(values) > goal.hard_max:
+            hard_violations.append(f"{field}:peak>{goal.hard_max:g}")
     for field, band in objective.comfort.items():
-        values = _series(candidate, field)
+        series = _series(candidate, field, grid, origin)
+        zones = set(series)
+        if zone_coverage is not None and zones != zone_coverage:
+            raise ValueError("candidate metrics have different zone coverage")
+        zone_coverage = zones
+        values = _values(series)
         short = "temperature" if field == "temperature_c" else "humidity"
         metrics[f"{short}_discomfort"] = round(
-            _band_discomfort(values, band.minimum, band.maximum),
-            6,
+            _band_discomfort(series, band.minimum, band.maximum), 6
         )
-        peak_low = min(float(value) for rows in values.values() for value in rows)
-        peak_high = max(float(value) for rows in values.values() for value in rows)
-        if band.hard_minimum is not None and peak_low < band.hard_minimum:
-            hard_violations.append(
-                f"{field}:min<{band.hard_minimum:g}"
-            )
-        if band.hard_maximum is not None and peak_high > band.hard_maximum:
-            hard_violations.append(
-                f"{field}:max>{band.hard_maximum:g}"
-            )
+        if band.hard_minimum is not None and min(values) < band.hard_minimum:
+            hard_violations.append(f"{field}:min<{band.hard_minimum:g}")
+        if band.hard_maximum is not None and max(values) > band.hard_maximum:
+            hard_violations.append(f"{field}:max>{band.hard_maximum:g}")
 
-    movement = _movement(candidate, origin_openings)
+    movement, opening_increase = _movement(candidate, origin_openings)
     metrics["movement"] = round(movement, 6)
-
-    duration_min = float(candidate.get("duration_min") or 0.0)
-    if duration_min < 0:
-        raise ValueError("candidate duration_min cannot be negative")
+    if "duration_min" not in candidate:
+        raise ValueError("candidate intervention duration_min is required")
+    duration_min = _finite(candidate["duration_min"], "duration_min")
+    if not 0 <= duration_min <= grid[-1]:
+        raise ValueError("duration_min must be within the comparison horizon")
     metrics["duration_min"] = duration_min
     if (
         objective.max_intervention_min is not None
         and duration_min > objective.max_intervention_min
     ):
-        hard_violations.append(
-            f"duration_min>{objective.max_intervention_min:g}"
-        )
-
-    rain = bool(candidate.get("rain", False))
-    if objective.rain_hard_constraint and rain and movement > 0:
-        hard_violations.append("rain:no-window-motion")
-
+        hard_violations.append(f"duration_min>{objective.max_intervention_min:g}")
+    # Closing an already-open window during rain remains permissible.
+    if objective.rain_hard_constraint and origin["rain"] and opening_increase > 0:
+        hard_violations.append("rain:no-opening-increase")
+    if label == "HOLD":
+        if movement != 0 or duration_min != 0:
+            raise ValueError("HOLD must not change openings or intervene")
     return {
         "label": label,
         "feasible": not hard_violations,
         "hard_violations": hard_violations,
         "metrics": metrics,
-        "provenance": candidate.get("provenance") or {},
+        "origin_sha256": origin_sha,
+        "time_grid_min": list(grid),
+        "zone_ids": sorted(zone_coverage or []),
+        "provenance": dict(provenance),
     }
 
 
-def compare_candidate_futures(
-    candidates: Sequence[Mapping[str, Any]],
-    *,
+def evaluate_candidate(
+    candidate: Mapping[str, Any], *,
     objective: ObjectiveContract,
     origin_openings: Mapping[str, float],
 ) -> dict[str, Any]:
+    """Inspect a single candidate; never authorize a physical action."""
+    return _validate_candidate(candidate, objective, origin_openings)
+
+
+def compare_candidate_futures(
+    candidates: Sequence[Mapping[str, Any]], *,
+    objective: ObjectiveContract,
+    origin_openings: Mapping[str, float],
+) -> dict[str, Any]:
+    """Compare same-origin and same-horizon consequences with no silent imputation."""
     if len(candidates) < 2:
-        raise ValueError("comparison requires at least two candidates")
-
-    rows = [
-        evaluate_candidate(
-            candidate,
-            objective=objective,
-            origin_openings=origin_openings,
-        )
-        for candidate in candidates
-    ]
-
-    metric_key_by_priority = {
-        "co2_excess": "co2_excess",
-        "pm25_excess": "pm25_excess",
-        "temperature_discomfort": "temperature_discomfort",
-        "humidity_discomfort": "humidity_discomfort",
-        "movement": "movement",
+        raise ValueError("comparison requires HOLD and at least one alternative")
+    rows = [_validate_candidate(c, objective, origin_openings) for c in candidates]
+    labels = [row["label"] for row in rows]
+    if len(set(labels)) != len(labels) or "HOLD" not in labels:
+        raise ValueError("candidate labels must be unique and include simulated HOLD")
+    if len({row["origin_sha256"] for row in rows}) != 1:
+        raise ValueError("candidate futures do not share the same origin")
+    if len({tuple(row["time_grid_min"]) for row in rows}) != 1:
+        raise ValueError("candidate futures do not share the same time grid")
+    if len({tuple(row["zone_ids"]) for row in rows}) != 1:
+        raise ValueError("candidate futures do not share the same zone coverage")
+    provenance_set = {
+        (row["provenance"].get("kind"), row["provenance"].get("backend"))
+        for row in rows
     }
+    if len(provenance_set) != 1:
+        raise ValueError("candidate futures have incomparable evidence provenance")
 
     feasible = [row for row in rows if row["feasible"]]
     recommendation_basis: list[str] = []
@@ -152,30 +251,32 @@ def compare_candidate_futures(
     if feasible:
         working = feasible
         for priority in objective.priorities:
-            metric_key = metric_key_by_priority[priority]
-            if not all(metric_key in row["metrics"] for row in working):
-                continue
-            best = min(float(row["metrics"][metric_key]) for row in working)
+            if not all(priority in row["metrics"] for row in working):
+                raise ValueError(f"undeclared or missing priority metric: {priority}")
+            best = min(row["metrics"][priority] for row in working)
             working = [
-                row
-                for row in working
-                if abs(float(row["metrics"][metric_key]) - best) <= 1e-9
+                row for row in working
+                if abs(row["metrics"][priority] - best) <= 1e-9
             ]
-            recommendation_basis.append(metric_key)
+            recommendation_basis.append(priority)
             if len(working) == 1:
                 break
         recommended = sorted(row["label"] for row in working)
 
     return {
-        "schema_version": "0.1",
-        "comparison": "airtrajectory-multi-environment-consequences-v0.1",
+        "schema_version": "0.2",
+        "comparison": "airtrajectory-multi-environment-consequences-v0.2",
         "objective": objective.as_dict(),
+        "status": "EXPLORATORY_COMPARISON" if feasible else "NO_FEASIBLE_CANDIDATE",
+        "origin_sha256": rows[0]["origin_sha256"],
+        "time_grid_min": rows[0]["time_grid_min"],
         "ranking_policy": "hard-constraints-then-lexicographic-priorities",
         "recommendation_basis": recommendation_basis,
         "recommended": recommended,
+        "execution_authorized": False,
         "results": sorted(rows, key=lambda row: row["label"]),
         "evidence_boundary": (
-            "compares supplied predicted consequence series; this module does "
-            "not claim to generate PM2.5/thermal/humidity physics itself"
+            "declared same-origin predicted series, not independent physics "
+            "verification or authorization for physical window actuation"
         ),
     }
