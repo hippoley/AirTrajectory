@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from typing import Any, Mapping
+from math import isfinite
 
 
 EVIDENCE_CLASSES = {"measured", "estimated", "simulated", "stale", "unavailable"}
@@ -47,6 +48,11 @@ class EnvironmentalValue:
             raise ValueError("unavailable values must be null")
         if self.evidence == "measured" and self.value is None:
             raise ValueError("measured values cannot be null")
+        if isinstance(self.value, (int, float)) and not isinstance(self.value, bool):
+            if not isfinite(self.value) or self.value < 0:
+                raise ValueError("environmental measurement must be finite and nonnegative")
+        if self.confidence is not None and not isfinite(self.confidence):
+            raise ValueError("confidence must be finite")
         if self.confidence is not None and not 0.0 <= self.confidence <= 1.0:
             raise ValueError("confidence must be within [0,1]")
 
