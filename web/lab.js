@@ -9,7 +9,8 @@ let topologyCapabilities={
 };
 function validateTopologyPayload(p){
   if(!p||p.schema_version!=="0.1"||!["fixed-floorplan","imported-floorplan"].includes(p.source_kind))throw new Error("unsupported topology contract");
-  if(p.source_kind==="fixed-floorplan"&&p.capabilities?.floorplan_geometry_editable!==false)throw new Error("fixed demo geometry must remain fixed");\n  if(p.source_kind==="imported-floorplan"&&(p.capabilities?.arbitrary_topology_import!=="supported"||!p.source_provenance?.source_sha256))throw new Error("imported layout requires provenance and import capability");
+  if(p.source_kind==="fixed-floorplan"&&p.capabilities?.floorplan_geometry_editable!==false)throw new Error("fixed demo geometry must remain fixed");
+  if(p.source_kind==="imported-floorplan"&&(p.capabilities?.arbitrary_topology_import!=="supported"||!p.source_provenance?.source_sha256))throw new Error("imported layout requires provenance and import capability");
   if(p.capabilities?.opening_position_editable!==true)throw new Error("opening position editing must remain enabled");
   if(!Array.isArray(p.rooms)||!p.rooms.length||!Array.isArray(p.walls)||!p.walls.length||!Array.isArray(p.openings)||!p.openings.length)throw new Error("incomplete topology contract");
   const roomIds=new Set(p.rooms.map(r=>r.id)),wallIds=new Set(p.walls.map(w=>w.id)),outside=p.outside_id||"OUTSIDE";
