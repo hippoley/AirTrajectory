@@ -102,6 +102,22 @@ class ToyAblationTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "physical truth"):
             verify_toy_ablation(broken)
 
+    def test_rehashed_forged_metrics_are_rejected_by_independent_replay(self):
+        from airtrajectory.toy_ablation import _sha
+        broken = copy.deepcopy(self.artifact)
+        broken["episodes"][0]["policies"]["BC"]["metrics"]["worst_zone_peak_co2_ppm"] += 100
+        broken["artifact_sha256"] = _sha({k: v for k, v in broken.items() if k != "artifact_sha256"})
+        with self.assertRaisesRegex(ValueError, "disagrees with replay frames"):
+            verify_toy_ablation(broken)
+
+    def test_rehashed_forged_aggregate_is_rejected(self):
+        from airtrajectory.toy_ablation import _sha
+        broken = copy.deepcopy(self.artifact)
+        broken["aggregate"]["BC"]["mean_co2_excess_ppm"] += 10
+        broken["artifact_sha256"] = _sha({k: v for k, v in broken.items() if k != "artifact_sha256"})
+        with self.assertRaisesRegex(ValueError, "disagrees with episodes"):
+            verify_toy_ablation(broken)
+
     def test_missing_policy_fails_closed(self):
         broken = copy.deepcopy(self.artifact)
         del broken["episodes"][0]["policies"]["Offline-Q"]
