@@ -78,6 +78,36 @@ class MultiEnvironmentObjectiveTests(unittest.TestCase):
                 origin_openings=payload["origin_opening_pct"],
             )
 
+    def test_tvoc_hcho_policy_comparison_uses_matching_priority_keys(self):
+        payload = scenario()
+        obj = ObjectiveContract(
+            objective_id="indoor-chemical",
+            pollutants={
+                "tvoc_ug_m3": PollutantGoal("tvoc_ug_m3", 300.0),
+                "hcho_mg_m3": PollutantGoal("hcho_mg_m3", 0.08),
+            },
+            priorities=("hcho_excess", "tvoc_excess"),
+        )
+        for candidate in payload["candidates"]:
+            zones = list(candidate["origin"]["co2_ppm"])
+            candidate["origin"]["tvoc_ug_m3"] = {zone: 400.0 for zone in zones}
+            candidate["origin"]["hcho_mg_m3"] = {zone: 0.10 for zone in zones}
+            candidate["series_by_metric"]["tvoc_ug_m3"] = {
+                zone: [400.0, 350.0, 250.0] for zone in zones
+            }
+            candidate["series_by_metric"]["hcho_mg_m3"] = {
+                zone: [0.10, 0.09, 0.07] for zone in zones
+            }
+        report = compare_candidate_futures(
+            payload["candidates"], objective=obj,
+            origin_openings=payload["origin_opening_pct"],
+        )
+        self.assertTrue(report["results"])
+        for row in report["results"]:
+            self.assertIn("hcho_excess", row["metrics"])
+            self.assertIn("tvoc_excess", row["metrics"])
+        self.assertFalse(report["execution_authorized"])
+
     def test_unknown_goal_fails_closed(self):
         with self.assertRaisesRegex(ValueError, "do not invent objective weights"):
             compile_user_goal("随便帮我调一下吧")
