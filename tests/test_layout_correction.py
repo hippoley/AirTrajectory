@@ -118,6 +118,16 @@ class LayoutCorrectionTests(unittest.TestCase):
         self.assertEqual(receipt["expected"]["opening_ids"],["o1"])
         self.assertTrue(all(receipt["checks"].values()))
 
+    def test_nonfinite_geometry_never_enters_runtime(self):
+        for patch in (
+            {"op":"move_opening","id":"o1","position_t":float("nan")},
+            {"op":"set_room_volume","id":"r1","volume_m3":float("inf")},
+            {"op":"move_wall","id":"w1","x1":float("-inf")},
+        ):
+            with self.subTest(patch=patch["op"]):
+                with self.assertRaisesRegex(ValueError,"must be finite"):
+                    correct_layout(fixture(),[patch])
+
     def test_merge_rooms_preserves_external_opening(self):
         edited=correct_layout(fixture(),[{
             "op":"merge_rooms","source_ids":["r1","r2"],
