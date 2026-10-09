@@ -21,6 +21,14 @@ const path=require('node:path');
     await page.locator('[data-mode=wall]').click();
     assert.match(await page.locator('#mode-label').innerText(),/画墙模式/);
     await page.keyboard.press('v');
+    // Real upstream wall-resize interaction: select a wall in the scene graph.
+    await page.locator('#scene-list .scene-entry').filter({hasText:'living-west'}).click();
+    const wallLength=page.locator('#fields input[type=number]');
+    await wallLength.fill('275');
+    await page.locator('#fields button').filter({hasText:'按连接关系调整墙长'}).click();
+    const resized=await page.evaluate(()=>window.AirTrajectoryStudio.getLayout().walls.find(w=>w.id==='living-west'));
+    assert.ok(Math.abs(Math.hypot(resized.x2-resized.x1,resized.y2-resized.y1)-275)<0.01);
+    await page.locator('#undo').click();
     await page.locator('#add-room').click();
     assert.match(await page.locator('#summary').innerText(),/4 rooms/);
     // Create a non-hard-coded room connection, then put a window on it.
