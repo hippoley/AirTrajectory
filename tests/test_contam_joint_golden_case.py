@@ -168,6 +168,42 @@ class ContamJointGoldenCaseTests(unittest.TestCase):
         self.assertEqual(receipt["objective_improvement"], 0.0)
         self.assertTrue(receipt["non_regression"])
 
+    def test_falsify_corrupted_real_solver_branch_before_scoring(self):
+        actions = {"W1": 75, "W2": 35, "W3": 0}
+        series = {"living": [1300, 1200, 1100], "bedroom": [900, 900, 900], "study": [800, 800, 800]}
+        for bad in (float("nan"), float("inf"), -1.0):
+            with self.subTest(bad=bad):
+                row = branch("independent-reference", actions, series)
+                row["co2_series_by_zone"]["living"][1] = bad
+                with self.assertRaisesRegex(ValueError, "finite and nonnegative"):
+                    score_strategy_branch(row, case=self.case, topology=self.topology)
+        shorter = branch("independent-reference", actions, series)
+        for zone in shorter["co2_series_by_zone"]:
+            shorter["co2_series_by_zone"][zone].pop()
+        with self.assertRaisesRegex(ValueError, "horizon"):
+            score_strategy_branch(shorter, case=self.case, topology=self.topology)
+        duplicate = branch("independent-reference", actions, series)
+        duplicate["actions"].append(dict(duplicate["actions"][0]))
+        with self.assertRaisesRegex(ValueError, "duplicate"):
+            score_strategy_branch(duplicate, case=self.case, topology=self.topology)
+        invalid = branch("independent-reference", actions, series)
+        invalid["actions"][0]["target_pct"] = float("nan")
+        with self.assertRaisesRegex(ValueError, "target"):
+            score_strategy_branch(invalid, case=self.case, topology=self.topology)
+
+    def test_duplicate_strategy_label_cannot_overwrite_reference(self):
+        actions = {"W1": 75, "W2": 35, "W3": 0}
+        series = {"living": [1300, 1200, 1100], "bedroom": [900, 900, 900], "study": [800, 800, 800]}
+        response = {"branches": [
+            branch("independent-reference", actions, series),
+            branch("independent-reference", actions, series),
+            branch("joint-check", actions, series),
+        ]}
+        with self.assertRaisesRegex(ValueError, "labels must be unique"):
+            compare_independent_vs_joint(
+                response=response, case=self.case, topology=self.topology
+            )
+
     def test_incomplete_zone_series_is_rejected(self):
         with self.assertRaisesRegex(ValueError, "complete co2_series_by_zone"):
             score_strategy_branch(
