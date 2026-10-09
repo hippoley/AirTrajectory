@@ -109,3 +109,10 @@ Audit date: 2026-10-09. **Source of requirements:** `docs/product-user-story.md`
 - Added counterexamples for NaN, positive infinity, negative infinity, plus acceptance of legitimate finite boundary values (commit `386c6a9073a831e85fb7b13f6f633e0348f80942`, `tests/test_runtime_nonfinite_overrides.py`).
 - Required verification: run the new tests and existing full Core workflow against the *current* PR head. Code push alone is not a test verdict. Relevant stories: 1, 2, 5, 6, 15 and other reachable consumers of runtime snapshots.
 - Evidence limit: no real imported-layout ContamX solve, browser editor acceptance or independent unfamiliar-topology numerical receipt was produced by this change; D-P0-001/002/003 remain OPEN.
+
+## 2026-10-09 — Imported PRJ demo-profile isolation gate
+
+- Found P0 integration safety gap: `examples/generate_multispace_contam_prj.py --layout unfamiliar.json` could inherit fixed-demo metric, boundary, PRJ and illustrative airflow profiles. Profiles might not match imported IDs and should never silently be considered real project data.
+- Imported layouts now **require explicit command-line supply** of all four profiles, including a newly supported `--airflow-profile` option. Fixed demo defaults remain unchanged. Commit `401920d685eef416a0c43eef71b37eb910a2f9c8`.
+- Added an independent CLI negative test asserting an imported topology with omitted profiles cannot emit a PRJ (`tests/test_imported_prj_cli_safety.py`, commit `116b9a9ba61ed9c7d1abf06168764d4c2c082c03`).
+- This is a fail-closed integration guard, **not** imported-layout solver evidence. Acceptance still requires independent layout-profile compatibility, real ContamX runtime on newly generated PRJ, numerical result validation and immutable provenance. D-P0-001/003 remain OPEN.
