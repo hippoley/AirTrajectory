@@ -102,3 +102,10 @@ Audit date: 2026-10-09. **Source of requirements:** `docs/product-user-story.md`
 - Added independently specified negative regression cases in `tests/test_canonical_identity.py` (commit `8344d42747ff1fe2b69ff8e16c812a185e7a83a7`).
 - Evidence gate: `python -m unittest tests/test_canonical_identity.py -v` (or discovery mode); latest head Core workflow https://github.com/hippoley/AirTrajectory/actions/runs/37881456450; Pages workflow https://github.com/hippoley/AirTrajectory/actions/runs/37881456508. Both were **QUEUED at inspection**. No PASS until run results are read.
 - Scope boundary: this corrects ID validation only. It does not establish imported topology → generated PRJ → real ContamX run, graphical editing, independent unfamiliar-layout solve, or any Verified Closed story.
+
+## 2026-10-09 — Runtime override non-finite rejection checkpoint
+
+- Found a cross-story state-to-physics trust boundary: `DemoRuntimeSnapshot.resolve()` range checks accepted NaN because IEEE comparisons with NaN are false. Both opening position and actuator opening state overrides now explicitly require finite values (commit `a608dce25d4a54041fac818ea25e2284769d7ce8`).
+- Added counterexamples for NaN, positive infinity, negative infinity, plus acceptance of legitimate finite boundary values (commit `386c6a9073a831e85fb7b13f6f633e0348f80942`, `tests/test_runtime_nonfinite_overrides.py`).
+- Required verification: run the new tests and existing full Core workflow against the *current* PR head. Code push alone is not a test verdict. Relevant stories: 1, 2, 5, 6, 15 and other reachable consumers of runtime snapshots.
+- Evidence limit: no real imported-layout ContamX solve, browser editor acceptance or independent unfamiliar-topology numerical receipt was produced by this change; D-P0-001/002/003 remain OPEN.
