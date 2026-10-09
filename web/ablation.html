@@ -33,7 +33,7 @@ code{color:var(--mint)}.empty{padding:22px;border:1px dashed var(--line);border-
 <p class="eyebrow">REPLAYABLE RESEARCH / EXPERIMENT 001</p>
 <h1>Does learning change how a home breathes?</h1>
 <p class="lede">Compare HOLD, independent one-window control, a joint rule, behavior cloning and Offline-Q. Every policy starts from the same immutable origin. Move the timeline and inspect the actual backend-produced window positions and CO₂ states.</p>
-<div class="warning"><strong>Evidence boundary:</strong> This is a deterministic <b>toy-scenario-v1</b> replay, not CONTAM, CFD or physical airflow. Room diagrams show topology and window states, <b>not</b> airflow vectors. This experiment does not establish that post-training improves real ventilation or generalizes to unseen topology families.</div>
+<div class="warning"><strong>Evidence boundary:</strong> This is a deterministic <b>toy-scenario-v1</b> replay, not CONTAM, CFD or physical airflow. Room diagrams show topology and window states, <b>not</b> airflow vectors. Held-out graph families remain toy physics; this experiment does not establish real-world post-training improvement.</div>
 <div id="loading" class="empty">Loading verified experiment artifact…</div>
 <div id="lab" hidden>
 <div class="controls">
@@ -45,7 +45,7 @@ code{color:var(--mint)}.empty{padding:22px;border:1px dashed var(--line);border-
 </div>
 <div class="timeline"><label for="step">Step</label><input id="step" type="range" min="0" max="20" value="0"><strong id="stepValue">0</strong></div>
 <div class="grid">
-<section class="panel"><span class="tag">A · BASELINE / POLICY</span><h2 id="leftTitle"></h2><svg class="plan" id="leftPlan" viewBox="0 0 500 160" role="img" aria-label="Policy A topology and window states"></svg><div id="leftMetrics" class="metrics"></div></section>
+<section class="panel"><span class="tag">A · BASELINE / POLICY</span><h2 id="leftTitle"></h2><svg class="plan" id="leftPlan" viewBox="0 0 500 215" role="img" aria-label="Policy A topology and window states"></svg><div id="leftMetrics" class="metrics"></div></section>
 <section class="panel"><span class="tag">B · COMPARATOR / POLICY</span><h2 id="rightTitle"></h2><svg class="plan" id="rightPlan" viewBox="0 0 500 160" role="img" aria-label="Policy B topology and window states"></svg><div id="rightMetrics" class="metrics"></div></section>
 </div>
 <section class="panel" style="margin-top:16px">
