@@ -178,6 +178,25 @@ class FieldFiniteAdversarialTests(unittest.TestCase):
     def setUp(self):
         self.layout = LayoutContract.from_file(LAYOUT)
 
+    def test_reject_nonfinite_runtime_co2_after_valid_digest(self):
+        layout = self.layout
+        runtime = runtime_receipt(layout)
+        runtime["prediction_series"][0]["co2_ppm"]["living"] = float("nan")
+        runtime["prediction_series_sha256"] = sha(runtime["prediction_series"])
+        payload = dict(runtime)
+        payload.pop("runtime_receipt_sha256")
+        runtime["runtime_receipt_sha256"] = sha(payload)
+        spec = validate_field_validation_protocol(layout, protocol())
+        bundle = field_bundle(
+            protocol_sha=spec["protocol_sha256"],
+            runtime_sha=runtime["runtime_receipt_sha256"],
+        )
+        with self.assertRaisesRegex(ValueError, "invalid CO2"):
+            validate_contam_against_field(
+                layout=layout, runtime_receipt=runtime,
+                protocol=protocol(), field_bundle=bundle,
+            )
+
     def test_reject_duplicate_runtime_prediction_steps(self):
         layout = self.layout
         runtime = runtime_receipt(layout)
