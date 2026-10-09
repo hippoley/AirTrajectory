@@ -122,6 +122,23 @@ class EnvironmentalStateTests(unittest.TestCase):
         })
         self.assertEqual(outdoor.values["temperature_c"].value, -8.0)
 
+    def test_occupancy_requires_integer_and_confidence_requires_numeric_probability(self):
+        for bad in (-1, 1.5, True, "2"):
+            with self.subTest(occupancy=bad):
+                with self.assertRaisesRegex(ValueError, "occupancy_count"):
+                    ZoneEnvironmentalState(
+                        "living", {"occupancy_count": EnvironmentalValue(bad, "measured")}
+                    )
+        for bad in (True, False, "0.8", float("nan"), float("inf")):
+            with self.subTest(confidence=bad):
+                with self.assertRaisesRegex(ValueError, "confidence"):
+                    EnvironmentalValue(10.0, "estimated", confidence=bad)
+        self.assertEqual(
+            ZoneEnvironmentalState("living", {
+                "occupancy_count": EnvironmentalValue(0, "measured")
+            }).values["occupancy_count"].value, 0
+        )
+
     def test_unavailable_cannot_carry_fake_value(self):
         with self.assertRaisesRegex(ValueError, "unavailable"):
             EnvironmentalValue(12.0, "unavailable")
