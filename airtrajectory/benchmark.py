@@ -28,6 +28,14 @@ def _summary(trajectories):
     }
 
 def unseen_topology_benchmark(train_count=24,test_count=8,horizon_steps=30,seed=100):
+    if any(type(value) is not int or value < 1 for value in (train_count, test_count, horizon_steps)):
+        raise ValueError("benchmark counts and horizon must be positive integers")
+    if type(seed) is not int or seed < 0:
+        raise ValueError("benchmark seed must be nonnegative integer")
+    train_seeds = [seed+i for i in range(train_count)]
+    test_seeds = [seed+10000+i for i in range(test_count)]
+    if set(train_seeds) & set(test_seeds):
+        raise ValueError("train/test scenario seeds overlap; invalid holdout")
     train_factory=TrajectoryFactory(horizon_steps=horizon_steps,rooms=(2,3,4))
     train=[train_factory.rule_episode(seed+i) for i in range(train_count)]
     rows=_rows(train)
@@ -47,7 +55,7 @@ def unseen_topology_benchmark(train_count=24,test_count=8,horizon_steps=30,seed=
             t.context.update({"benchmark_split":"unseen-topology","room_count":5,"physics_fidelity":"toy","topology":topology_manifest(s.topology)})
             results[name].append(t)
     return {
-        "contract":{"train_rooms":[2,3,4],"test_rooms":[5],"backend":"toy-scenario-v1"},
+        "contract":{"train_rooms":[2,3,4],"test_rooms":[5],"backend":"toy-scenario-v1", "split_unit":"scenario-seed-and-room-count", "train_seeds":train_seeds, "test_seeds":test_seeds, "same_test_origin_across_policies":True},
         "metrics":{k:_summary(v) for k,v in results.items()},
         "trajectories":results,
     }
