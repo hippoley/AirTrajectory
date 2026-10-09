@@ -116,6 +116,8 @@ def compile_ifc_engineering_package(
         package, layout=layout, readiness=readiness, scope=scope,
     )
     # Existing compiler consumes the original validated input bundles.
+    approved_controls = sorted(opening_id for opening_id, treatment in package["opening_treatments"].items()
+                               if treatment["disposition"] == "controllable")
     provenance = build_engineering_contam_project(
         layout=layout,
         metric_evidence=package["metric_evidence"],
@@ -124,6 +126,10 @@ def compile_ifc_engineering_package(
         prj_profile=package["prj_profile"],
         prj_review_evidence=package["prj_review_evidence"],
         out_path=out_path,
+        approved_control_opening_ids=approved_controls,
     )
+    emitted = set(provenance.get("control_node_numbers") or {})
+    if emitted != set(approved_controls):
+        raise RuntimeError("PRJ control nodes differ from approved IFC control scope")
     return {**provenance, "ifc_engineering_package": binding,
             "runtime_verified": False, "engineering_truth": False}
