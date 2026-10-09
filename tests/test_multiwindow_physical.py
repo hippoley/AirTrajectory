@@ -30,7 +30,7 @@ class Driver:
         }
 
     def read_sensors(self):
-        self.ts += 1.0
+        self.ts = time.time()
         return [
             SensorReading(
                 sensor_id=self.zone+"-co2",
@@ -51,7 +51,7 @@ class Driver:
         ]
 
     def set_position(self, opening_id, target_pct):
-        self.ts += 1.0
+        self.ts = time.time()
         self.position = float(target_pct)
         return ActuatorFeedback(
             actuator_id=opening_id,
