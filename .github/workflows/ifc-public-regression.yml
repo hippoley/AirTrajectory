@@ -2,6 +2,11 @@ name: ifc-public-regression
 
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "examples/build_public_upstream_receipt.py"
+      - ".github/workflows/ifc-public-regression.yml"
   pull_request:
     paths:
       - "airtrajectory/importers/ifc.py"
