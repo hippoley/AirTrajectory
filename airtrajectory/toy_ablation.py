@@ -305,6 +305,24 @@ def verify_toy_ablation(payload: Mapping[str, Any]) -> bool:
             if any(set(frame["co2_ppm"]) != set(episode["origin"]["co2_ppm"])
                    for frame in frames):
                 raise ValueError(f"{label} has mismatched zone coverage")
+            values = [float(value) for frame in frames for value in frame["co2_ppm"].values()]
+            if any(not (0 <= value < float("inf")) for value in values):
+                raise ValueError(f"{label} has invalid CO2 frame values")
+            threshold = ev["co2_threshold_ppm"]
+            derived = {
+                "mean_co2_excess_ppm": round(mean(max(0.0, v-threshold) for v in values), 6),
+                "worst_zone_peak_co2_ppm": round(max(values), 6),
+                "final_worst_zone_co2_ppm": round(max(float(v) for v in frames[-1]["co2_ppm"].values()), 6),
+                "zone_steps_above_threshold": sum(v > threshold for v in values),
+            }
+            for metric, expected_value in derived.items():
+                if run["metrics"].get(metric) != expected_value:
+                    raise ValueError(f"{label} metric {metric} disagrees with replay frames")
+    for label in expected:
+        for metric in ("mean_co2_excess_ppm", "worst_zone_peak_co2_ppm", "final_worst_zone_co2_ppm", "zone_steps_above_threshold"):
+            average = round(mean(episode["policies"][label]["metrics"][metric] for episode in payload["episodes"]), 6)
+            if payload["aggregate"][label].get(metric) != average:
+                raise ValueError(f"{label} aggregate {metric} disagrees with episodes")
     checksum = payload.get("artifact_sha256")
     content = {k: v for k, v in payload.items() if k != "artifact_sha256"}
     if checksum != _sha(content):
