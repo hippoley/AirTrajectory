@@ -38,3 +38,10 @@ Resume: latest HEAD CI plus end-to-end sensor fixture -> canonical state -> Obje
 - `b9c3a03a`: independent negative tests for NaN, Infinity, negative/boolean concentrations and out-of-range humidity.
 - Latest CI `37892301236` was QUEUED when observed. Previous run `37891805084` had one failing negative fixture; `e7513b73` repaired that fixture, but subsequent runs were cancelled, so no verified full-suite acceptance yet.
 - Story impact: US3 state validity, US4/6/7 candidate evaluation, US8/10 field/learning provenance. **Status remains PARTIAL**, not Verified Closed. No TVOC/HCHO sensor commissioning or validated multi-species CONTAM prediction is claimed.
+
+## 2026-10-09 outdoor-boundary regression
+- Baseline commit `6a336b52c` had successful core test CI run https://github.com/hippoley/AirTrajectory/actions/runs/37892333430. This establishes baseline software regression, not measured solver truth.
+- Cross-story physical-boundary audit found outdoor PM2.5, wind speed/direction, atmospheric pressure, humidity and rain lacked typed/range validation while indoor measurements did have guards. Invalid outdoor state may contaminate control/forecast inputs.
+- `7d1c7341` added fail-closed field-specific checks, preserving negative Celsius; `339d612d` added adversarial outdoor-boundary regression tests.
+- New test workflow https://github.com/hippoley/AirTrajectory/actions/runs/37892603583 queued at inspection. Status of this increment: CODE COMMITTED / CI PENDING, not Verified Closed.
+- Relevant canonical stories: US3 environment state, US4 objective hard constraints, US6/7 competing air-quality futures, US8 safety. Field and real TVOC/HCHO physical prediction gates remain open.
