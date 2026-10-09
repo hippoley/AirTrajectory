@@ -10,6 +10,8 @@ const path=require('node:path');
   try{
     await page.goto(process.env.STUDIO_URL||'http://127.0.0.1:8765/web/studio.html',{waitUntil:'load'});
     await page.locator('#summary').getByText('3 rooms').waitFor({timeout:12000});
+    await page.locator('#vent-paths .scene-entry').first().waitFor({timeout:12000});
+    assert.match(await page.locator('#vent-paths').innerText(),/W1|W2|W3/);
     await fs.mkdir('artifacts/studio',{recursive:true});
     await page.screenshot({path:'artifacts/studio/studio-premium-initial.png',fullPage:true});
     await page.locator('#zoom-in').click();
