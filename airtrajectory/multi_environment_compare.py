@@ -43,6 +43,11 @@ def _validated_origin(origin: Any, origin_openings: Mapping[str, float]) -> str:
         raise ValueError("origin opening_pct mapping is required")
     if set(origin["opening_pct"]) != set(origin_openings):
         raise ValueError("origin opening coverage differs from supplied origin")
+    kinds = origin.get("opening_kind")
+    if not isinstance(kinds, Mapping) or set(kinds) != set(origin_openings):
+        raise ValueError("origin requires opening_kind for every controlled opening")
+    if any(kind not in {"window", "door", "vent"} for kind in kinds.values()):
+        raise ValueError("origin has unsupported opening_kind")
     for opening, pct in origin_openings.items():
         if not 0 <= _finite(pct, f"origin opening {opening}") <= 100:
             raise ValueError("origin opening percentage outside [0,100]")
@@ -106,6 +111,7 @@ def _band_discomfort(
 
 def _movement(
     candidate: Mapping[str, Any], origin_openings: Mapping[str, float],
+    opening_kinds: Mapping[str, str],
 ) -> tuple[float, float]:
     actions = candidate.get("actions")
     if not isinstance(actions, list):
@@ -126,7 +132,8 @@ def _movement(
             raise ValueError("target_pct outside [0,100]")
         delta = target - float(origin_openings[opening_id])
         total += abs(delta)
-        increase += max(0.0, delta)
+        if opening_kinds[opening_id] == "window":
+            increase += max(0.0, delta)
     return total, increase
 
 
@@ -180,7 +187,9 @@ def _validate_candidate(
         if band.hard_maximum is not None and max(values) > band.hard_maximum:
             hard_violations.append(f"{field}:max>{band.hard_maximum:g}")
 
-    movement, opening_increase = _movement(candidate, origin_openings)
+    movement, opening_increase = _movement(
+        candidate, origin_openings, origin["opening_kind"]
+    )
     metrics["movement"] = round(movement, 6)
     if "duration_min" not in candidate:
         raise ValueError("candidate intervention duration_min is required")
