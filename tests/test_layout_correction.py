@@ -105,6 +105,80 @@ class LayoutCorrectionTests(unittest.TestCase):
                 "wall_assignment":{"w1":"r3"},
             }])
 
+    def test_merge_roundtrip_through_shared_topology_runtime(self):
+        from airtrajectory.topology_acceptance import verify_topology_runtime
+        edited=correct_layout(fixture(),[{
+            "op":"merge_rooms","source_ids":["r1","r2"],
+            "merged_room":{"id":"combined","name":"Combined",
+                           "x":0,"y":0,"w":8,"h":4,"volume_m3":80},
+        }])
+        receipt=verify_topology_runtime(edited)
+        self.assertEqual(receipt["status"],"PASS")
+        self.assertEqual(receipt["expected"]["zone_ids"],["combined"])
+        self.assertEqual(receipt["expected"]["opening_ids"],["o1"])
+        self.assertTrue(all(receipt["checks"].values()))
+
+    def test_corrected_layout_roundtrip_preserves_identity(self):
+        import json
+        from dataclasses import asdict
+        edited=correct_layout(fixture(),[
+            {"op":"rename_room","id":"r1","name":"Kitchen"},
+            {"op":"move_opening","id":"o1","position_t":0.65},
+        ])
+        payload={
+            "schema_version":edited.schema_version,
+            "topology_id":edited.topology_id,
+            "source_kind":edited.source_kind,
+            "outside_id":edited.outside_id,
+            "capabilities":edited.capabilities,
+            "source_provenance":edited.source_provenance,
+            "rooms":[asdict(v) for v in edited.rooms],
+            "walls":[asdict(v) for v in edited.walls],
+            "openings":[asdict(v) for v in edited.openings],
+            "compiler_contract":edited.compiler_contract,
+        }
+        restored=LayoutContract.from_dict(json.loads(json.dumps(payload)))
+        self.assertEqual(restored.sha256(),edited.sha256())
+        from airtrajectory.topology_acceptance import verify_topology_runtime
+        receipt=verify_topology_runtime(restored)
+        self.assertEqual(receipt["status"],"PASS")
+
+    def test_nonfinite_geometry_never_enters_runtime(self):
+        for patch in (
+            {"op":"move_opening","id":"o1","position_t":float("nan")},
+            {"op":"set_room_volume","id":"r1","volume_m3":float("inf")},
+            {"op":"move_wall","id":"w1","x1":float("-inf")},
+        ):
+            with self.subTest(patch=patch["op"]):
+                with self.assertRaisesRegex(ValueError,"must be finite"):
+                    correct_layout(fixture(),[patch])
+
+    def test_merge_rooms_preserves_external_opening(self):
+        edited=correct_layout(fixture(),[{
+            "op":"merge_rooms","source_ids":["r1","r2"],
+            "merged_room":{"id":"combined","name":"Combined","x":0,"y":0,
+                           "w":8,"h":4,"volume_m3":80},
+        }])
+        self.assertEqual([r.id for r in edited.rooms],["combined"])
+        self.assertEqual(edited.walls[0].source,"combined")
+        self.assertEqual(edited.openings[0].source,"combined")
+
+    def test_merge_rejects_unresolved_shared_wall(self):
+        with self.assertRaisesRegex(ValueError,"shared internal walls"):
+            correct_layout(fixture(),[
+                {"op":"add_wall","id":"shared","kind":"internal",
+                 "source":"r1","target":"r2","x1":4,"y1":0,"x2":4,"y2":4},
+                {"op":"merge_rooms","source_ids":["r1","r2"],
+                 "merged_room":{"id":"combined","x":0,"y":0,"w":8,"h":4,"volume_m3":80}},
+            ])
+
+    def test_merge_rejects_unknown_room(self):
+        with self.assertRaisesRegex(ValueError,"unknown source room"):
+            correct_layout(fixture(),[{
+                "op":"merge_rooms","source_ids":["r1","missing"],
+                "merged_room":{"id":"combined","x":0,"y":0,"w":8,"h":4,"volume_m3":80},
+            }])
+
     def test_rejects_invalid_opening_geometry(self):
         with self.assertRaises(ValueError):
             correct_layout(fixture(),[

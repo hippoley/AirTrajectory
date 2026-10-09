@@ -38,7 +38,7 @@ def correct_layout(layout: LayoutContract, operations: list[Mapping[str, Any]]) 
         "rename_room", "move_opening", "resize_opening", "rewire_wall",
         "add_opening", "remove_opening", "set_room_volume",
         "move_wall", "rename_opening",
-        "add_room", "remove_room", "add_wall", "remove_wall", "split_room",
+        "add_room", "remove_room", "add_wall", "remove_wall", "split_room", "merge_rooms",
     }
     for op in operations:
         name=op.get("op")
@@ -47,7 +47,39 @@ def correct_layout(layout: LayoutContract, operations: list[Mapping[str, Any]]) 
         collection="rooms" if name in {"rename_room","set_room_volume","add_room","remove_room","split_room"} else "walls" if name in {"rewire_wall","move_wall","add_wall","remove_wall"} else "openings"
         ident=str(op.get("id") or "")
         matches=[row for row in data[collection] if row["id"]==ident]
-        if name=="add_room":
+        if name=="merge_rooms":
+            sources=op.get("source_ids")
+            child=op.get("merged_room")
+            if (not isinstance(sources,list) or len(sources)!=2 or len(set(sources))!=2
+                    or not isinstance(child,dict)):
+                raise ValueError("merge_rooms requires two distinct source_ids and merged_room")
+            by_id={room["id"]:room for room in data["rooms"]}
+            if any(src not in by_id for src in sources):
+                raise ValueError("merge_rooms references unknown source room")
+            new_id=str(child.get("id") or "")
+            if not new_id or (new_id in by_id and new_id not in sources):
+                raise ValueError("merge_rooms invalid destination room id")
+            # Do not silently discard shared walls or change physical boundaries:
+            # callers must explicitly remove internal openings/walls before merge.
+            for wall in data["walls"]:
+                if wall["source"] in sources and wall["target"] in sources:
+                    raise ValueError("merge_rooms requires explicit removal of shared internal walls")
+            replacement={
+                "id":new_id,"name":str(child.get("name") or new_id),
+                "x":float(child["x"]),"y":float(child["y"]),
+                "w":float(child["w"]),"h":float(child["h"]),
+                "volume_m3":float(child["volume_m3"]),
+            }
+            data["rooms"]=[room for room in data["rooms"] if room["id"] not in sources]
+            data["rooms"].append(replacement)
+            for wall in data["walls"]:
+                if wall["source"] in sources: wall["source"]=new_id
+                if wall["target"] in sources: wall["target"]=new_id
+                for opening in data["openings"]:
+                    if opening["wall_id"]==wall["id"]:
+                        opening["source"]=wall["source"]
+                        opening["target"]=wall["target"]
+        elif name=="add_room":
             if not ident or any(room["id"]==ident for room in data["rooms"]):
                 raise ValueError("duplicate or empty room id")
             data["rooms"].append({

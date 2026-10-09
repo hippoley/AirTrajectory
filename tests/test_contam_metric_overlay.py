@@ -28,6 +28,29 @@ class ContamMetricOverlayTests(unittest.TestCase):
         self.assertEqual(len(meta["metric_geometry_profile_sha256"]), 64)
         self.assertFalse(meta["engineering_validated"])
 
+    def test_imported_overlay_requires_exact_layout_revision_hash(self):
+        base_payload = json.loads(LAYOUT.read_text(encoding="utf-8"))
+        base_payload["source_kind"] = "imported-floorplan"
+        base_payload["capabilities"]["arbitrary_topology_import"] = "supported"
+        base_payload["capabilities"]["floorplan_geometry_editable"] = True
+        base_payload["source_provenance"] = {
+            "format": "JSON", "source_sha256": "a" * 64,
+            "importer": {"id": "test", "version": "1"},
+        }
+        base = LayoutContract.from_dict(base_payload)
+        overlay = json.loads(PROFILE.read_text(encoding="utf-8"))
+        with self.assertRaisesRegex(ValueError, "requires layout_contract_sha256"):
+            apply_metric_geometry_overlay(base, overlay)
+        overlay["layout_contract_sha256"] = base.sha256()
+        resolved, meta = apply_metric_geometry_overlay(base, overlay)
+        self.assertEqual(resolved.topology_id, base.topology_id)
+        self.assertEqual(len(meta["metric_geometry_profile_sha256"]), 64)
+        # Same topology and entity IDs, but revised geometry invalidates profile.
+        base_payload["rooms"][0]["volume_m3"] += 1.0
+        changed = LayoutContract.from_dict(base_payload)
+        with self.assertRaisesRegex(ValueError, "does not match layout"):
+            apply_metric_geometry_overlay(changed, overlay)
+
     def test_incomplete_overlay_fails_closed(self):
         base = LayoutContract.from_file(LAYOUT)
         overlay = json.loads(PROFILE.read_text(encoding="utf-8"))

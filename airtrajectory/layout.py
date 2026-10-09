@@ -14,6 +14,7 @@ It validates the seam those components will use later.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from math import isfinite
 import hashlib
 import json
 from pathlib import Path
@@ -212,8 +213,31 @@ class LayoutContract:
                 "contam_compiler must be reserved or supported"
             )
 
+        # Fail closed on NaN/Infinity before all range and geometry comparisons.
+        # IEEE NaN is neither <= 0 nor >= 0, so comparisons alone accept it.
+        for group, fields in (
+            (self.rooms, ("x","y","w","h","volume_m3")),
+            (self.walls, ("x1","y1","x2","y2","length_m","azimuth_deg")),
+            (self.openings, ("position_t","initial_open_pct","max_area_m2",
+                             "width_m","height_m","sill_height_m")),
+        ):
+            for obj in group:
+                for key in fields:
+                    value=getattr(obj,key)
+                    if value is not None and not isfinite(value):
+                        raise ValueError(f"{obj.id} {key} must be finite")
         if not self.rooms:
             raise ValueError("layout requires at least one room")
+        # Canonical IDs are used as dictionary keys, PRJ mappings and replay identities.
+        # Blank or ambient-colliding IDs can otherwise survive uniqueness checks.
+        if not self.outside_id.strip():
+            raise ValueError("outside_id must be nonblank")
+        for group_name, group in (("room", self.rooms), ("wall", self.walls), ("opening", self.openings)):
+            for item in group:
+                if not item.id.strip():
+                    raise ValueError(f"{group_name} id must be nonblank")
+        if any(room.id == self.outside_id for room in self.rooms):
+            raise ValueError("room id cannot equal outside_id")
         room_ids=[room.id for room in self.rooms]
         if len(room_ids)!=len(set(room_ids)):
             raise ValueError("room ids must be unique")

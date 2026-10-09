@@ -61,9 +61,19 @@ def main() -> int:
         default=ROOT / "artifacts" / "multispace-generated.prj",
     )
     parser.add_argument("--provenance-out", type=Path)
+    parser.add_argument("--airflow-profile", type=Path, help="Explicit airflow profile; required for imported layouts")
     args = parser.parse_args()
 
     base_layout = LayoutContract.from_file(args.layout)
+    if base_layout.source_kind == "imported-floorplan":
+        missing = [name for name, value in (
+            ("--metric-profile", args.metric_profile),
+            ("--boundary-profile", args.boundary_profile),
+            ("--prj-profile", args.prj_profile),
+            ("--airflow-profile", args.airflow_profile),
+        ) if value is None or (name != "--airflow-profile" and value == parser.get_default(name.removeprefix("--").replace("-", "_")))]
+        if missing:
+            parser.error("imported layouts require explicitly supplied, topology-matched profiles: " + ", ".join(missing))
     runtime = DemoRuntimeSnapshot.resolve(base_layout)
 
     metric_layout, metric_meta = apply_metric_geometry_overlay(
@@ -77,7 +87,7 @@ def main() -> int:
     manifest = allocate_contam_ids(ir)
     manifest = bind_airflow_elements(
         manifest,
-        illustrative_opening_profile(),
+        _load(args.airflow_profile) if args.airflow_profile else illustrative_opening_profile(),
     )
     boundary = _load(args.boundary_profile)
     manifest = bind_boundary_profile(manifest, boundary)
