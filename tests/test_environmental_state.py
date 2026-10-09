@@ -99,6 +99,29 @@ class EnvironmentalStateTests(unittest.TestCase):
                         "living", {"relative_humidity_pct": EnvironmentalValue(bad, "measured")}
                     )
 
+    def test_invalid_outdoor_boundaries_fail_closed(self):
+        invalid = {
+            "pm25_ug_m3": [-1.0, True, float("nan")],
+            "wind_speed_m_s": [-0.1, True],
+            "pressure_pa": [-1.0, True],
+            "relative_humidity_pct": [-0.1, 101, True],
+            "wind_direction_deg": [-1, 360, True],
+            "rain": [0, 1, "false"],
+        }
+        for name, values in invalid.items():
+            for bad in values:
+                with self.subTest(name=name, bad=bad):
+                    with self.assertRaises(ValueError):
+                        OutdoorEnvironmentalState(values={
+                            name: EnvironmentalValue(bad, "measured")
+                        })
+        outdoor = OutdoorEnvironmentalState(values={
+            "temperature_c": EnvironmentalValue(-8.0, "measured"),
+            "wind_direction_deg": EnvironmentalValue(359.9, "measured"),
+            "rain": EnvironmentalValue(False, "measured"),
+        })
+        self.assertEqual(outdoor.values["temperature_c"].value, -8.0)
+
     def test_unavailable_cannot_carry_fake_value(self):
         with self.assertRaisesRegex(ValueError, "unavailable"):
             EnvironmentalValue(12.0, "unavailable")
