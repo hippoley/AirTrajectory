@@ -41,7 +41,7 @@ class IFCEngineeringPackageTests(unittest.TestCase):
 
     def test_package_calls_actual_compiler_interface_with_all_five_inputs(self):
         with patch("airtrajectory.ifc_engineering_package.build_engineering_contam_project",
-                   return_value={"status":"ENGINEERING_INPUTS_READY"}) as compiler:
+                   return_value={"status":"ENGINEERING_INPUTS_READY", "control_node_numbers": {x.id:i+1 for i,x in enumerate(self.layout.openings[:-1])}}) as compiler:
             result=compile_ifc_engineering_package(
                 self.package,layout=self.layout,readiness=self.readiness,
                 scope=self.scope,out_path="unused.prj")
@@ -49,6 +49,8 @@ class IFCEngineeringPackageTests(unittest.TestCase):
             self.assertFalse(result["runtime_verified"])
             self.assertIs(compiler.call_args.kwargs["metric_evidence"],self.package["metric_evidence"])
             self.assertEqual(compiler.call_args.kwargs["out_path"],"unused.prj")
+            self.assertEqual(set(compiler.call_args.kwargs["approved_control_opening_ids"]),
+                             {x.id for x in self.layout.openings[:-1]})
 
     def test_nonapproved_mismatched_and_missing_openings_never_touch_compiler(self):
         for kind in ("source","approval","excluded","missing","bundle","scope","adjacency","airflow"):
