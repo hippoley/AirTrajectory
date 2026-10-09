@@ -29,3 +29,10 @@ Canonical stories US10 (prediction-error learning), US11 (unseen topology), US12
 | External compatibility | PARTIAL | standard group-split practice reviewed; independent reproduction missing |
 
 Two-layer closure remains **NOT VERIFIED** for US10/11/12/14. Passing toy regressions = E1/E2 only. Real solver E3, field E4 and non-owner adoption E5 are separate.
+
+## Independent score-replay falsification update
+- Existing dataset split patch `6543e8435` passed software CI: https://github.com/hippoley/AirTrajectory/actions/runs/37895269892.
+- `103bc7ef5` now recomputes CO2 excess, peak, final worst-zone, threshold exceedance counts from recorded frames, and recomputes per-policy aggregates from per-episode metrics. It rejects nonfinite or negative frame CO2.
+- `421b4e226` introduces *resealed tamper* tests: an attacker changes BC episode peak or aggregate mean, then recomputes the overall SHA-256; the verifier must reject semantic discrepancies. This differentiates checksums from independently checked content.
+- These checks validate *internal consistency* of toy replay, not independent solver execution nor data authenticity. Source replay, physical solver identity, true train/building-family holdout and E4 field calibration remain open.
+- Latest test workflow: https://github.com/hippoley/AirTrajectory/actions/runs/37896093572 ; status pending at inspection.
