@@ -25,6 +25,8 @@ jobs:
       - run: python examples/export_web_scenarios.py
       - run: python examples/export_toy_ablation.py --train-count 4 --test-count 2 --horizon 4 --out artifacts/toy-ablation-smoke.json
       - run: python -c 'import json; from airtrajectory.toy_ablation import verify_toy_ablation; assert verify_toy_ablation(json.load(open("artifacts/toy-ablation-smoke.json")))'
+      - run: python examples/compare_toy_objective.py --artifact artifacts/toy-ablation-smoke.json --out artifacts/toy-objective-smoke.json
+      - run: python -c 'import json; p=json.load(open("artifacts/toy-objective-smoke.json")); assert p["status"] == "TOY_CO2_ONLY_NOT_ENGINEERING_TRUTH"; assert len(p["episodes"]) == 2; assert all(not x["execution_authorized"] for x in p["episodes"])'
       - run: python -c 'import json; p=json.load(open("web/data/scenarios.json")); assert len(p["scenarios"]) == 4; assert p["baseline"] == "exhaustive-opening-search-v1"; assert all(s["frames"] for s in p["scenarios"]); assert all(set(s["metrics"]) == {"iaq","flow","motion","return"} for s in p["scenarios"])'
 
 

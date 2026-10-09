@@ -7,7 +7,7 @@ const svgText = escapeText;
 const avg = (values) => values.reduce((a, b) => a + b, 0) / values.length;
 const fmt = (value, decimals = 0) => Number(value).toFixed(decimals);
 const color = {a: "#60e0c6", b: "#ffc478"};
-let artifact, selected = 0, step = 0, timer = null;
+let artifact, objectiveReport = null, selected = 0, step = 0, timer = null;
 
 function currentEpisode() { return artifact.episodes[selected]; }
 function policy(which) { return $(which + "Policy").value; }
@@ -88,6 +88,39 @@ function chartSvg() {
     <text x="55" y="231" font-size="11" fill="#9fb4c3">t=0</text>
     <text x="765" y="231" font-size="11" fill="#9fb4c3" text-anchor="end">t=${left.length - 1} min</text>`;
 }
+function renderObjective() {
+  if (!objectiveReport) return;
+  const item = objectiveReport.episodes[selected];
+  if (!item || item.scenario_id !== currentEpisode().scenario_id) {
+    $("objectiveSummary").textContent = "Objective receipt does not match the selected backend scenario.";
+    return;
+  }
+  const decision = item.decision;
+  const recommended = new Set(decision.recommended);
+  const rows = decision.results.map((r) => {
+    const m = r.metrics;
+    return `<tr>
+      <td class="${recommended.has(r.label) ? "selected" : ""}">${escapeText(r.label)}</td>
+      <td>${escapeText(fmt(m.co2_excess, 1))} ppm</td>
+      <td>${escapeText(fmt(m.movement, 1))}%</td>
+      <td>${escapeText(r.feasible ? "FEASIBLE" : r.hard_violations.join("; "))}</td>
+    </tr>`;
+  }).join("");
+  $("objectiveSummary").innerHTML = `
+    <p><b>Backend:</b> ${escapeText(decision.results[0].provenance.backend)}
+    · <b>Objective:</b> CO₂ below 1,000 ppm
+    · <b>Horizon:</b> 1 minute
+    · <b>Physical execution:</b> NOT AUTHORIZED</p>
+    <p><b>Lowest feasible lexicographic penalty:</b>
+    ${escapeText(decision.recommended.length ? decision.recommended.join(", ") : "NONE")}
+    · <b>Status:</b> ${escapeText(decision.status)}</p>
+    <table class="comparison-table">
+      <thead><tr><th>Policy</th><th>CO₂ excess</th><th>Opening motion</th><th>Hard constraints</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+    <p>Not scored: ${escapeText(item.unavailable_metric_fields.join(", "))}.
+    Same-origin fingerprint: <code>${escapeText(decision.origin_sha256.slice(0, 16))}…</code></p>`;
+}
 function render() {
   if (!artifact) return;
   const ep = currentEpisode();
@@ -100,6 +133,7 @@ function render() {
     $(which + "Metrics").innerHTML = metricHtml(run(which), which);
   }
   $("co2Chart").innerHTML = chartSvg();
+  renderObjective();
   $("provenance").innerHTML = `
     <p><b>Origin SHA-256:</b> <code>${escapeText(ep.origin_sha256)}</code></p>
     <p><b>Artifact SHA-256:</b> <code>${escapeText(artifact.artifact_sha256)}</code></p>
@@ -143,6 +177,24 @@ async function main() {
         || artifact.evaluation.structural_family_holdout !== false
         || !artifact.episodes?.length) {
       throw new Error("Unexpected artifact schema or evidence boundary");
+    }
+    try {
+      const comparisonResponse = await fetch("./data/toy_objective_comparison.json", {cache: "no-store"});
+      if (!comparisonResponse.ok) throw new Error("Objective receipt unavailable");
+      const receipt = await comparisonResponse.json();
+      if (receipt.schema_version !== "0.1"
+          || receipt.status !== "TOY_CO2_ONLY_NOT_ENGINEERING_TRUTH"
+          || receipt.execution_authorized !== false
+          || receipt.source_artifact_sha256 !== artifact.artifact_sha256
+          || receipt.episodes?.length !== artifact.episodes.length
+          || receipt.episodes.some((item, i) => item.scenario_id !== artifact.episodes[i].scenario_id
+              || item.observed_metric_fields?.join(",") !== "co2_ppm"
+              || item.execution_authorized !== false)) {
+        throw new Error("Objective receipt does not match verified replay artifact");
+      }
+      objectiveReport = receipt;
+    } catch (error) {
+      $("objectiveSummary").textContent = "Objective diagnostic unavailable: " + error.message;
     }
     $("episode").innerHTML = artifact.episodes.map((ep, i) =>
       `<option value="${i}">${escapeText(ep.scenario_id)}</option>`).join("");

@@ -9,6 +9,7 @@ on:
       - "examples/export_web_scenarios.py"
       - "examples/export_experiment_lab.py"
       - "examples/export_toy_ablation.py"
+      - "examples/compare_toy_objective.py"
       - "examples/export_demo_runtime_snapshot.py"
       - ".github/workflows/pages.yml"
   workflow_dispatch:
@@ -36,6 +37,7 @@ jobs:
           python examples/export_web_scenarios.py
           python examples/export_experiment_lab.py
           python examples/export_toy_ablation.py --train-count 12 --test-count 3 --horizon 20 --test-families hub,loop,irregular
+          python examples/compare_toy_objective.py
           python examples/export_demo_runtime_snapshot.py
       - name: Validate generated artifact
         run: |
@@ -88,6 +90,21 @@ jobs:
           assert p["evaluation"]["structural_family_holdout"] is True
           assert set(p["evaluation"]["test_topology_families"])=={"hub","loop","irregular"}
           print("TOY_ABLATION_PAGES_ARTIFACT_VERIFIED",p["artifact_sha256"])
+          PY
+      - name: Validate canonical objective on backend toy frames
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          original=json.loads(Path("web/data/toy_ablation.json").read_text())
+          p=json.loads(Path("web/data/toy_objective_comparison.json").read_text())
+          assert p["source_artifact_sha256"]==original["artifact_sha256"]
+          assert p["status"]=="TOY_CO2_ONLY_NOT_ENGINEERING_TRUTH"
+          assert p["execution_authorized"] is False
+          assert len(p["episodes"])==len(original["episodes"])
+          assert all(ep["observed_metric_fields"]==["co2_ppm"] for ep in p["episodes"])
+          assert all(not ep["decision"]["execution_authorized"] for ep in p["episodes"])
+          print("TOY_OBJECTIVE_PAGES_RECEIPT_VERIFIED")
           PY
       - name: Validate fixed layout contract
         run: |
