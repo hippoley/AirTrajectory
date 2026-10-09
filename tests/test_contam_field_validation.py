@@ -174,6 +174,50 @@ def field_bundle(*, protocol_sha, runtime_sha, offset=0.0):
     }
 
 
+class FieldFiniteAdversarialTests(unittest.TestCase):
+    def setUp(self):
+        self.layout = LayoutContract.from_file(LAYOUT)
+
+    def test_reject_nonfinite_protocol_limits(self):
+        for section, key in (
+            ("co2", "rmse_ppm_max"),
+            ("co2", "mae_ppm_max"),
+            ("opening_position", "mae_pct_max"),
+            ("alignment", "sampling_interval_s"),
+            ("alignment", "max_skew_s"),
+        ):
+            for bad in (float("nan"), float("inf")):
+                with self.subTest(section=section, key=key, bad=bad):
+                    spec = protocol()
+                    spec[section][key] = bad
+                    with self.assertRaises(ValueError):
+                        validate_field_validation_protocol(self.layout, spec)
+
+    def test_reject_nonfinite_fixed_opening(self):
+        spec = protocol()
+        spec["opening_position"]["openings"] = ["W1", "W2", "W3"]
+        spec["opening_position"]["fixed_openings"] = {"D1": float("nan"), "D2": 100.0}
+        with self.assertRaises(ValueError):
+            validate_field_validation_protocol(self.layout, spec)
+
+    def test_reject_nonfinite_measured_co2_and_position(self):
+        runtime = runtime_receipt(self.layout)
+        normalized = validate_field_validation_protocol(self.layout, protocol())
+        for category, ident in (("co2_ppm", "living"), ("opening_pct", "W1")):
+            for bad in (float("nan"), float("inf")):
+                with self.subTest(category=category, bad=bad):
+                    bundle = field_bundle(
+                        protocol_sha=normalized["protocol_sha256"],
+                        runtime_sha=runtime["runtime_receipt_sha256"],
+                    )
+                    bundle["samples"][0][category][ident] = bad
+                    with self.assertRaises(ValueError):
+                        validate_contam_against_field(
+                            layout=self.layout, runtime_receipt=runtime,
+                            protocol=protocol(), field_bundle=bundle,
+                        )
+
+
 class ContamFieldValidationTests(unittest.TestCase):
     def setUp(self):
         self.layout = LayoutContract.from_file(LAYOUT)
