@@ -163,6 +163,38 @@ class SensorLineageTests(unittest.TestCase):
                         sensor_apply_receipts=paths,
                     )
 
+    def test_string_and_boolean_live_timestamps_are_rejected(self):
+        for invalid in ("100.0", True, False):
+            with self.subTest(invalid=invalid):
+                readiness = _readiness(probe=False)
+                readiness["sensor_evidence_lineage"]["co2_ppm"]["timestamp"] = invalid
+                with self.assertRaisesRegex(RuntimeError, "timestamp is missing/invalid"):
+                    build_sensor_evidence(
+                        readiness=readiness, site_lineage=_site_lineage(),
+                        commissioning_identity_sha256="same-hardware",
+                        commissioning_bundle_sha256="b"*64,
+                    )
+
+    def test_string_and_boolean_apply_timestamps_are_rejected(self):
+        for invalid in ("100.0", True):
+            with self.subTest(invalid=invalid), tempfile.TemporaryDirectory() as d:
+                paths=[]
+                for role in ("co2", "rain"):
+                    receipt=_apply_receipt(role, "b"*64)
+                    if role=="co2":
+                        receipt["sample_timestamp"]=invalid
+                    path=Path(d)/(role+".json")
+                    path.write_text(json.dumps(receipt), encoding="utf-8")
+                    paths.append(path)
+                with self.assertRaisesRegex(RuntimeError, "sample_timestamp is missing/invalid"):
+                    build_sensor_evidence(
+                        readiness=_readiness(probe=True),
+                        site_lineage=_site_lineage(),
+                        commissioning_identity_sha256="same-hardware",
+                        commissioning_bundle_sha256="b"*64,
+                        sensor_apply_receipts=paths,
+                    )
+
     def test_nonfinite_live_sensor_timestamps_rejected(self):
         for role in ("co2_ppm", "rain"):
             for invalid in (float("nan"), float("inf"), float("-inf")):
