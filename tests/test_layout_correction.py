@@ -70,6 +70,41 @@ class LayoutCorrectionTests(unittest.TestCase):
                 "x1":1,"y1":0,"x2":1,"y2":4,
             }])
 
+    def test_split_room_rewires_wall_and_opening_without_guessing(self):
+        edited=correct_layout(fixture(),[{
+            "op":"split_room","id":"r1",
+            "children":[
+                {"id":"r1a","x":0,"y":0,"w":2,"h":4,"volume_m3":20},
+                {"id":"r1b","x":2,"y":0,"w":2,"h":4,"volume_m3":20},
+            ],
+            "wall_assignment":{"w1":"r1a"},
+        }])
+        self.assertEqual({r.id for r in edited.rooms},{"r1a","r1b","r2"})
+        self.assertEqual(edited.walls[0].source,"r1a")
+        self.assertEqual(edited.openings[0].source,"r1a")
+
+    def test_split_requires_complete_explicit_wall_ownership(self):
+        with self.assertRaisesRegex(ValueError,"explicit assignment"):
+            correct_layout(fixture(),[{
+                "op":"split_room","id":"r1",
+                "children":[
+                    {"id":"r1a","x":0,"y":0,"w":2,"h":4,"volume_m3":20},
+                    {"id":"r1b","x":2,"y":0,"w":2,"h":4,"volume_m3":20},
+                ],
+                "wall_assignment":{},
+            }])
+
+    def test_split_rejects_unknown_child_target(self):
+        with self.assertRaisesRegex(ValueError,"unknown child"):
+            correct_layout(fixture(),[{
+                "op":"split_room","id":"r1",
+                "children":[
+                    {"id":"r1a","x":0,"y":0,"w":2,"h":4,"volume_m3":20},
+                    {"id":"r1b","x":2,"y":0,"w":2,"h":4,"volume_m3":20},
+                ],
+                "wall_assignment":{"w1":"r3"},
+            }])
+
     def test_rejects_invalid_opening_geometry(self):
         with self.assertRaises(ValueError):
             correct_layout(fixture(),[

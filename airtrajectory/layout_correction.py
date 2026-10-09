@@ -38,13 +38,13 @@ def correct_layout(layout: LayoutContract, operations: list[Mapping[str, Any]]) 
         "rename_room", "move_opening", "resize_opening", "rewire_wall",
         "add_opening", "remove_opening", "set_room_volume",
         "move_wall", "rename_opening",
-        "add_room", "remove_room", "add_wall", "remove_wall",
+        "add_room", "remove_room", "add_wall", "remove_wall", "split_room",
     }
     for op in operations:
         name=op.get("op")
         if name not in allowed:
             raise ValueError(f"unsupported correction: {name}")
-        collection="rooms" if name in {"rename_room","set_room_volume","add_room","remove_room"} else "walls" if name in {"rewire_wall","move_wall","add_wall","remove_wall"} else "openings"
+        collection="rooms" if name in {"rename_room","set_room_volume","add_room","remove_room","split_room"} else "walls" if name in {"rewire_wall","move_wall","add_wall","remove_wall"} else "openings"
         ident=str(op.get("id") or "")
         matches=[row for row in data[collection] if row["id"]==ident]
         if name=="add_room":
@@ -87,7 +87,43 @@ def correct_layout(layout: LayoutContract, operations: list[Mapping[str, Any]]) 
             if len(matches)!=1:
                 raise ValueError(f"unknown {collection} id: {ident}")
             item=matches[0]
-            if name=="remove_room":
+            if name=="split_room":
+                children=op.get("children")
+                assignment=op.get("wall_assignment")
+                if (not isinstance(children,list) or len(children)!=2
+                        or not isinstance(assignment,dict)):
+                    raise ValueError("split_room requires two explicit children and wall_assignment")
+                old_ids={room["id"] for room in data["rooms"]}
+                child_ids=[str(child.get("id") or "") for child in children]
+                if (any(not child_id or child_id in old_ids for child_id in child_ids)
+                        or len(set(child_ids))!=2):
+                    raise ValueError("split_room child IDs must be new and distinct")
+                affected=[wall for wall in data["walls"]
+                          if ident in (wall["source"],wall["target"])]
+                required={wall["id"] for wall in affected}
+                if set(assignment)!=required:
+                    raise ValueError("split_room requires explicit assignment for every incident wall")
+                if set(assignment.values())-set(child_ids):
+                    raise ValueError("split_room wall assignment refers to unknown child")
+                replacement=[]
+                for child in children:
+                    replacement.append({
+                        "id":str(child["id"]),"name":str(child.get("name") or child["id"]),
+                        "x":float(child["x"]),"y":float(child["y"]),
+                        "w":float(child["w"]),"h":float(child["h"]),
+                        "volume_m3":float(child["volume_m3"]),
+                    })
+                data["rooms"].remove(item)
+                data["rooms"].extend(replacement)
+                for wall in affected:
+                    new_id=assignment[wall["id"]]
+                    if wall["source"]==ident: wall["source"]=new_id
+                    if wall["target"]==ident: wall["target"]=new_id
+                    for opening in data["openings"]:
+                        if opening["wall_id"]==wall["id"]:
+                            opening["source"]=wall["source"]
+                            opening["target"]=wall["target"]
+            elif name=="remove_room":
                 if any(item["id"] in (wall["source"],wall["target"]) for wall in data["walls"]):
                     raise ValueError("cannot remove room referenced by a wall")
                 data["rooms"].remove(item)
