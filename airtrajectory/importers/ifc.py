@@ -496,10 +496,28 @@ def inspect_ifc_control_readiness(
             if in_scope and height<=0:
                 blockers.append({"entity_id":gid,"reason":"MISSING_HEIGHT_M"})
             box=try_bbox(elem,record_blocker=in_scope)
+            # Reuse native IFC void/fill relationships to expose independent
+            # host-element evidence for ambiguous space boundaries. These
+            # references are diagnostic only: host walls do not establish
+            # which side of the wall connects to each zone.
+            host_ids=[]
+            try:
+                for fill in getattr(elem, "FillsVoids", ()) or ():
+                    void=getattr(fill, "RelatingOpeningElement", None)
+                    for rel in getattr(void, "VoidsElements", ()) or ():
+                        host=getattr(rel, "RelatingBuildingElement", None)
+                        host_id=getattr(host, "GlobalId", None)
+                        if host_id:
+                            host_ids.append(str(host_id))
+            except (AttributeError, TypeError):
+                pass
+            host_ids=sorted(set(host_ids))
             row={
                 "id":gid,
                 "kind":kind,
                 "adjacent_spaces":adj,
+                "ifc_host_element_ids":host_ids,
+                "host_evidence_level":"IFC_REL_FILLS_VOIDS_DIAGNOSTIC_ONLY",
                 "width_m":width if width>0 else None,
                 "height_m":height if height>0 else None,
                 "in_control_scope":in_scope,
