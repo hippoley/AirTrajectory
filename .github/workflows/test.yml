@@ -18,6 +18,8 @@ jobs:
         with:
           python-version: "3.11"
       - run: python -m pip install -e ".[contracts]"
+      - run: node --check integrations/pascal-studio/pascal-scene-bridge.cjs
+      - run: node tests/test_pascal_scene_bridge.cjs
       - run: node --check web/studio.js
       - run: node --check web/studio-interactions.js
       - run: node --check web/topology-path-explorer.js
