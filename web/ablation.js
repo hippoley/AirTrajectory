@@ -43,9 +43,12 @@ function planSvg(which) {
   const doors = openings.filter((edge) => edge.kind === "door").map((edge) => {
     const left = zoneIndex[edge.source], right = zoneIndex[edge.target];
     if (left === undefined || right === undefined) return "";
-    const x1 = 15 + left * (width + gap) + width, x2 = 15 + right * (width + gap);
+    const x1 = 15 + left * (width + gap) + width / 2;
+    const x2 = 15 + right * (width + gap) + width / 2;
     const pct = Number(values.opening_pct[edge.id] || 0);
-    return `<line x1="${x1}" y1="117" x2="${x2}" y2="117" stroke="${pct > 0 ? color[which] : "#526572"}" stroke-width="4"/>
+    const mid = (x1 + x2) / 2, arcY = 163 + 7 * Math.abs(right - left);
+    return `<path d="M ${x1} 140 Q ${mid} ${arcY} ${x2} 140" fill="none" stroke="${pct > 0 ? color[which] : "#526572"}" stroke-width="3"/>
+      <text x="${mid}" y="${arcY - 5}" text-anchor="middle" font-size="8" fill="#9fb4c3">${svgText(edge.id)}</text>
       <title>${svgText(edge.id)}: ${fmt(pct)}%</title>`;
   });
   return [...rects, ...doors, ...windowRects].join("");
@@ -102,8 +105,8 @@ function render() {
     <p><b>Artifact SHA-256:</b> <code>${escapeText(artifact.artifact_sha256)}</code></p>
     <p><b>Physics:</b> ${escapeText(artifact.evaluation.physics_backend)}
     · <b>Training:</b> ${escapeText(artifact.training.data_source)}
-    · <b>Train:</b> 2–4 room chain · <b>Test:</b> 5 room chain
-    · <b>Structural holdout:</b> NO</p>
+    · <b>Train:</b> 2–4 room chain · <b>Test:</b> ${escapeText(ep.topology_family)} five-room graph
+    · <b>Toy structural holdout:</b> ${artifact.evaluation.structural_family_holdout ? "YES" : "NO"}</p>
     <p>${escapeText(artifact.claim_boundary)}</p>`;
 }
 function stop() {
