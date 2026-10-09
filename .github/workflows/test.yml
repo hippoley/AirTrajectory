@@ -119,6 +119,34 @@ jobs:
         run: |
           python examples/contam_generated_smoke.py artifacts/multispace-generated.prj --expected-zones 3 --expected-paths 5 --provenance artifacts/multispace-generated.prj.json | Tee-Object -FilePath generated-contam-smoke.json
           if (-not (Select-String -Path generated-contam-smoke.json -Pattern "GENERATED_CONTAM_DYNAMIC_CONTROL_EXECUTED")) { exit 1 }
+      - name: Build synthetic imported-layout native solver fixture
+        shell: pwsh
+        run: |
+          python examples/make_imported_contam_fixture.py --out-dir artifacts/imported-smoke
+          python examples/generate_multispace_contam_prj.py --layout artifacts/imported-smoke/layout.json --metric-profile artifacts/imported-smoke/metric.json --boundary-profile artifacts/imported-smoke/boundary.json --prj-profile artifacts/imported-smoke/prj.json --airflow-profile artifacts/imported-smoke/airflow.json --out artifacts/imported-smoke/generated.prj --provenance-out artifacts/imported-smoke/generated.prj.json
+      - name: Run imported-layout PRJ on native ContamX and produce UI receipt
+        timeout-minutes: 3
+        shell: pwsh
+        run: |
+          python examples/run_imported_native_contam.py artifacts/imported-smoke/generated.prj --provenance artifacts/imported-smoke/generated.prj.json --out artifacts/imported-smoke/native-receipt.json
+          @'
+          import json
+          p=json.load(open("artifacts/imported-smoke/native-receipt.json",encoding="utf-8"))
+          assert p["marker"]=="IMPORTED_CONTAM_NATIVE_EXECUTED"
+          assert p["topology_id"]=="synthetic.imported-smoke.v1"
+          assert p["evidence_level"]=="NATIVE_CONTAM_ILLUSTRATIVE_INPUTS_NOT_FIELD"
+          assert p["zone_count"]==3 and p["path_count"]==5
+          assert len(p["receipt_sha256"])==64
+          assert p["engineering_truth"] is False
+          print("IMPORTED_NATIVE_RECEIPT_VERIFIED",p["receipt_sha256"])
+          '@ | python -
+      - name: Archive native imported-layout solver receipt
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: imported-native-contam-evidence
+          path: artifacts/imported-smoke/
+          if-no-files-found: warn
       - name: Generate PRJ for unified trajectory
         shell: pwsh
         run: |
