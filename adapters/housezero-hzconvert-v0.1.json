@@ -1,0 +1,83 @@
+{
+  "schema_version": "0.1",
+  "adapter": "housezero-hzconvert-row-v0.1",
+  "upstream": {
+    "repository": "slitvinov/hzconvert",
+    "commit": "6e84f637f5d82968cf67f750dae6b70d19f847ff",
+    "artifact": "data.csv",
+    "canonical_vocabulary_sources": [
+      "rename.tsv",
+      "rubric.tsv"
+    ]
+  },
+  "mappings": [
+    {
+      "pattern": "zone/{zone}/co2",
+      "target": "zones.{zone}.co2_ppm",
+      "unit": "ppm",
+      "transform": "identity",
+      "evidence": "measured-or-unavailable"
+    },
+    {
+      "pattern": "zone/{zone}/air_temperature",
+      "target": "zones.{zone}.temperature_c",
+      "unit": "F",
+      "transform": "fahrenheit-to-celsius",
+      "evidence": "measured-or-unavailable"
+    },
+    {
+      "pattern": "zone/{zone}/humidity",
+      "target": "zones.{zone}.relative_humidity_pct",
+      "unit": "%",
+      "transform": "identity",
+      "evidence": "measured-or-unavailable"
+    },
+    {
+      "pattern": "zone/{zone}/window_opening/{opening}",
+      "target": "opening_observations.{source}.position_pct",
+      "unit": "%",
+      "transform": "identity",
+      "evidence": "measured-or-unavailable"
+    },
+    {
+      "pattern": "outdoor/weather/air_temperature",
+      "target": "outdoor.temperature_c",
+      "unit": "F",
+      "transform": "fahrenheit-to-celsius",
+      "evidence": "measured-or-unavailable"
+    },
+    {
+      "pattern": "outdoor/weather/humidity",
+      "target": "outdoor.relative_humidity_pct",
+      "unit": "%",
+      "transform": "identity",
+      "evidence": "measured-or-unavailable"
+    },
+    {
+      "pattern": "outdoor/weather/wind_speed",
+      "target": "outdoor.wind_speed_m_s",
+      "unit": "m/s",
+      "transform": "identity",
+      "evidence": "measured-or-unavailable"
+    },
+    {
+      "pattern": "outdoor/weather/wind_direction",
+      "target": "outdoor.wind_direction_deg",
+      "unit": "deg",
+      "transform": "identity",
+      "evidence": "measured-or-unavailable"
+    },
+    {
+      "pattern": "outdoor/weather/rain",
+      "target": "outdoor.rain",
+      "unit": "source-defined",
+      "transform": "boolean-normalization",
+      "evidence": "measured-or-unavailable"
+    }
+  ],
+  "non_claims": [
+    "does not infer HouseZero topology from time-series headers",
+    "does not promote missing values to measured evidence",
+    "does not claim full Figshare dataset ingestion in CI"
+  ]
+}
