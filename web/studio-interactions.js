@@ -5,16 +5,42 @@ if(!api||!svg||!stage)return;
 let mode="select",zoom=1,drawStart=null,preview=null,panStart=null,anchor=null;
 const el=id=>document.getElementById(id);
 const info=el("tool-hint");
-const hints={select:"选择对象来编辑。拖动黄色窗户或蓝色房门可沿墙改变位置。",wall:"在画布上点击墙体起点，再点击终点，创建新的墙段。按 Esc 取消。",pan:"拖动画布以观察户型。按 V 返回选择。"};
+const hints={select:"选择对象来编辑。拖动黄色窗户或蓝色房门可沿墙改变位置。",wall:"在画布上点击墙体起点，再点击终点，创建新的墙段。按 Esc 取消。",pan:"拖动画布以观察户型。按 V 返回选择。",window:"在外墙上点击放置窗户；自动吸附墙体并拒绝重叠。",door:"在墙体上点击放置房门；按 Esc 或 V 退出。"};
 const modeButtons=[...document.querySelectorAll("[data-mode]")];
 function setMode(next){
  mode=next;drawStart=null;if(preview){preview.remove();preview=null;}
  modeButtons.forEach(b=>b.classList.toggle("active",b.dataset.mode===mode));
- el("mode-label").textContent=({select:"选择模式",wall:"画墙模式",pan:"平移模式"})[mode];
+ el("mode-label").textContent=({select:"选择模式",wall:"画墙模式",pan:"平移模式",window:"放置窗户",door:"放置房门"})[mode];
  info.textContent=hints[mode];
- svg.style.cursor=mode==="pan"?"grab":mode==="wall"?"crosshair":"default";
+ svg.style.cursor=mode==="pan"?"grab":["wall","window","door"].includes(mode)?"crosshair":"default";
 }
 modeButtons.forEach(b=>b.addEventListener("click",()=>setMode(b.dataset.mode)));
+for(const kind of ["window","door"]){
+ const btn=el("add-"+kind);
+ btn.onclick=()=>setMode(kind);
+}
+function closestWall(p,kind){
+ const layout=api.getLayout();if(!layout)return null;
+ let best=null;
+ for(const wall of layout.walls){
+  if(kind==="window"&&wall.kind!=="exterior")continue;
+  const projection=window.AirTrajectoryWallGeometry.projectOntoWall(p,wall,.06,.94);
+  if(!projection)continue;
+  if(!best||projection.distance<best.distance)best={wall,projection};
+ }
+ return best&&best.projection.distance<35?best:null;
+}
+svg.addEventListener("click",e=>{
+ if(!["window","door"].includes(mode))return;
+ e.stopImmediatePropagation();e.preventDefault();
+ const match=closestWall(toWorld(e),mode);
+ if(!match){info.textContent="请点击目标墙体的附近区域放置开口。";return;}
+ try{
+  api.placeOpening(mode,match.wall.id,match.projection.position);
+  info.textContent="开口已放置。继续点击可添加更多对象；按 V 返回选择。";
+ }catch(err){info.textContent=err.message;}
+},true);
+
 function toWorld(e){const c=svg.createSVGPoint();c.x=e.clientX;c.y=e.clientY;return c.matrixTransform(svg.getScreenCTM().inverse());}
 function snap(p){
  const layout=api.getLayout();
@@ -74,6 +100,8 @@ document.addEventListener("keydown",e=>{
  if(e.key.toLowerCase()==="v")setMode("select");
  if(e.key.toLowerCase()==="w")setMode("wall");
  if(e.key.toLowerCase()==="h")setMode("pan");
+ if(e.key.toLowerCase()==="o")setMode("window");
+ if(e.key.toLowerCase()==="d")setMode("door");
  if(e.key==="Delete"||e.key==="Backspace")el("remove").click();
 });
 setMode("select");syncScene();
