@@ -83,8 +83,14 @@ const path=require('node:path');
     assert.ok(splitLayout.rooms.some(r=>r.id.startsWith('living-split-')));
     assert.ok(splitLayout.walls.some(w=>w.id.startsWith('partition-living-split-')));
     assert.ok(splitLayout.openings.every(o=>splitLayout.walls.some(w=>w.id===o.wall_id&&w.source===o.source&&w.target===o.target)));
-    await page.locator('#undo').click();
+    await page.locator('#scene-list .scene-entry').filter({hasText:'LIVING A'}).first().click();
+    await page.locator('#merge-room').click();
     assert.match(await page.locator('#summary').innerText(),/4 rooms/);
+    const mergedLayout=await page.evaluate(()=>window.AirTrajectoryStudio.getLayout());
+    assert.equal(mergedLayout.rooms.some(r=>r.id.startsWith('living-split-')),false);
+    assert.ok(mergedLayout.openings.every(o=>mergedLayout.walls.some(w=>w.id===o.wall_id&&w.source===o.source&&w.target===o.target)));
+    await page.locator('#undo').click();
+    assert.match(await page.locator('#summary').innerText(),/5 rooms/);
     assert.deepEqual(errors,[]);
     console.log('PASS Studio browser E2E: edit dynamic 4-room topology, add wall/window, export, import, validation');
   }finally{await browser.close()}
