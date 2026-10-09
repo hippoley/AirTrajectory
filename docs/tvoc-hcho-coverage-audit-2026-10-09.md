@@ -57,3 +57,9 @@ Resume: latest HEAD CI plus end-to-end sensor fixture -> canonical state -> Obje
 - US3/8/9/10 P0: sensor lineage timestamp used float conversion and `<=0` only, allowing NaN to bypass a positivity comparison. The application receipt similarly required timestamp equality but not explicit finite validity.
 - `18ef9e9c` now rejects non-finite live sensor timestamps and apply-receipt timestamps before lineage can be regarded as valid; `707b7be0` adds adversarial NaN/Infinity cases for both sensor channels and application receipt.
 - This is a software provenance check only, not independently authenticated source data or measured field commissioning. All applicable story closures stay OPEN pending HEAD test workflow and actual device evidence.
+
+## Sensor receipt counter coercion — 2026-10-09
+- Baseline `e20540f72` passed the full test job https://github.com/hippoley/AirTrajectory/actions/runs/37893017643 and pages deployment. It is a software baseline only.
+- P0 defect: `sensor_lineage._normalize_apply_receipt` used `int(payload[key])` for network requests, runtime posts and actuator writes. Python truncates fractional values and accepts booleans/string numerals; therefore a reported 3.9 requests could be treated as 3 and a false zero-write claim could be misinterpreted. This is a falsifiable provenance hole.
+- Fix `6aff3408` requires exact integer type for the counter fields; `72c1eda6` adds adversarial fractional/bool/string receipt cases. This does not introduce dependencies or alter correct integer receipts.
+- New HEAD CI not yet accepted. US8 hardware provenance remains blocked until real commissioned receipts are independently verified. The change also affects US3/9/10 receipt-consumer semantics; rerun source-lineage regression and product end-to-end paths.
