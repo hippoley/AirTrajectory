@@ -1,0 +1,41 @@
+name: pascal-native-upstream-smoke
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "scripts/run-pascal-native.sh"
+      - "integrations/pascal-studio/**"
+      - ".github/workflows/pascal-native-upstream-smoke.yml"
+
+jobs:
+  native-editor-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fetch pinned native Pascal editor
+        uses: actions/checkout@v4
+        with:
+          repository: pascalorg/editor
+          ref: 7fc874faec800e18f8be2dab78e7dc2ff2327bd7
+          path: _pascal_native
+          persist-credentials: false
+      - name: Verify upstream identity and MIT license
+        shell: bash
+        run: |
+          test "$(git -C _pascal_native rev-parse HEAD)" = 7fc874faec800e18f8be2dab78e7dc2ff2327bd7
+          grep -q "MIT License" _pascal_native/LICENSE
+          test -f _pascal_native/apps/editor/app/page.tsx
+          test -f _pascal_native/packages/editor/src/index.tsx
+          grep -q 'layoutVersion="v2"' _pascal_native/apps/editor/app/page.tsx
+          grep -q "BuildTab" _pascal_native/apps/editor/app/page.tsx
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3.14"
+      - name: Install upstream workspace dependencies
+        working-directory: _pascal_native
+        run: bun install --frozen-lockfile
+      - name: Validate native scene editor
+        working-directory: _pascal_native
+        run: bun run --cwd apps/editor check-types
