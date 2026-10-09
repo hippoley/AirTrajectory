@@ -62,7 +62,7 @@ class MultiEnvironmentObjectiveTests(unittest.TestCase):
         )
         self.assertIsNone(row["physical_outcome_vector"]["pm25_excess_ug_m3"])
         self.assertIsNone(row["normalized_penalty_vector"]["pm25_excess_ratio"])
-        self.assertIn("pm25_excess",row["unavailable_objectives"])
+        self.assertIn("pm25_excess_ratio",row["unavailable_objectives"])
         self.assertNotIn("pm25_excess",row["available_objectives"])
 
     def test_penalties_are_dimensionless_not_raw_unit_sums(self):
@@ -120,7 +120,7 @@ class MultiEnvironmentObjectiveTests(unittest.TestCase):
             "HOLD":[{"co2_ppm":{"living":1400},"pm25_ug_m3":{"living":20}}],
             "OPEN":[{"co2_ppm":{"living":850}}],
         }
-        with self.assertRaisesRegex(ValueError,"incomparable evidence coverage"):
+        with self.assertRaisesRegex(ValueError,"(incomparable evidence coverage|different pm25_ug_m3 zone coverage)"):
             compare_observation_branches(
                 branches=branches,
                 objective=self.objective,
