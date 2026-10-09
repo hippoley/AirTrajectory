@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from math import isfinite
 from pathlib import Path
 
 from .lineage import is_sha256, sensor_binding_matches_site, sensor_binding_valid
@@ -70,7 +71,7 @@ def _normalize_lineage_entry(entry, *, role, runtime_key, site_lineage):
         raise RuntimeError(
             f"WindowPilot {runtime_key} sensor lineage timestamp is missing/invalid"
         ) from exc
-    if timestamp<=0:
+    if not isfinite(timestamp) or timestamp<=0:
         raise RuntimeError(
             f"WindowPilot {runtime_key} sensor lineage timestamp must be positive"
         )
@@ -279,6 +280,8 @@ def _normalize_apply_receipt(
         raise RuntimeError(
             f"{role} sensor_apply receipt sample_timestamp is missing/invalid"
         ) from exc
+    if not isfinite(sample_timestamp) or sample_timestamp <= 0:
+        raise RuntimeError(f"{role} sensor_apply sample_timestamp must be finite and positive")
     if sample_timestamp!=float(live.get("timestamp")):
         raise RuntimeError(
             f"{role} live sensor timestamp does not match sensor_apply staged sample"
