@@ -15,6 +15,8 @@ _ALLOWED_POLLUTANTS = {"co2_ppm", "pm25_ug_m3", "tvoc_ug_m3", "hcho_mg_m3"}
 _ALLOWED_PRIORITIES = {
     "co2_excess",
     "pm25_excess",
+    "tvoc_excess",
+    "hcho_excess",
     "temperature_discomfort",
     "humidity_discomfort",
     "movement",
@@ -121,6 +123,10 @@ class ObjectiveContract:
             allowed_by_contract.add("co2_excess")
         if "pm25_ug_m3" in self.pollutants:
             allowed_by_contract.add("pm25_excess")
+        if "tvoc_ug_m3" in self.pollutants:
+            allowed_by_contract.add("tvoc_excess")
+        if "hcho_mg_m3" in self.pollutants:
+            allowed_by_contract.add("hcho_excess")
         if "temperature_c" in self.comfort:
             allowed_by_contract.add("temperature_discomfort")
         if "relative_humidity_pct" in self.comfort:
