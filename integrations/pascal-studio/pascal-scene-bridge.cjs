@@ -23,7 +23,7 @@ function exportLayout(scene,options={}){
   const coords=n.polygon;
   if(!Array.isArray(coords)||coords.length<3||coords.some(p=>!Array.isArray(p)||p.length!==2||!p.every(Number.isFinite)))throw Error("Zone "+n.id+" has invalid polygon");
   // Rectangular contract only; nonrectangular zones require explicit conversion approval.
-  const xs=[...new Set(coords.map(p=>p[0]))],ys=[...new Set(coords.map(p=>p[1]))];
+  const xs=[...new Set(coords.map(p=>p[0]))].sort((a,b)=>a-b),ys=[...new Set(coords.map(p=>p[1]))].sort((a,b)=>a-b);
   if(xs.length!==2||ys.length!==2||coords.length!==4)throw Error("Zone "+n.id+" not rectangular; geometry adapter required");
   const w=xs[1]-xs[0],h=ys[1]-ys[0];
   const height=n.metadata?.airtrajectory_height_m,volume=n.metadata?.airtrajectory_volume_m3;
