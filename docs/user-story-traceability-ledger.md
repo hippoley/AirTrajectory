@@ -39,7 +39,7 @@ Audit date: 2026-10-09. **Source of requirements:** `docs/product-user-story.md`
 - #219 **merged**, clears stale predictions after topology changes; Core and Pages CI green.
 - #220 **merged**, explicit room/wall add/remove and referential integrity; Core and Pages CI green.
 - #221 **merged**, explicit room split requiring complete incident wall ownership; Core and Pages CI green.
-- Current PR: merge-room support and this ledger; no success can be claimed until CI and integration verification.
+- Current PR #222: explicit room merge, non-finite geometry rejection, topology-runtime and JSON roundtrip tests, and this ledger; no success can be claimed until CI and integration verification.
 
 ## Open defect register
 
@@ -63,3 +63,11 @@ Audit date: 2026-10-09. **Source of requirements:** `docs/product-user-story.md`
 5. Any historical story or acceptance clause newly found in repository history must be added here and mapped before claiming complete coverage.
 
 **Audit limit:** This ledger traces the current full 15-story requirement document and verified selected PR history. It is not yet an exhaustive forensic reconstruction of every earlier commit/issue; historical completeness remains an open audit item.
+
+## 2026-10-09 execution checkpoint
+
+- PR #221: merged as `1dd037c8cdd652c586f5785b96afeee48b39036c`; both required workflows passed; room split sub-capability only.
+- PR #222: active, latest development includes `merge_rooms`, `LayoutContract` finite-number validation, tests for cross-module `verify_topology_runtime`, unknown/shared walls, NaN/Infinity and canonical JSON roundtrip. Workflow verdict must be checked for the latest head before merging.
+- D-P0-001 remains **OPEN**: topology runtime verification uses a toy rollout and cannot substitute for imported-layout actual CONTAM execution.
+- D-P0-002 remains **OPEN**: code-level correction operations do not satisfy interactive graphical room/wall editing.
+- Story 08 **BLOCKED** on field evidence; Story 13 **BLOCKED** on third-party adoption. No simulation or PR is a replacement.
