@@ -49,3 +49,10 @@ SOFTWARE.
 - tldraw: https://github.com/tldraw/tldraw — licensing requires case-by-case review; no code vendored in this change.
 
 Do not remove third-party notices when distributing this repository.
+
+## openPlan3D joined-wall editing
+
+- Source: https://github.com/laanlabs/openPlan3D `src/lib/utils/wallEditing.ts`
+- Local adaptation: `web/vendor/openplan-wall-editing.js`
+- License and copyright: MIT; Copyright (c) 2026 theLodgeStudio (license text above)
+- Changes: coordinate adapter to AirTrajectory `x1/y1/x2/y2`, connected-wall atomic resize and browser/Node exports.
