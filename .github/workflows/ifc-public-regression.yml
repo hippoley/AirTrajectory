@@ -11,6 +11,7 @@ on:
       - "examples/import_ifc_layout.py"
       - "examples/inspect_ifc_control_readiness.py"
       - ".github/workflows/ifc-public-regression.yml"
+      - "examples/build_public_upstream_receipt.py"
 
 permissions:
   contents: read
@@ -39,6 +40,14 @@ jobs:
       - name: Inspect control readiness
         run: |
           python examples/inspect_ifc_control_readiness.py             /tmp/Duplex_A_20110907.ifc             --out artifacts/ifc/duplex-control-readiness.json
+
+      - name: Build public upstream input and blocker receipt
+        run: |
+          python examples/build_public_upstream_receipt.py \
+            /tmp/Duplex_A_20110907.ifc \
+            artifacts/ifc/duplex-control-readiness.json \
+            --source-url "https://raw.githubusercontent.com/andyward/XBimDemo/master/Xbim.TestApp/Duplex_A_20110907.ifc" \
+            --out artifacts/ifc/duplex-upstream-evidence.json
 
       - name: Verify external sample identity and coverage
         run: |
@@ -112,5 +121,6 @@ jobs:
           name: duplex-ifc-control-readiness
           path: |
             artifacts/ifc/duplex-control-readiness.json
+            artifacts/ifc/duplex-upstream-evidence.json
             artifacts/ifc/duplex-if-style-success-record.md
           if-no-files-found: error
