@@ -9,7 +9,7 @@ from .factory import TrajectoryFactory
 from .learning import TopologyBCPolicy, TopologyOfflineQPolicy
 from .rollout import rollout
 from .physical import SafetyResolver
-from .scenario import generate_chain_scenario, topology_manifest
+from .scenario import generate_chain_scenario, generate_structured_scenario, topology_manifest
 
 def _rows(trajectories):
     out=[]
@@ -83,3 +83,57 @@ def unseen_topology_benchmark(train_count=24,test_count=8,horizon_steps=30,seed=
         "metrics":{k:_summary(v) for k,v in results.items()},
         "trajectories":results,
     }
+
+
+def held_out_family_benchmark(train_count=24, test_count_per_family=8, horizon_steps=30, seed=100):
+    """Evaluate chain-trained policies on disjoint hub/loop/branch graph families.
+
+    This measures toy-environment topology-family transfer only; it does not
+    establish ContamX validity, real building transfer, or physical safety.
+    """
+    if any(not isinstance(v,int) or isinstance(v,bool) or v<=0
+           for v in (train_count,test_count_per_family,horizon_steps)):
+        raise ValueError("counts and horizon_steps must be positive integers")
+    if not isinstance(seed,int) or isinstance(seed,bool) or seed<0:
+        raise ValueError("seed must be a non-negative integer")
+    train_seeds=[seed+i for i in range(train_count)]
+    test_seeds=[seed+10000+i for i in range(test_count_per_family)]
+    if set(train_seeds)&set(test_seeds):
+        raise ValueError("train/test seed collision")
+    train_factory=TrajectoryFactory(horizon_steps=horizon_steps,rooms=(2,3,4))
+    train=[train_factory.rule_episode(i) for i in train_seeds]
+    rows=_rows(train)
+    bc=TopologyBCPolicy(); bc.fit(rows)
+    offline=TopologyOfflineQPolicy(); offline.fit(rows)
+    families=("hub","loop","branch")
+    split={"schema_version":"0.1","train_families":["chain"],
+           "test_families":list(families),"train_rooms":[2,3,4],
+           "test_rooms":[5],"train_seeds":train_seeds,
+           "test_seeds":test_seeds,"backend":"toy-scenario-v1"}
+    split_hash=sha256(json.dumps(split,sort_keys=True,separators=(",",":")).encode()).hexdigest()
+    by_family={}
+    for family in families:
+        result={"rule":[],"bc":[],"offline_q":[]}
+        for test_seed in test_seeds:
+            scenario=generate_structured_scenario(test_seed,rooms=5,family=family)
+            for policy_name,policy in (
+                ("rule", MultiWindowRuleAgent(scenario.topology)),
+                ("bc",bc),("offline_q",offline),
+            ):
+                env=ScenarioMultizoneEnvironment(scenario,horizon_steps=horizon_steps)
+                episode=rollout(env,policy,scenario.id,policy_name,
+                                max_steps=horizon_steps,safety_resolver=SafetyResolver())
+                episode.context.update({
+                    "benchmark_split":"held-out-graph-family",
+                    "benchmark_split_sha256":split_hash,"scenario_seed":test_seed,
+                    "room_count":5,"topology_family":family,"physics_fidelity":"toy",
+                    "topology":topology_manifest(scenario.topology),
+                })
+                result[policy_name].append(episode)
+        by_family[family]={"metrics":{name:_summary(episodes) for name,episodes in result.items()},
+                           "paired_vs_rule":_paired_deltas(result),
+                           "trajectories":result}
+    return {"contract":{**split,"split_sha256":split_hash,
+                        "evidence_level":"TOY_ONLY_NOT_CONTAM_OR_FIELD",
+                        "held_out_topology_families":True},
+            "by_family":by_family}
