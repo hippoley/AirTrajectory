@@ -27,3 +27,24 @@ Source/license: https://github.com/pascalorg/editor — **MIT, copyright (c) 202
 ## Next acceptance gate
 
 Export a native Pascal scene; parse typed building/level/room/wall/door/window nodes, preserve stable native IDs and units; require human correction of incomplete adjacency; produce `LayoutContract`; round-trip a second edited scene; run `verify_topology_runtime`. Keep the existing Studio as the stable browser-delivered fallback until these checks pass.
+
+## Pascal scene export to canonical LayoutContract (new)
+
+The optional React host now has a **导出原生场景 JSON** action, exporting the real `useScene.getState().nodes` object. Convert with:
+
+```bash
+node scripts/export-pascal-scene.cjs pascal-native-scene.json artifacts/pascal-layout.json
+python examples/compile_contam_ir.py artifacts/pascal-layout.json
+```
+
+The second command is expected to **refuse** layouts without engineering-ready geometry; never interpret a successful JSON export as ContamX authorization.
+
+This v0.1 adapter intentionally requires explicit, reviewed metadata on native Pascal nodes:
+
+- `zone`: `spaceRole: "room"`, rectangular `polygon`, metadata `airtrajectory_height_m` and `airtrajectory_volume_m3`
+- `wall`: Pascal `start`/`end` metre coordinates; metadata `airtrajectory_source_room` (zone ID), `airtrajectory_target_room` (zone ID or `OUTSIDE`)
+- `window`/`door`: valid native `wallId`, physical `width`/`height`, metadata `airtrajectory_position_t` in [0,1]
+
+Any missing measurements or adjacency cause an explicit BLOCKED error. The scene is hashed with SHA-256 and its original bytes form the provenance source. `tests/fixtures/pascal-scene-two-rooms.json` is a typed shape test with **supplied evidence metadata**, not a statement that arbitrary native Pascal saves already have those annotations.
+
+The adapter is imported in `test.yml`, which confirms its output is accepted by Python's real `LayoutContract.from_file` parser. Arbitrary polygon handling, automatic review annotations, verified units in all Pascal versions, and true Pascal round trip are not closed.
