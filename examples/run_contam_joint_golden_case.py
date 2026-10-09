@@ -20,6 +20,7 @@ from airtrajectory.layout import LayoutContract
 from airtrajectory.policy_benchmark import (
     build_policy_benchmark_report,
     build_required_benchmark_candidates,
+    verify_policy_benchmark_report,
 )
 from airtrajectory.ventilation_path_candidates import (
     inject_ventilation_path_candidates,
@@ -220,6 +221,10 @@ def main() -> int:
         policy_benchmark = build_policy_benchmark_report(
             response=response, case=case, topology=topology
         )
+        if not verify_policy_benchmark_report(
+            report=policy_benchmark, response=response, case=case, topology=topology
+        ):
+            raise RuntimeError("independent benchmark verification failed")
     else:
         receipt = compare_independent_vs_joint(
             response=response,
