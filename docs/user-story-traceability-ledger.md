@@ -95,3 +95,10 @@ Audit date: 2026-10-09. **Source of requirements:** `docs/product-user-story.md`
 - External option `NIST CONTAM 3.4.0.1`: official https://www.nist.gov/services-resources/software/contam ; ContamX runs on Windows and Linux; NIST-developed components are US public domain, with derivative notice and experimental-system caveats. API paper (2026-01-30) https://www.nist.gov/publications/development-and-application-contam-apis describes dynamic control/query possibilities, but this repo has not integrated or benchmarked that API; do not claim compatibility.
 - Selection: **retain present working adapters**; assess external geometry iterators and CONTAM API via pinned optional integration probes before replacement. Do not add dependencies purely because they are more recent.
 - The horizontal audit records may pass consistency rules while all product stories remain `PARTIAL`/`BLOCKED`. Never treat a green audit-record command as Story PASS.
+
+## 2026-10-09 — Canonical identity fail-closed checkpoint
+
+- P0 input contract defect found: `LayoutContract.validate` previously accepted whitespace-only room/wall/opening IDs and a room ID equal to `outside_id`. These invalid identities risk ambiguous topology and solver mapping. Fixed in commit `c359ad0f59509052421e49346e232a081f3bae38`.
+- Added independently specified negative regression cases in `tests/test_canonical_identity.py` (commit `8344d42747ff1fe2b69ff8e16c812a185e7a83a7`).
+- Evidence gate: `python -m unittest tests/test_canonical_identity.py -v` (or discovery mode); latest head Core workflow https://github.com/hippoley/AirTrajectory/actions/runs/37881456450; Pages workflow https://github.com/hippoley/AirTrajectory/actions/runs/37881456508. Both were **QUEUED at inspection**. No PASS until run results are read.
+- Scope boundary: this corrects ID validation only. It does not establish imported topology → generated PRJ → real ContamX run, graphical editing, independent unfamiliar-layout solve, or any Verified Closed story.
