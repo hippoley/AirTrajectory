@@ -5,3 +5,4 @@ venv/
 artifacts/
 .pytest_cache/
 .DS_Store
+.upstream/
