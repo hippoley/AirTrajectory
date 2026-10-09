@@ -80,6 +80,11 @@ def validate_ifc_engineering_package(
                 raise ValueError(f"opening {opening_id} has invalid source IFC adjacency")
             if set(adjacent) != {opening.source, opening.target} - {layout.outside_id}:
                 raise ValueError(f"opening {opening_id} IFC/layout adjacency drift")
+        if treatment["disposition"] == "controllable" and (
+            opening.kind != "window"
+            or layout.outside_id not in (opening.source, opening.target)
+        ):
+            raise ValueError(f"opening {opening_id} is not a controllable exterior window")
         if treatment["disposition"] != "controllable":
             if opening.state_editable:
                 raise ValueError(f"non-controllable opening {opening_id} remains editable")
