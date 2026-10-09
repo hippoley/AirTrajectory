@@ -358,3 +358,21 @@ def build_policy_benchmark_report(
             "compatibility but is not the benchmark proof"
         ),
     }
+
+
+def verify_policy_benchmark_report(
+    *, report: Mapping[str, Any], response: Mapping[str, Any],
+    case: Mapping[str, Any], topology,
+) -> bool:
+    """Independently recompute a persisted benchmark receipt from backend branches.
+
+    A report cannot verify itself: the caller must supply raw solver branches,
+    scenario contract and topology. This is semantic replay, not authentication
+    of the simulator or a field-commissioning claim.
+    """
+    expected = build_policy_benchmark_report(
+        response=response, case=case, topology=topology,
+    )
+    if dict(report) != expected:
+        raise ValueError("benchmark receipt differs from independently rescored branches")
+    return True
