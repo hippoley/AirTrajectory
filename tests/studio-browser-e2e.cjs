@@ -10,6 +10,13 @@ const path=require('node:path');
   try{
     await page.goto(process.env.STUDIO_URL||'http://127.0.0.1:8765/web/studio.html',{waitUntil:'load'});
     await page.locator('#summary').getByText('3 rooms').waitFor({timeout:12000});
+    await page.locator('#zoom-in').click();
+    assert.match(await page.locator('#zoom-label').innerText(),/115%/);
+    await page.locator('#zoom-fit').click();
+    assert.match(await page.locator('#zoom-label').innerText(),/100%/);
+    await page.locator('[data-mode=wall]').click();
+    assert.match(await page.locator('#mode-label').innerText(),/画墙模式/);
+    await page.keyboard.press('v');
     await page.locator('#add-room').click();
     assert.match(await page.locator('#summary').innerText(),/4 rooms/);
     // Create a non-hard-coded room connection, then put a window on it.
