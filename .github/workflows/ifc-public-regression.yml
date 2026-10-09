@@ -5,6 +5,7 @@ on:
   push:
     branches: [main]
     paths:
+      - "airtrajectory/importers/ifc.py"
       - "examples/build_public_upstream_receipt.py"
       - "examples/select_ifc_control_scope.py"
       - "examples/build_ifc_adjacency_review_queue.py"
