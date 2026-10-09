@@ -153,7 +153,7 @@ class MultiEnvironmentObjectiveTests(unittest.TestCase):
         by_label = {row["label"]: row for row in report["results"]}
         self.assertTrue(by_label["HOLD"]["feasible"])
         self.assertFalse(by_label["SHORT_CROSSFLOW"]["feasible"])
-        self.assertIn("rain:no-opening-increase", by_label["SHORT_CROSSFLOW"]["hard_violations"])
+        self.assertIn("rain:exterior-window-must-close", by_label["SHORT_CROSSFLOW"]["hard_violations"])
         self.assertEqual(report["recommended"], ["HOLD"])
 
         # If a window is already open, a rain-triggered closing action is safe.
@@ -165,10 +165,14 @@ class MultiEnvironmentObjectiveTests(unittest.TestCase):
         payload["origin_opening_pct"]["W1"] = 50
         payload["candidates"][0]["actions"][0]["target_pct"] = 50
         payload["candidates"][1]["actions"][0]["target_pct"] = 0
-        payload["candidates"][2]["actions"][0]["target_pct"] = 25
+        payload["candidates"][2]["actions"][0]["target_pct"] = 0
         report = compare(payload)
         by_label = {row["label"]: row for row in report["results"]}
-        self.assertTrue(by_label["LARGE_OPEN"]["feasible"] is False)  # PM2.5 hard cap
+        self.assertFalse(by_label["HOLD"]["feasible"])
+        self.assertIn(
+            "rain:exterior-window-must-close", by_label["HOLD"]["hard_violations"]
+        )
+        self.assertFalse(by_label["LARGE_OPEN"]["feasible"])  # PM2.5 hard cap
         self.assertTrue(by_label["SHORT_CROSSFLOW"]["feasible"])
 
     def test_rain_interlock_does_not_block_interior_door(self):
