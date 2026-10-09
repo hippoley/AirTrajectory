@@ -2,7 +2,24 @@ import unittest
 from dataclasses import asdict
 from airtrajectory.layout import LayoutContract
 from airtrajectory.imported_contam_readiness import verify_imported_contam_readiness
-from tests.test_layout_correction import fixture
+def fixture():
+    return LayoutContract.from_dict({
+        "schema_version":"0.1","topology_id":"import:test","source_kind":"imported-floorplan",
+        "outside_id":"OUTSIDE",
+        "capabilities":{"floorplan_geometry_editable":True,"opening_position_editable":True,
+                        "opening_state_editable":True,"arbitrary_topology_import":"supported",
+                        "contam_compiler":"reserved"},
+        "source_provenance":{"format":"JSON","source_sha256":"a"*64,
+                             "importer":{"id":"test","version":"1"}},
+        "rooms":[{"id":"r1","name":"R1","x":0,"y":0,"w":4,"h":4,"volume_m3":40}],
+        "walls":[{"id":"w1","kind":"exterior","source":"r1","target":"OUTSIDE",
+                  "x1":0,"y1":0,"x2":0,"y2":4}],
+        "openings":[{"id":"o1","kind":"window","wall_id":"w1","source":"r1",
+                     "target":"OUTSIDE","position_t":0.5,"initial_open_pct":0,
+                     "max_area_m2":1,"render_side":"left","position_editable":True,
+                     "state_editable":True}],
+        "compiler_contract":{},
+    })
 
 
 class ImportedContamReadinessTests(unittest.TestCase):
