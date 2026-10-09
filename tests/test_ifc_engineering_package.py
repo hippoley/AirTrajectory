@@ -51,7 +51,7 @@ class IFCEngineeringPackageTests(unittest.TestCase):
             self.assertEqual(compiler.call_args.kwargs["out_path"],"unused.prj")
 
     def test_nonapproved_mismatched_and_missing_openings_never_touch_compiler(self):
-        for kind in ("source","approval","excluded","missing","bundle","scope"):
+        for kind in ("source","approval","excluded","missing","bundle","scope","adjacency","airflow"):
             package=copy.deepcopy(self.package)
             scope=copy.deepcopy(self.scope)
             if kind=="source": package["source_ifc_sha256"]="c"*64
@@ -62,6 +62,8 @@ class IFCEngineeringPackageTests(unittest.TestCase):
             if kind=="missing": package["opening_treatments"].pop(next(iter(package["opening_treatments"])))
             if kind=="bundle": package["airflow_evidence"]["source_ifc_sha256"]="d"*64
             if kind=="scope": scope["receipt_sha256"]="e"*64
+            if kind=="adjacency": scope["candidate_openings"][0]["adjacent_spaces"]=["wrong-room"]
+            if kind=="airflow": package["opening_treatments"][scope["excluded_openings"][0]["opening_id"]].pop("airflow_model")
             with self.subTest(kind=kind),patch(
                 "airtrajectory.ifc_engineering_package.build_engineering_contam_project"
             ) as compiler:
