@@ -201,6 +201,10 @@ class FieldFiniteAdversarialTests(unittest.TestCase):
         layout = self.layout
         runtime = runtime_receipt(layout)
         runtime["prediction_series"][1]["step"] = 0
+        runtime["prediction_series_sha256"] = sha(runtime["prediction_series"])
+        payload = dict(runtime)
+        payload.pop("runtime_receipt_sha256")
+        runtime["runtime_receipt_sha256"] = sha(payload)
         spec = validate_field_validation_protocol(layout, protocol())
         bundle = field_bundle(
             protocol_sha=spec["protocol_sha256"],
