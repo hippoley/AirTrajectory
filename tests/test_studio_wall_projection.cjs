@@ -1,0 +1,16 @@
+const assert=require('node:assert/strict');
+const {projectOntoWall}=require('../web/vendor/openplan-wall-projection.js');
+const wall={x1:0,y1:0,x2:100,y2:0};
+const center=projectOntoWall({x:50,y:12},wall);
+assert(center);
+assert(Math.abs(center.position-0.5)<1e-8);
+assert(Math.abs(center.distance-12)<1e-8);
+assert.equal(projectOntoWall({x:-15,y:0},wall,0.05,0.95).position,0.05);
+assert.equal(projectOntoWall({x:150,y:0},wall,0.05,0.95).position,0.95);
+assert.equal(projectOntoWall({x:50,y:10},{x1:0,y1:0,x2:0,y2:0}),null);
+assert.equal(projectOntoWall({x:50,y:10},{...wall,x2:NaN}),null);
+assert.equal(projectOntoWall({x:50,y:10},wall,0.95,0.05),null);
+const curved={x1:0,y1:0,x2:100,y2:0,curvePoint:{x:50,y:100}};
+const apex=projectOntoWall({x:50,y:50},curved);
+assert(apex&&Math.abs(apex.position-0.5)<1e-6&&apex.distance<1e-6);
+console.log('PASS openPlan3D wall projection: 8 assertions including clamps, curved walls, degenerate geometry');
