@@ -32,9 +32,9 @@ class PhysicsReplayTests(unittest.TestCase):
         one = prepare_paired_replay(rows, target_fingerprint=target, sample_size=2, seed=7)
         two = prepare_paired_replay(rows, target_fingerprint=target, sample_size=2, seed=7)
         self.assertEqual(one, two)
-        self.assertEqual(len(one["matched"]), len(one["mixed"]))
+        self.assertEqual(len(one["matched"]), len(one["foreign_only"]))
         self.assertFalse({r["trajectory_id"] for r in one["matched"]} &
-                         {r["trajectory_id"] for r in one["mixed"]})
+                         {r["trajectory_id"] for r in one["foreign_only"]})
 
     def test_rejects_insufficient_comparable_trajectories(self):
         rows = [row("a", "contam"), row("b", "toy")]
