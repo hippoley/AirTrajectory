@@ -23,6 +23,8 @@ jobs:
       - run: node --check web/topology-path-explorer.js
       - run: node --check web/vendor/openplan-wall-editing.js
       - run: node tests/test_studio_wall_editing.cjs
+      - run: node --check web/vendor/room-partition.js
+      - run: node tests/test_studio_room_partition.cjs
       - run: node tests/test_studio_topology_paths.cjs
       - run: node --check web/vendor/openplan-wall-projection.js
       - run: node tests/test_studio_wall_projection.cjs
