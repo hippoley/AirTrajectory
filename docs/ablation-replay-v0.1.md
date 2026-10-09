@@ -7,7 +7,7 @@ airflow benchmark or evidence that reinforcement learning improves control.
 
 ```bash
 python -m unittest tests.test_toy_ablation -v
-python examples/export_toy_ablation.py --train-count 12 --test-count 3 --horizon 20
+python examples/export_toy_ablation.py --train-count 12 --test-count 3 --horizon 20 --test-families hub,loop,irregular
 python -m http.server 8000 -d web
 # Open http://localhost:8000/ablation.html
 ```
@@ -31,9 +31,11 @@ safety interventions, plus environmental and movement metrics. The artifact
 has a deterministic content checksum; this is **not a signature** and does
 not establish trust in the producer.
 
-Training uses existing 2–4-room chain rule demonstrations; test uses 5-room
-chain with disjoint seeds. This is a size/ID-transfer experiment, **not**
-held-out structural-family generalization.
+Training uses existing 2–4-room chain rule demonstrations. Test can use
+5-room chain, branch, hub, loop, or irregular graph families with disjoint
+seeds. The Pages build deliberately holds out hub/loop/irregular families.
+This is **toy graph-structure transfer**, not physics-validated structural
+generalization. The CLI defaults to chain unless --test-families is supplied.
 
 ## Truth boundaries
 
