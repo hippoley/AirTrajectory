@@ -17,7 +17,7 @@ const n=node("line",{x1:p.x-dx,y1:p.y-dy,x2:p.x+dx,y2:p.y+dy,class:"opening"+(o.
 n.addEventListener("pointerdown",e=>{e.stopPropagation();pick("opening",o.id);drag={id:o.id,wall:w,start:clone(doc)};svg.setPointerCapture(e.pointerId);});n.addEventListener("click",e=>{e.stopPropagation();pick("opening",o.id);});}
 }
 function coords(e){const p=svg.createSVGPoint();p.x=e.clientX;p.y=e.clientY;return p.matrixTransform(svg.getScreenCTM().inverse());}
-svg.addEventListener("pointermove",e=>{if(!drag)return;const p=coords(e),w=drag.wall,vx=w.x2-w.x1,vy=w.y2-w.y1,den=vx*vx+vy*vy;if(!den)return;const t=Math.max(0.05,Math.min(.95,((p.x-w.x1)*vx+(p.y-w.y1)*vy)/den));doc.openings.find(x=>x.id===drag.id).position_t=+t.toFixed(4);draw();});
+svg.addEventListener("pointermove",e=>{if(!drag)return;const p=coords(e),w=drag.wall,vx=w.x2-w.x1,vy=w.y2-w.y1,den=vx*vx+vy*vy;if(!den)return;const projection=AirTrajectoryWallGeometry.projectOntoWall(p,w,0.05,0.95);if(!projection)return;const t=projection.position;doc.openings.find(x=>x.id===drag.id).position_t=+t.toFixed(4);draw();});
 svg.addEventListener("pointerup",()=>{if(!drag)return;history.push(drag.start);future=[];drag=null;update();});
 function fields(){const f=el("fields");f.replaceChildren();const x=find();el("selected-title").textContent=x?`${selected.type.toUpperCase()} / ${x.id}`:"选择对象查看属性";if(!x)return;
 const keys=selected.type==="room"?["name","x","y","w","h","volume_m3"]:selected.type==="wall"?["source","target","kind","x1","y1","x2","y2"]:["kind","wall_id","position_t","initial_open_pct","max_area_m2","width_m","height_m"];
