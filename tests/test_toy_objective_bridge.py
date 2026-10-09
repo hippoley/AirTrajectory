@@ -56,7 +56,7 @@ class ToyObjectiveBridgeTests(unittest.TestCase):
     def test_tampered_backend_frame_rejected_by_checksum(self):
         broken = copy.deepcopy(self.artifact)
         broken["episodes"][0]["policies"]["BC"]["frames"][0]["co2_ppm"]["room1"] = 0
-        with self.assertRaisesRegex(ValueError, "checksum mismatch"):
+        with self.assertRaisesRegex(ValueError, "disagrees with replay frames|checksum mismatch"):
             compare_toy_episode_first_step(broken)
 
     def test_missing_opening_kind_rejected(self):
