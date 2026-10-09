@@ -20,6 +20,21 @@ jobs:
       - run: python -m pip install -e ".[contracts]"
       - run: node --check integrations/pascal-studio/pascal-scene-bridge.cjs
       - run: node tests/test_pascal_scene_bridge.cjs
+      - name: Verify Pascal SceneNodes reach canonical Python layout
+        run: |
+          node scripts/export-pascal-scene.cjs tests/fixtures/pascal-scene-two-rooms.json artifacts/pascal-exported-layout.json
+          python - <<'PY'
+          from airtrajectory.layout import LayoutContract
+          import hashlib
+          from pathlib import Path
+          p=Path("tests/fixtures/pascal-scene-two-rooms.json")
+          layout=LayoutContract.from_file("artifacts/pascal-exported-layout.json")
+          assert len(layout.rooms)==2
+          assert len(layout.walls)==2
+          assert len(layout.openings)==2
+          assert layout.source_provenance["source_sha256"]==hashlib.sha256(p.read_bytes()).hexdigest()
+          print("PASS Pascal SceneNodes -> LayoutContract Python parser")
+          PY
       - run: node --check web/studio.js
       - run: node --check web/studio-interactions.js
       - run: node --check web/topology-path-explorer.js
