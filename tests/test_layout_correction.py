@@ -118,6 +118,31 @@ class LayoutCorrectionTests(unittest.TestCase):
         self.assertEqual(receipt["expected"]["opening_ids"],["o1"])
         self.assertTrue(all(receipt["checks"].values()))
 
+    def test_corrected_layout_roundtrip_preserves_identity(self):
+        import json
+        from dataclasses import asdict
+        edited=correct_layout(fixture(),[
+            {"op":"rename_room","id":"r1","name":"Kitchen"},
+            {"op":"move_opening","id":"o1","position_t":0.65},
+        ])
+        payload={
+            "schema_version":edited.schema_version,
+            "topology_id":edited.topology_id,
+            "source_kind":edited.source_kind,
+            "outside_id":edited.outside_id,
+            "capabilities":edited.capabilities,
+            "source_provenance":edited.source_provenance,
+            "rooms":[asdict(v) for v in edited.rooms],
+            "walls":[asdict(v) for v in edited.walls],
+            "openings":[asdict(v) for v in edited.openings],
+            "compiler_contract":edited.compiler_contract,
+        }
+        restored=LayoutContract.from_dict(json.loads(json.dumps(payload)))
+        self.assertEqual(restored.sha256(),edited.sha256())
+        from airtrajectory.topology_acceptance import verify_topology_runtime
+        receipt=verify_topology_runtime(restored)
+        self.assertEqual(receipt["status"],"PASS")
+
     def test_nonfinite_geometry_never_enters_runtime(self):
         for patch in (
             {"op":"move_opening","id":"o1","position_t":float("nan")},
