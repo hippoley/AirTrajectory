@@ -20,6 +20,7 @@ git checkout --detach "${VERSION}"
 test "$(git rev-parse HEAD)" = "${VERSION}"
 test -f LICENSE
 bun install --frozen-lockfile
+bunx turbo run build --filter="editor^..."
 echo "Starting authentic Pascal editor from pinned commit ${VERSION}"
 echo "Building editing + 2D/3D are powered by upstream Pascal; AirTrajectory canonical topology conversion is NOT yet connected."
 cd apps/editor
