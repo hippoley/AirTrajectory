@@ -6,6 +6,7 @@ on:
     branches: [main]
     paths:
       - "examples/build_public_upstream_receipt.py"
+      - "examples/select_ifc_control_scope.py"
       - ".github/workflows/ifc-public-regression.yml"
   pull_request:
     paths:
@@ -53,6 +54,21 @@ jobs:
             artifacts/ifc/duplex-control-readiness.json \
             --source-url "https://raw.githubusercontent.com/andyward/XBimDemo/master/Xbim.TestApp/Duplex_A_20110907.ifc" \
             --out artifacts/ifc/duplex-upstream-evidence.json
+
+      - name: Extract evidence-bound candidate control scope
+        run: |
+          python examples/select_ifc_control_scope.py \
+            artifacts/ifc/duplex-control-readiness.json \
+            --out artifacts/ifc/duplex-candidate-scope.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p=json.loads(Path("artifacts/ifc/duplex-candidate-scope.json").read_text())
+          assert p["prj_compilation_authorized"] is False
+          assert p["original_full_scope_status"] == "BLOCKED"
+          assert p["candidate_count"] + p["excluded_count"] == 38
+          print("candidate openings:",p["candidate_count"],"excluded:",p["excluded_count"])
+          PY
 
       - name: Verify external sample identity and coverage
         run: |
@@ -127,5 +143,6 @@ jobs:
           path: |
             artifacts/ifc/duplex-control-readiness.json
             artifacts/ifc/duplex-upstream-evidence.json
+            artifacts/ifc/duplex-candidate-scope.json
             artifacts/ifc/duplex-if-style-success-record.md
           if-no-files-found: error
