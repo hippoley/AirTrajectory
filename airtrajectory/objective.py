@@ -7,6 +7,7 @@ priorities instead of collapsing every trade-off into one reward scalar.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from math import isfinite
 from typing import Any, Mapping
 
 
@@ -29,10 +30,12 @@ class PollutantGoal:
     def __post_init__(self) -> None:
         if self.field not in _ALLOWED_POLLUTANTS:
             raise ValueError(f"unsupported pollutant objective: {self.field}")
-        if self.target_max < 0:
-            raise ValueError("pollutant target_max must be non-negative")
-        if self.hard_max is not None and self.hard_max < self.target_max:
-            raise ValueError("pollutant hard_max cannot be below target_max")
+        if not isfinite(self.target_max) or self.target_max < 0:
+            raise ValueError("pollutant target_max must be finite and non-negative")
+        if self.hard_max is not None and (
+            not isfinite(self.hard_max) or self.hard_max < self.target_max
+        ):
+            raise ValueError("pollutant hard_max must be finite and not below target_max")
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -54,6 +57,13 @@ class ComfortBand:
     def __post_init__(self) -> None:
         if self.field not in {"temperature_c", "relative_humidity_pct"}:
             raise ValueError(f"unsupported comfort field: {self.field}")
+        if not all(isfinite(value) for value in (
+            self.minimum, self.maximum, *(
+                value for value in (self.preferred, self.hard_minimum, self.hard_maximum)
+                if value is not None
+            )
+        )):
+            raise ValueError("comfort values must be finite")
         if self.minimum > self.maximum:
             raise ValueError("comfort minimum cannot exceed maximum")
         if self.preferred is not None and not self.minimum <= self.preferred <= self.maximum:
@@ -102,8 +112,22 @@ class ObjectiveContract:
             raise ValueError(f"unsupported objective priorities: {sorted(unknown)}")
         if len(set(self.priorities)) != len(self.priorities):
             raise ValueError("objective priorities must be unique")
-        if self.max_intervention_min is not None and self.max_intervention_min <= 0:
-            raise ValueError("max_intervention_min must be positive")
+        if self.max_intervention_min is not None and (
+            not isfinite(self.max_intervention_min) or self.max_intervention_min <= 0
+        ):
+            raise ValueError("max_intervention_min must be finite and positive")
+        allowed_by_contract = {"movement"}
+        if "co2_ppm" in self.pollutants:
+            allowed_by_contract.add("co2_excess")
+        if "pm25_ug_m3" in self.pollutants:
+            allowed_by_contract.add("pm25_excess")
+        if "temperature_c" in self.comfort:
+            allowed_by_contract.add("temperature_discomfort")
+        if "relative_humidity_pct" in self.comfort:
+            allowed_by_contract.add("humidity_discomfort")
+        missing = set(self.priorities) - allowed_by_contract
+        if missing:
+            raise ValueError(f"priority has no declared objective metric: {sorted(missing)}")
 
     def as_dict(self) -> dict[str, Any]:
         return {
