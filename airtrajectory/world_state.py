@@ -177,6 +177,19 @@ class CanonicalWorldState:
         encoded, sha = _digest(payload)
         return cls(encoded, sha)
 
+    def __post_init__(self) -> None:
+        if not isinstance(self.canonical_json, bytes):
+            raise ValueError("canonical_json must be bytes")
+        try:
+            payload = json.loads(self.canonical_json)
+            encoded, digest = _digest(payload)
+        except (UnicodeError, ValueError, TypeError) as exc:
+            raise ValueError("invalid canonical world snapshot") from exc
+        if encoded != self.canonical_json or digest != self.sha256:
+            raise ValueError("world snapshot bytes or digest mismatch")
+        if not isinstance(payload, dict) or payload.get("execution_authorized") is not False:
+            raise ValueError("world snapshot cannot authorize execution")
+
     def as_dict(self) -> dict[str, Any]:
         return json.loads(self.canonical_json)
 
