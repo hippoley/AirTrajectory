@@ -577,7 +577,31 @@ class PhysicalReplanHandoffTests(unittest.TestCase):
 
     def test_missing_exact_opening_action_is_rejected(self):
         origin=physical_origin()
+        payload=planner(origin)
+        receipt=payload["receipt"]
+        step=receipt["steps"][0]
+        step["selected_actions"]=[
+            action for action in step["selected_actions"]
+            if action.get("opening_id")!="W1"
+        ]
+        step["step_sha256"]=sha({
+            key:value for key,value in step.items()
+            if key!="step_sha256"
+        })
+        receipt["receipt_sha256"]=sha({
+            key:value for key,value in receipt.items()
+            if key!="receipt_sha256"
+        })
         with self.assertRaisesRegex(RuntimeError,"exactly one"):
+            extract_replanned_physical_action(
+                planner_payload=payload,
+                physical_origin_receipt=origin,
+                opening_id="W1",
+            )
+
+    def test_unmeasured_opening_hardware_identity_fails_before_action_search(self):
+        origin=physical_origin()
+        with self.assertRaisesRegex(RuntimeError,"no measured hardware identity for W9"):
             extract_replanned_physical_action(
                 planner_payload=planner(origin),
                 physical_origin_receipt=origin,
