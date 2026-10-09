@@ -106,6 +106,22 @@ class OutdoorEnvironmentalState:
     values: Mapping[str, EnvironmentalValue] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
+        for name in ("pm25_ug_m3", "wind_speed_m_s", "pressure_pa"):
+            item = self.values.get(name)
+            if item is not None and item.value is not None:
+                if isinstance(item.value, bool) or not isinstance(item.value, (int, float)) or item.value < 0:
+                    raise ValueError(f"outdoor {name} must be nonnegative numeric")
+        humidity = self.values.get("relative_humidity_pct")
+        if humidity is not None and humidity.value is not None:
+            if isinstance(humidity.value, bool) or not isinstance(humidity.value, (int, float)) or not 0 <= humidity.value <= 100:
+                raise ValueError("outdoor relative_humidity_pct must be within [0,100]")
+        wind = self.values.get("wind_direction_deg")
+        if wind is not None and wind.value is not None:
+            if isinstance(wind.value, bool) or not isinstance(wind.value, (int, float)) or not 0 <= wind.value < 360:
+                raise ValueError("outdoor wind_direction_deg must be within [0,360)")
+        rain = self.values.get("rain")
+        if rain is not None and rain.value is not None and not isinstance(rain.value, bool):
+            raise ValueError("outdoor rain must be boolean")
         unknown = set(self.values) - OUTDOOR_FIELDS
         if unknown:
             raise ValueError(f"unsupported outdoor fields: {sorted(unknown)}")
