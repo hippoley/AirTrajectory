@@ -10,6 +10,7 @@ write-ready.
 from __future__ import annotations
 
 from dataclasses import asdict
+from math import isfinite
 from typing import Mapping
 
 from .physical import PhysicalWindowDriver
@@ -37,9 +38,19 @@ class MultiWindowPhysicalEnvironment:
             for opening_id in topology.openings
         }
         self.openings.update(self.fixed_openings)
+        for opening_id, position in self.openings.items():
+            if not isfinite(position) or not 0 <= position <= 100:
+                raise ValueError(f"invalid initial opening percentage: {opening_id}")
         self.require_write_ready = bool(require_write_ready)
         self.last_feedback: dict[str, ActuatorFeedback] = {}
 
+        topology.validate()
+        unknown_fixed = set(self.fixed_openings) - set(topology.openings)
+        if unknown_fixed:
+            raise ValueError("fixed openings reference unknown topology IDs: " + ",".join(sorted(unknown_fixed)))
+        unknown_initial = set(initial_openings or {}) - set(topology.openings)
+        if unknown_initial:
+            raise ValueError("initial openings reference unknown topology IDs: " + ",".join(sorted(unknown_initial)))
         unknown = set(self.drivers) - set(topology.openings)
         if unknown:
             raise ValueError(
@@ -97,16 +108,24 @@ class MultiWindowPhysicalEnvironment:
 
     def _observe(self):
         co2_candidates: dict[str, list] = {}
-        rain = False
+        rain = None
         sensor_rows = []
         for opening_id, driver in self.drivers.items():
             zone = self._zone_for_opening(opening_id)
             for reading in driver.read_sensors():
+                if not isinstance(reading.timestamp,(int,float)) or not isfinite(reading.timestamp) or reading.timestamp<=0:
+                    raise RuntimeError(f"{opening_id} invalid sensor timestamp")
+                if not isinstance(reading.value,(int,float)) or not isfinite(reading.value):
+                    raise RuntimeError(f"{opening_id} invalid sensor value")
                 sensor_rows.append(reading)
                 if reading.sensor_type == "co2" and zone is not None:
+                    if reading.value < 0:
+                        raise RuntimeError(f"{opening_id} invalid CO2 concentration")
                     co2_candidates.setdefault(zone, []).append(reading)
                 elif reading.sensor_type == "rain":
-                    rain = rain or bool(reading.value)
+                    if reading.value not in (0,1):
+                        raise RuntimeError(f"{opening_id} invalid rain evidence")
+                    rain = bool(reading.value) if rain is None else rain or bool(reading.value)
 
         co2 = {}
         for zone, readings in co2_candidates.items():
@@ -138,6 +157,15 @@ class MultiWindowPhysicalEnvironment:
 
     def step(self, actions):
         actions = list(actions)
+        # Validate all action identities and ranges before dispatching any
+        # command. No atomicity is claimed across independent drivers.
+        seen = set()
+        for action in actions:
+            if action.opening_id in seen:
+                raise ValueError(f"duplicate physical action: {action.opening_id}")
+            seen.add(action.opening_id)
+            if not isinstance(action.target_pct,(int,float)) or not isfinite(action.target_pct) or not 0<=action.target_pct<=100:
+                raise ValueError(f"invalid target_pct: {action.opening_id}")
         physical_actions = []
         for action in actions:
             if action.opening_id in self.drivers:
@@ -152,6 +180,22 @@ class MultiWindowPhysicalEnvironment:
                     )
                 continue
             raise KeyError(f"opening {action.opening_id} has no physical driver")
+
+        # A missing or wet rain signal cannot authorize an *increase* in
+        # exterior-window opening. Doors are not exterior windows.
+        # The sensor read is pre-dispatch and must never be synthesized.
+        if any(
+            self.topology.openings[action.opening_id].kind=="window"
+            and (
+                self.topology.openings[action.opening_id].source==self.topology.outside_id
+                or self.topology.openings[action.opening_id].target==self.topology.outside_id
+            )
+            and action.target_pct>self.openings[action.opening_id]
+            for action in physical_actions
+        ):
+            pre=self._observe()
+            if pre["rain"] is not False:
+                raise RuntimeError("rain or missing rain evidence blocks exterior opening increase")
 
         readiness = {}
         if physical_actions and self.require_write_ready:
