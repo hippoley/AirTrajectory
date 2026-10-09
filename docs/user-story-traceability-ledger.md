@@ -116,3 +116,9 @@ Audit date: 2026-10-09. **Source of requirements:** `docs/product-user-story.md`
 - Imported layouts now **require explicit command-line supply** of all four profiles, including a newly supported `--airflow-profile` option. Fixed demo defaults remain unchanged. Commit `401920d685eef416a0c43eef71b37eb910a2f9c8`.
 - Added an independent CLI negative test asserting an imported topology with omitted profiles cannot emit a PRJ (`tests/test_imported_prj_cli_safety.py`, commit `116b9a9ba61ed9c7d1abf06168764d4c2c082c03`).
 - This is a fail-closed integration guard, **not** imported-layout solver evidence. Acceptance still requires independent layout-profile compatibility, real ContamX runtime on newly generated PRJ, numerical result validation and immutable provenance. D-P0-001/003 remain OPEN.
+
+## 2026-10-09 — Imported geometry profile revision binding
+
+- A stale profile could match `topology_id` and all room/wall/opening IDs despite a revised layout (e.g. edited room volume). Imported metric overlays now require `layout_contract_sha256` to equal the **current base LayoutContract** hash; optional hashes on fixed demo overlays are also checked. Change: `ff8a0b86cf5977582f0370f1b2a890b35a778a07`.
+- Expanded `tests/test_contam_metric_overlay.py`: reject missing hash, accept matching hash, and independently mutate room volume while retaining topology/entity IDs to verify stale-hash rejection. Change: `cde675634b40b2bc2e524f5b3eeee3c3260e1bf6`.
+- This is a source-to-metric binding integrity guard, not an engineering-validation claim. Imported CLI users must supply a profile derived from their exact source layout, including this fingerprint. Actual foreign-layout PRJ serialization, ContamX execution and browser workflow remain unverified.
