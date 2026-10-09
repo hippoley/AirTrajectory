@@ -399,6 +399,8 @@ def validate_contam_against_field(
             step = sample["step"]
             predicted = float(predictions[step]["co2_ppm"][zone])
             measured = float(sample["co2_ppm"][zone])
+            if not math.isfinite(predicted) or predicted < 0:
+                raise ValueError(f"runtime prediction step {step} invalid CO2 for {zone}")
             errors.append(predicted - measured)
         mae = sum(abs(value) for value in errors) / len(errors)
         rmse = math.sqrt(
