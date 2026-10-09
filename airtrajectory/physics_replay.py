@@ -37,7 +37,7 @@ def prepare_paired_replay(
     seed: int,
     group_field: str = "trajectory_id",
 ) -> dict[str, Any]:
-    """Create equal-size matched and mixed arms without trajectory-group leakage.
+    """Create equal-size matched and foreign-only arms without trajectory-group leakage.
 
     A group belongs to a single arm. Mixed arm samples only non-target physics
     provenance, making this an informative strict provenance contrast rather
@@ -97,10 +97,10 @@ def prepare_paired_replay(
         "target_fingerprint": target_fingerprint,
         "samples_per_arm": sample_size,
         "matched": matched,
-        "mixed": mixed,
+        "foreign_only": mixed,
         "metrics": {
             "matched_trajectories": len(matched_ids),
-            "mixed_trajectories": len(mixed_ids),
+            "foreign_only_trajectories": len(mixed_ids),
             "leakage_groups": 0,
         },
         "claim_boundary": (
