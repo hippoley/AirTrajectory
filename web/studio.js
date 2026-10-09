@@ -18,7 +18,7 @@ function node(tag,attrs,parent=svg){const n=document.createElementNS(NS,tag);for
 function pick(type,id){selected={type,id};draw();fields();}
 function draw(){svg.replaceChildren();if(!doc)return;const b=doc.canvas||{width:1100,height:650};svg.setAttribute("viewBox",`0 0 ${b.width||1100} ${b.height||650}`);
 for(const r of doc.rooms){const n=node("rect",{x:r.x,y:r.y,width:r.w,height:r.h,rx:3,class:"room"+(selected?.id===r.id?" active":"")});n.addEventListener("click",()=>pick("room",r.id));node("text",{x:+r.x+10,y:+r.y+24,class:"caption"}).textContent=r.name||r.id;}
-for(const w of doc.walls){const n=node("line",{x1:w.x1,y1:w.y1,x2:w.x2,y2:w.y2,class:"wall",stroke:selected?.id===w.id?"#65e4ba":undefined});n.addEventListener("click",()=>pick("wall",w.id));}
+for(const w of doc.walls){const n=node("line",{x1:w.x1,y1:w.y1,x2:w.x2,y2:w.y2,class:"wall","data-wall-id":w.id,stroke:selected?.id===w.id?"#65e4ba":undefined});n.addEventListener("click",()=>pick("wall",w.id));}
 for(const o of doc.openings){const w=doc.walls.find(w=>w.id===o.wall_id);if(!w)continue;const p=point(w,Math.max(0,Math.min(1,+o.position_t)));const length=Math.hypot(w.x2-w.x1,w.y2-w.y1)||1,dx=11*(w.x2-w.x1)/length,dy=11*(w.y2-w.y1)/length;
 const n=node("line",{x1:p.x-dx,y1:p.y-dy,x2:p.x+dx,y2:p.y+dy,class:"opening"+(o.kind==="door"?" door":"")+(selected?.id===o.id?" active":"")});
 n.addEventListener("pointerdown",e=>{e.stopPropagation();pick("opening",o.id);drag={id:o.id,wall:w,start:clone(doc)};svg.setPointerCapture(e.pointerId);});n.addEventListener("click",e=>{e.stopPropagation();pick("opening",o.id);});}
