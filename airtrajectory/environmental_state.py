@@ -73,11 +73,15 @@ class ZoneEnvironmentalState:
     source_terms: Mapping[str, EnvironmentalValue] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
-        for name in ("tvoc_ug_m3", "hcho_mg_m3"):
+        for name in ("co2_ppm", "pm25_ug_m3", "tvoc_ug_m3", "hcho_mg_m3"):
             item = self.values.get(name)
             if item is not None and item.value is not None:
                 if isinstance(item.value, bool) or not isinstance(item.value, (int, float)) or item.value < 0:
                     raise ValueError(f"{name} must be nonnegative numeric")
+        humidity = self.values.get("relative_humidity_pct")
+        if humidity is not None and humidity.value is not None:
+            if isinstance(humidity.value, bool) or not isinstance(humidity.value, (int, float)) or not 0 <= humidity.value <= 100:
+                raise ValueError("relative_humidity_pct must be within [0,100]")
         unknown = set(self.values) - INDOOR_FIELDS
         if unknown:
             raise ValueError(f"unsupported indoor fields: {sorted(unknown)}")
