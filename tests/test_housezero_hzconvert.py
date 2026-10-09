@@ -68,6 +68,15 @@ class HouseZeroHzconvertAdapterTests(unittest.TestCase):
             35.0,
         )
 
+    def test_invalid_window_percentage_fails_closed(self):
+        row = {
+            "timestamp": "2025-05-21T12:00:00-04:00",
+            "zone/Z31/co2": "1000",
+            "zone/Z31/window_opening/south": "150",
+        }
+        with self.assertRaisesRegex(ValueError, "outside \\[0,100\\]"):
+            adapt_hzconvert_row(row, topology_id="housezero.external.v0")
+
     def test_missing_values_stay_unavailable(self):
         row = {
             "timestamp": "2025-05-21T12:01:00-04:00",
