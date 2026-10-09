@@ -1,5 +1,6 @@
 from dataclasses import asdict, dataclass, field
 import json
+from math import isfinite
 from pathlib import Path
 import time
 from typing import Any, Dict, List, Optional
@@ -12,8 +13,8 @@ class TransitionAction:
     target_pct: float
 
     def __post_init__(self):
-        if not 0 <= self.target_pct <= 100:
-            raise ValueError("target_pct must be in [0, 100]")
+        if isinstance(self.target_pct,bool) or not isinstance(self.target_pct,(int,float)) or not isfinite(self.target_pct) or not 0 <= self.target_pct <= 100:
+            raise ValueError("target_pct must be finite numeric in [0, 100]")
 
 
 @dataclass(frozen=True)
@@ -54,8 +55,11 @@ class ActuatorFeedback:
             ("measured_position_pct", self.measured_position_pct),
             ("estimated_position_pct", self.estimated_position_pct),
         ):
-            if value is not None and not 0 <= value <= 100:
-                raise ValueError(f"{name} must be in [0, 100]")
+            if value is not None and (
+                isinstance(value,bool) or not isinstance(value,(int,float))
+                or not isfinite(value) or not 0 <= value <= 100
+            ):
+                raise ValueError(f"{name} must be finite numeric in [0, 100]")
 
 
 @dataclass
