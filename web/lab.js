@@ -25,7 +25,16 @@ function validateTopologyPayload(p){
     if(!roomIds.has(w.target)&&w.target!==outside)throw new Error("wall "+w.id+" has unknown target");
   }
 }
-function applyTopologyContract(p){\n  validateTopologyPayload(p);topologyContract=p;topologyCapabilities={...topologyCapabilities,...p.capabilities};\n  rooms=p.rooms.map(r=>({...r}));walls=p.walls.map(w=>({...w}));\n  openings=p.openings.map(o=>({id:o.id,kind:o.kind,wallId:o.wall_id,source:o.source,target:o.target,t:Number(o.position_t),open:Number(o.initial_open_pct)/100,maxAreaM2:Number(o.max_area_m2),side:o.render_side,positionEditable:o.position_editable===true,stateEditable:o.state_editable===true,x:0,y:0}));\n  if(p.canvas){canvas.width=Number(p.canvas.width)||canvas.width;canvas.height=Number(p.canvas.height)||canvas.height}syncAllOpeningGeometry();\n  const src=document.querySelector("#topologySource"),mode=document.querySelector("#topologyEditMode");\n  if(src)src.textContent=(p.topology_id||"IMPORTED TOPOLOGY").toUpperCase();\n  if(mode)mode.textContent=p.source_kind==="imported-floorplan"?"IMPORTED · RECOMPUTE PHYSICS BEFORE USE":"ROOMS LOCKED · WINDOWS + DOORS MOVABLE";\n}\nasync function loadTopologyContract(){
+function applyTopologyContract(p){
+  validateTopologyPayload(p);topologyContract=p;topologyCapabilities={...topologyCapabilities,...p.capabilities};
+  rooms=p.rooms.map(r=>({...r}));walls=p.walls.map(w=>({...w}));
+  openings=p.openings.map(o=>({id:o.id,kind:o.kind,wallId:o.wall_id,source:o.source,target:o.target,t:Number(o.position_t),open:Number(o.initial_open_pct)/100,maxAreaM2:Number(o.max_area_m2),side:o.render_side,positionEditable:o.position_editable===true,stateEditable:o.state_editable===true,x:0,y:0}));
+  if(p.canvas){canvas.width=Number(p.canvas.width)||canvas.width;canvas.height=Number(p.canvas.height)||canvas.height}syncAllOpeningGeometry();
+  const src=document.querySelector("#topologySource"),mode=document.querySelector("#topologyEditMode");
+  if(src)src.textContent=(p.topology_id||"IMPORTED TOPOLOGY").toUpperCase();
+  if(mode)mode.textContent=p.source_kind==="imported-floorplan"?"IMPORTED · RECOMPUTE PHYSICS BEFORE USE":"ROOMS LOCKED · WINDOWS + DOORS MOVABLE";
+}
+async function loadTopologyContract(){
   let r=await fetch("./data/demo_runtime.generated.json",{cache:"no-store"});
   if(!r.ok)r=await fetch("./data/home_topology.fixed.json",{cache:"no-store"});
   if(!r.ok)throw new Error("topology artifact "+r.status);
