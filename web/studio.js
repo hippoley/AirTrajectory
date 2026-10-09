@@ -5,7 +5,7 @@ const find=()=>selected&&doc?.[selected.type+"s"]?.find(x=>x.id===selected.id);
 function update(){if(!doc)return;el("summary").textContent=`${doc.rooms.length} rooms · ${doc.walls.length} walls · ${doc.openings.length} openings`;draw();fields();check();}
 function checkpoint(){history.push(clone(doc));if(history.length>80)history.shift();future=[];}
 function edit(fn){checkpoint();try{fn();update();}catch(e){doc=history.pop();update();alert(e.message);}}
-function load(x){if(!x||x.schema_version!=="0.1"||!Array.isArray(x.rooms)||!Array.isArray(x.walls)||!Array.isArray(x.openings))throw Error("需要 LayoutContract v0.1 JSON");doc=clone(x);doc.source_kind="imported-floorplan";doc.capabilities={...(doc.capabilities||{}),floorplan_geometry_editable:true,opening_position_editable:true,opening_state_editable:true};selected=null;history=[];future=[];update();}
+function load(x){if(!x||x.schema_version!=="0.1"||!Array.isArray(x.rooms)||!Array.isArray(x.walls)||!Array.isArray(x.openings))throw Error("需要 LayoutContract v0.1 JSON");doc=clone(x);doc.source_kind="imported-floorplan";doc.capabilities={...(doc.capabilities||{}),floorplan_geometry_editable:true,opening_position_editable:true,opening_state_editable:true,arbitrary_topology_import:"supported"};selected=null;history=[];future=[];update();}
 function point(w,t){return{x:+w.x1+(+w.x2-w.x1)*t,y:+w.y1+(+w.y2-w.y1)*t};}
 function node(tag,attrs,parent=svg){const n=document.createElementNS(NS,tag);for(const [k,v]of Object.entries(attrs))n.setAttribute(k,v);parent.appendChild(n);return n;}
 function pick(type,id){selected={type,id};draw();fields();}
