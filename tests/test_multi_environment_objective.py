@@ -43,6 +43,41 @@ class MultiEnvironmentObjectiveTests(unittest.TestCase):
             "hard-constraints-then-lexicographic-priorities",
         )
 
+    def test_tvoc_hcho_are_independent_priorities_with_explicit_units(self):
+        obj = ObjectiveContract(
+            objective_id="voc-hcho",
+            pollutants={
+                "tvoc_ug_m3": PollutantGoal("tvoc_ug_m3", target_max=300.0),
+                "hcho_mg_m3": PollutantGoal("hcho_mg_m3", target_max=0.08),
+            },
+            priorities=("hcho_excess", "tvoc_excess", "movement"),
+        )
+        self.assertEqual(obj.as_dict()["priorities"], ["hcho_excess", "tvoc_excess", "movement"])
+        self.assertEqual(obj.as_dict()["pollutants"]["hcho_mg_m3"]["target_max"], 0.08)
+        with self.assertRaisesRegex(ValueError, "no declared objective metric"):
+            ObjectiveContract(
+                objective_id="missing-voc",
+                pollutants={"hcho_mg_m3": PollutantGoal("hcho_mg_m3", 0.08)},
+                priorities=("tvoc_excess",),
+            )
+
+    def test_tvoc_hcho_require_real_supplied_series_not_co2_imputation(self):
+        payload = scenario()
+        obj = ObjectiveContract(
+            objective_id="voc-hcho",
+            pollutants={
+                "tvoc_ug_m3": PollutantGoal("tvoc_ug_m3", 300.0),
+                "hcho_mg_m3": PollutantGoal("hcho_mg_m3", 0.08),
+            },
+            priorities=("hcho_excess", "tvoc_excess"),
+        )
+        with self.assertRaisesRegex(ValueError, "lacks tvoc_ug_m3"):
+            compare_candidate_futures(
+                payload["candidates"],
+                objective=obj,
+                origin_openings=payload["origin_opening_pct"],
+            )
+
     def test_unknown_goal_fails_closed(self):
         with self.assertRaisesRegex(ValueError, "do not invent objective weights"):
             compile_user_goal("随便帮我调一下吧")
