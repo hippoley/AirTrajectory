@@ -6,6 +6,8 @@ on:
     paths:
       - "web/studio.html"
       - "web/studio.js"
+      - "web/studio-interactions.js"
+      - "web/studio-premium.css"
       - "web/vendor/**"
       - "tests/studio-browser-e2e.cjs"
       - ".github/workflows/studio-us1-browser-e2e.yml"
@@ -13,6 +15,8 @@ on:
     paths:
       - "web/studio.html"
       - "web/studio.js"
+      - "web/studio-interactions.js"
+      - "web/studio-premium.css"
       - "web/vendor/**"
       - "tests/studio-browser-e2e.cjs"
       - ".github/workflows/studio-us1-browser-e2e.yml"
