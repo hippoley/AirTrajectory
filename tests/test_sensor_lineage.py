@@ -143,6 +143,26 @@ class SensorLineageTests(unittest.TestCase):
             commissioning_bundle_sha256="b"*64,
         )
 
+    def test_sensor_apply_receipt_counters_must_be_exact_integers(self):
+        for invalid in (3.9, True, "3"):
+            with self.subTest(invalid=invalid), tempfile.TemporaryDirectory() as d:
+                paths=[]
+                for role in ("co2", "rain"):
+                    receipt=_apply_receipt(role, "b"*64)
+                    if role=="co2":
+                        receipt["network_requests_by_tool"]=invalid
+                    path=Path(d)/(role+".json")
+                    path.write_text(json.dumps(receipt), encoding="utf-8")
+                    paths.append(path)
+                with self.assertRaisesRegex(RuntimeError, "network_requests_by_tool"):
+                    build_sensor_evidence(
+                        readiness=_readiness(probe=True),
+                        site_lineage=_site_lineage(),
+                        commissioning_identity_sha256="same-hardware",
+                        commissioning_bundle_sha256="b"*64,
+                        sensor_apply_receipts=paths,
+                    )
+
     def test_nonfinite_live_sensor_timestamps_rejected(self):
         for role in ("co2_ppm", "rain"):
             for invalid in (float("nan"), float("inf"), float("-inf")):
