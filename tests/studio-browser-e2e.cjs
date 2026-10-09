@@ -26,6 +26,17 @@ const path=require('node:path');
     await page.locator('#add-wall').click();
     assert.match(await page.locator('#summary').innerText(),/6 walls/);
     await page.locator('#add-window').click();
+    assert.match(await page.locator('#mode-label').innerText(),/放置窗户/);
+    const clickPoint=await page.evaluate(()=>{
+      const layout=window.AirTrajectoryStudio.getLayout();
+      const w=layout.walls[layout.walls.length-1];
+      const svg=document.querySelector('#plan');
+      const p=svg.createSVGPoint();
+      p.x=(w.x1+w.x2)/2;p.y=(w.y1+w.y2)/2;
+      const client=p.matrixTransform(svg.getScreenCTM());
+      return {x:client.x,y:client.y};
+    });
+    await page.mouse.click(clickPoint.x,clickPoint.y);
     assert.match(await page.locator('#summary').innerText(),/6 openings/);
     assert.match(await page.locator('#report').innerText(),/基本检查通过/);
     await page.screenshot({path:'artifacts/studio/studio-premium-edited.png',fullPage:true});
