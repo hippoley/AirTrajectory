@@ -110,6 +110,7 @@ def main() -> int:
         **receipt,
         "topology_id": base_layout.topology_id,
         "layout_contract_sha256": base_layout.sha256(),
+        "source_provenance": base_layout.source_provenance,
         "demo_runtime_snapshot_sha256": runtime.sha256(),
         "metric_geometry_provenance": metric_meta,
         "airflow_profile": manifest["airflow_profile"],
