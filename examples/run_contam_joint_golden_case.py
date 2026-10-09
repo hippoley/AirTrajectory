@@ -17,6 +17,10 @@ from airtrajectory.contam_joint_golden_case import (
 )
 from airtrajectory.demo_runtime import DemoRuntimeSnapshot
 from airtrajectory.layout import LayoutContract
+from airtrajectory.policy_benchmark import (
+    build_policy_benchmark_report,
+    build_required_benchmark_candidates,
+)
 from airtrajectory.ventilation_path_candidates import (
     inject_ventilation_path_candidates,
 )
@@ -48,6 +52,11 @@ def main() -> int:
         default=ROOT / "web" / "data" / "home_topology.fixed.json",
     )
     parser.add_argument("--out", type=Path)
+    parser.add_argument(
+        "--policy-benchmark",
+        action="store_true",
+        help="evaluate HOLD + Independent + Joint candidates under the v0.1 benchmark contract",
+    )
     parser.add_argument(
         "--spatialruntime-verify",
         action="store_true",
@@ -166,7 +175,11 @@ def main() -> int:
         origin_state_mode="prj-initial-only",
     )
 
-    candidates = build_strategy_candidates(case, topology)
+    candidates = (
+        build_required_benchmark_candidates(case, topology)
+        if args.policy_benchmark
+        else build_strategy_candidates(case, topology)
+    )
     response = contam_strategy_fork_request(
         {
             "profile_id": case["golden_case_id"],
@@ -198,12 +211,22 @@ def main() -> int:
                 f"Golden Case branch {branch.get('label')} horizon mismatch"
             )
 
-    receipt = compare_independent_vs_joint(
-        response=response,
-        case=case,
-        topology=topology,
-        prj_sha256=provenance.get("sha256"),
-    )
+    # The portable policy benchmark has HOLD / INDEPENDENT / JOINT labels.
+    # The legacy Golden Case comparator requires the *different* internal
+    # "independent-reference" label. Do not run it on benchmark candidates.
+    receipt = None
+    policy_benchmark = None
+    if args.policy_benchmark:
+        policy_benchmark = build_policy_benchmark_report(
+            response=response, case=case, topology=topology
+        )
+    else:
+        receipt = compare_independent_vs_joint(
+            response=response,
+            case=case,
+            topology=topology,
+            prj_sha256=provenance.get("sha256"),
+        )
     spatialruntime_receipt = None
     spatialruntime_result_receipts = []
     if args.spatialruntime_verify:
@@ -229,7 +252,7 @@ def main() -> int:
                     "SpatialRuntime result normalization verification did not pass"
                 )
             spatialruntime_result_receipts.append(result_receipt)
-    if receipt["non_regression"] is not True:
+    if receipt is not None and receipt["non_regression"] is not True:
         raise RuntimeError("Joint search regressed below included independent reference")
 
     payload = {
@@ -242,6 +265,7 @@ def main() -> int:
         "candidate_source": candidate_source,
         "ventilation_path_candidates": path_candidate_metadata,
         "comparison": receipt,
+        "policy_benchmark": policy_benchmark,
         "spatialruntime_consumer": spatialruntime_receipt,
         "spatialruntime_result_consumers": spatialruntime_result_receipts,
         "branches": response["branches"],

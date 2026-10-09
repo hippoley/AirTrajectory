@@ -17,7 +17,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - run: python -m pip install -e .
+      - run: python -m pip install -e ".[contracts]"
       - run: python -m unittest discover -s tests -v
       - run: python examples/compare_multi_environment_futures.py --out artifacts/multi-environment-conflict-report.json
       - run: python -c 'import json; p=json.load(open("artifacts/multi-environment-conflict-report.json")); assert p["recommended"] == ["SHORT_CROSSFLOW"]; assert p["execution_authorized"] is False; assert p["status"] == "EXPLORATORY_COMPARISON"; assert len(p["origin_sha256"]) == 64'
@@ -50,7 +50,7 @@ jobs:
         run: test "$(git -C _spatialruntime rev-parse HEAD)" = "$SPATIALRUNTIME_COMMIT_SHA"
       - name: Install official contamxpy runtime and SpatialRuntime
         run: |
-          python -m pip install -e ".[contam]"
+          python -m pip install -e ".[contam,contracts]"
           python -m pip install -e "_spatialruntime"
       - name: Inspect installed contamxpy API
         run: |
@@ -421,4 +421,33 @@ jobs:
           assert [row["branch_label"] for row in srr]==[b["label"] for b in p["branches"]]
           ranked=sorted(c["all_candidates"], key=lambda row:(row["objective_score"],row["label"]))
           print("REAL_CONTAM_VENTILATION_PATH_RANKING_VERIFIED", ranked[0]["label"], ranked[0]["objective_score"])
+          '@ | python -
+
+      - name: Verify policy benchmark contract on real ContamX
+        timeout-minutes: 4
+        shell: pwsh
+        run: |
+          python examples/run_contam_joint_golden_case.py artifacts/multispace-transient.prj artifacts/multispace-transient.prj.json --policy-benchmark --out artifacts/policy-benchmark-v0.1.json | Tee-Object -FilePath policy-benchmark-v0.1.log
+          if (-not (Select-String -Path policy-benchmark-v0.1.log -Pattern "REAL_CONTAM_JOINT_GOLDEN_CASE_EXECUTED")) { exit 1 }
+          @'
+          import json
+          p=json.load(open("artifacts/policy-benchmark-v0.1.json",encoding="utf-8"))
+          b=p["policy_benchmark"]
+          assert b["benchmark"]=="airtrajectory-policy-benchmark-v0.1"
+          assert b["same_origin"] is True
+          assert b["same_horizon"] is True
+          labels={row["label"] for row in b["results"]}
+          assert "HOLD" in labels
+          assert "INDEPENDENT" in labels
+          assert any(label.startswith("JOINT:") for label in labels)
+          assert b["ranking_policy"]=="none; inspect metrics and Pareto frontier"
+          assert all("mean_co2_auc_ppm_s" in row["metrics"] for row in b["results"])
+          assert all("peak_co2_ppm" in row["metrics"] for row in b["results"])
+          assert all("actuator_movement_pct_sum" in row["metrics"] for row in b["results"])
+          from jsonschema import Draft202012Validator
+          schema=json.load(open("schemas/policy-benchmark-v0.1.schema.json",encoding="utf-8"))
+          Draft202012Validator.check_schema(schema)
+          Draft202012Validator(schema).validate(b)
+          print("AIRTRAJECTORY_POLICY_BENCHMARK_SCHEMA_CONFORMANT")
+          print("AIRTRAJECTORY_POLICY_BENCHMARK_V01_VERIFIED", sorted(b["pareto_frontier"]))
           '@ | python -
