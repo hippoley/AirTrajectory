@@ -227,10 +227,11 @@ def _validate_measurements(
     if not isinstance(samples, list) or not samples:
         raise ValueError("field validation samples are required")
 
-    predictions = {
-        int(row["step"]): row
-        for row in runtime_receipt.get("prediction_series") or []
-    }
+    prediction_rows = runtime_receipt.get("prediction_series") or []
+    prediction_steps = [int(row["step"]) for row in prediction_rows]
+    if len(set(prediction_steps)) != len(prediction_steps):
+        raise ValueError("runtime receipt has duplicate prediction steps")
+    predictions = {int(row["step"]): row for row in prediction_rows}
     if len(predictions) != int(runtime_receipt.get("steps") or 0):
         raise ValueError("runtime receipt prediction_series is incomplete")
 
