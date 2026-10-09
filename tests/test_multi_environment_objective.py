@@ -171,6 +171,28 @@ class MultiEnvironmentObjectiveTests(unittest.TestCase):
         self.assertTrue(by_label["LARGE_OPEN"]["feasible"] is False)  # PM2.5 hard cap
         self.assertTrue(by_label["SHORT_CROSSFLOW"]["feasible"])
 
+    def test_rain_interlock_does_not_block_interior_door(self):
+        payload = scenario()
+        payload["origin_opening_pct"]["D1"] = 0
+        for candidate in payload["candidates"]:
+            candidate["origin"]["opening_pct"]["D1"] = 0
+            candidate["origin"]["opening_kind"]["D1"] = "door"
+            candidate["origin"]["rain"] = True
+            candidate["rain"] = True
+        short = payload["candidates"][2]
+        short["actions"][0]["target_pct"] = 0
+        short["actions"].append({"opening_id": "D1", "target_pct": 100})
+        report = compare(payload)
+        by_label = {row["label"]: row for row in report["results"]}
+        self.assertTrue(by_label["SHORT_CROSSFLOW"]["feasible"])
+        self.assertEqual(report["recommended"], ["SHORT_CROSSFLOW"])
+
+    def test_missing_opening_type_fails_closed(self):
+        payload = scenario()
+        del payload["candidates"][1]["origin"]["opening_kind"]
+        with self.assertRaisesRegex(ValueError, "opening_kind"):
+            compare(payload)
+
     def test_no_feasible_candidate_is_explicit(self):
         payload = scenario()
         for candidate in payload["candidates"]:
