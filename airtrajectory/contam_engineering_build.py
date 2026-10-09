@@ -38,6 +38,7 @@ def build_engineering_contam_project(
     prj_profile: dict[str, Any],
     prj_review_evidence: dict[str, Any],
     out_path: str | Path,
+    approved_control_opening_ids: list[str] | None = None,
 ) -> dict[str, Any]:
     metric_profile = compile_metric_overlay_from_evidence(
         layout,
@@ -93,6 +94,8 @@ def build_engineering_contam_project(
         reviewed_prj_profile,
         require_engineering_validated=True,
     )
+    if approved_control_opening_ids is not None:
+        manifest["approved_control_opening_ids"] = list(approved_control_opening_ids)
     manifest["demo_runtime_snapshot_sha256"] = runtime.sha256()
     manifest["metric_geometry_provenance"] = metric_meta
 
