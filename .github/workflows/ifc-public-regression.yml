@@ -75,8 +75,7 @@ jobs:
         run: |
           python examples/audit_ifc_contam_engineering_handoff.py \
             artifacts/ifc/duplex-control-readiness.json \
-            artifacts/ifc/duplex-candidate-scope.json
-            artifacts/ifc/duplex-contam-engineering-gate.json \
+            artifacts/ifc/duplex-candidate-scope.json \
             --out artifacts/ifc/duplex-contam-engineering-gate.json
           python - <<'PY'
           import json
