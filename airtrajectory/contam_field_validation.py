@@ -118,7 +118,7 @@ def validate_field_validation_protocol(
             "field validation protocol must account for all topology openings"
         )
     for opening_id, value in fixed_openings.items():
-        if not 0 <= value <= 100:
+        if not math.isfinite(value) or not 0 <= value <= 100:
             raise ValueError(
                 f"fixed opening {opening_id} must be in [0,100]"
             )
@@ -136,9 +136,9 @@ def validate_field_validation_protocol(
     accepted_qualities = sorted(
         {str(item) for item in (alignment.get("accepted_qualities") or [])}
     )
-    if sampling_interval_s <= 0:
+    if not math.isfinite(sampling_interval_s) or sampling_interval_s <= 0:
         raise ValueError("alignment sampling_interval_s must be positive")
-    if max_skew_s < 0 or max_skew_s > sampling_interval_s:
+    if not math.isfinite(max_skew_s) or max_skew_s < 0 or max_skew_s > sampling_interval_s:
         raise ValueError(
             "alignment max_skew_s must be in [0, sampling_interval_s]"
         )
@@ -149,7 +149,7 @@ def validate_field_validation_protocol(
     co2_rmse = float(co2.get("rmse_ppm_max"))
     co2_mae = float(co2.get("mae_ppm_max"))
     opening_mae = float(opening.get("mae_pct_max"))
-    if co2_rmse <= 0 or co2_mae <= 0 or opening_mae <= 0:
+    if any(not math.isfinite(x) or x <= 0 for x in (co2_rmse, co2_mae, opening_mae)):
         raise ValueError("field validation thresholds must be positive")
 
     normalized = {
@@ -265,6 +265,9 @@ def _validate_measurements(
             raise ValueError(
                 f"field sample {step} must cover all protocol openings"
             )
+        for zone_id, value in co2.items():
+            if not math.isfinite(value) or value < 0:
+                raise ValueError(f"field sample {step} CO2 {zone_id} must be finite and nonnegative")
         for opening_id, value in opening.items():
             if not 0 <= value <= 100:
                 raise ValueError(
