@@ -33,6 +33,15 @@ jobs:
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: "1.3.14"
+      - name: Validate production native frontend launcher
+        run: |
+          bash -n scripts/start-full-editor.sh
+          bash -n scripts/run-pascal-native.sh
+          mkdir -p .upstream
+          ln -s ../_pascal_native .upstream/pascal-editor
+          docker compose -f compose.pascal-native.yml config --quiet
+          test -f _pascal_native/Dockerfile
+          grep -q 'PASCAL_DATA_DIR=/data' _pascal_native/Dockerfile
       - name: Install upstream workspace dependencies
         working-directory: _pascal_native
         run: bun install --frozen-lockfile
