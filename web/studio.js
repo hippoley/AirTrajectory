@@ -28,6 +28,15 @@ svg.addEventListener("pointermove",e=>{if(!drag)return;const p=coords(e),w=drag.
 svg.addEventListener("pointerup",()=>{if(!drag)return;history.push(drag.start);future=[];drag=null;update();});
 function fields(){const f=el("fields");f.replaceChildren();const x=find();el("selected-title").textContent=x?`${selected.type.toUpperCase()} / ${x.id}`:"选择对象查看属性";if(!x)return;
 const keys=selected.type==="room"?["name","x","y","w","h","volume_m3"]:selected.type==="wall"?["source","target","kind","x1","y1","x2","y2"]:["kind","wall_id","position_t","initial_open_pct","max_area_m2","width_m","height_m"];
+if(selected.type==="wall"){
+ const box=document.createElement("div");
+ const label=document.createElement("label");label.textContent="墙体长度 · 画布单位";
+ const input=document.createElement("input");input.type="number";input.min="1";input.step="1";
+ input.value=AirTrajectoryWallEditing.length(x).toFixed(2);
+ const submit=document.createElement("button");submit.type="button";submit.className="secondary wide";submit.textContent="按连接关系调整墙长";
+ submit.addEventListener("click",()=>{try{window.AirTrajectoryStudio.resizeWall(x.id,Number(input.value));}catch(err){alert(err.message);}});
+ label.append(input);box.append(label,submit);f.append(box);
+}
 for(const k of keys){const label=document.createElement("label");label.textContent=k;const input=document.createElement("input");input.value=x[k]??"";input.addEventListener("change",()=>{const next=input.value;edit(()=>{if(k==="id")throw Error("ID must remain stable");if(next===""){delete x[k];return;}x[k]=typeof x[k]==="number"?Number(next):next;if(k==="wall_id"){const w=doc.walls.find(w=>w.id===next);if(!w)throw Error("unknown wall");x.source=w.source;x.target=w.target;}if(k==="position_t"&&(x[k]<0||x[k]>1))throw Error("position_t must be 0..1");});});label.append(input);f.append(label);}
 }
 function renderTopologyPaths(){
@@ -86,6 +95,11 @@ window.AirTrajectoryStudio={
   apply:edit,
   refresh:update,
   getSelected:find,
+  resizeWall:(wallId,newLength,fixed="start")=>{
+    if(!doc)throw Error("No layout loaded");
+    const patches=AirTrajectoryWallEditing.planResize(doc.walls,wallId,newLength,fixed);
+    edit(()=>{for(const w of doc.walls)Object.assign(w,patches.get(w.id)||{});});
+  },
   placeOpening:(kind,wallId,t)=>{
     if(!doc||!["window","door"].includes(kind))throw Error("unsupported opening kind");
     const wall=doc.walls.find(w=>w.id===wallId);
