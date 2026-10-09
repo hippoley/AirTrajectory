@@ -27,3 +27,8 @@ Original requirement boundary: US3 environmental state and US4 user goals; US6/7
 **No solver-side prediction claim.** Real CONTAM contaminant model needs source terms, outdoor boundary, deposition/removal and trustworthy per-species parameters before `simulated` results are promoted. A source may report total VOC on a reference calibration scale; it must not be treated as a substance-specific health risk signal or interchangeable with HCHO.
 
 Resume: latest HEAD CI plus end-to-end sensor fixture -> canonical state -> ObjectiveContract -> verified physics forecast -> cross-policy comparison (not yet achieved). No new P0 user story is formally closed.
+
+## Cross-story regression follow-up
+- CI `37891805084` had 682 tests, one failure in duplicate-runtime-step adversarial fixture. The injected step mutation did not rehash the runtime receipt, so the existing digest guard rejected it before the duplicate-step guard. This was a **test fixture bug**, not proof that the new TVOC/HCHO comparator failed.
+- `e7513b7360` fixed the fixture by recomputing both `prediction_series_sha256` and `runtime_receipt_sha256` after deliberate mutation, so the negative test exercises its intended validation boundary.
+- New HEAD workflow https://github.com/hippoley/AirTrajectory/actions/runs/37892169280 was queued at last inspection. Leave US3/4/6/7 and cross-story P0 open until it passes and physics integration evidence is collected.
