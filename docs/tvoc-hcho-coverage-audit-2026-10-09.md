@@ -63,3 +63,8 @@ Resume: latest HEAD CI plus end-to-end sensor fixture -> canonical state -> Obje
 - P0 defect: `sensor_lineage._normalize_apply_receipt` used `int(payload[key])` for network requests, runtime posts and actuator writes. Python truncates fractional values and accepts booleans/string numerals; therefore a reported 3.9 requests could be treated as 3 and a false zero-write claim could be misinterpreted. This is a falsifiable provenance hole.
 - Fix `6aff3408` requires exact integer type for the counter fields; `72c1eda6` adds adversarial fractional/bool/string receipt cases. This does not introduce dependencies or alter correct integer receipts.
 - New HEAD CI not yet accepted. US8 hardware provenance remains blocked until real commissioned receipts are independently verified. The change also affects US3/9/10 receipt-consumer semantics; rerun source-lineage regression and product end-to-end paths.
+
+## 2026-10-09 strict sensor timestamp encoding
+- Baseline `3997cb4b9` test CI passed: https://github.com/hippoley/AirTrajectory/actions/runs/37893608782. This is a valid software baseline, not field commissioning.
+- Lineage previously coerced timestamps using `float(value)`, accepting booleans and numeric strings as physical timestamps. `915e819d` rejects these raw types for both runtime live samples and sensor-apply receipts. `7ff4aa3f` adds adversarial bool/string tests. Existing numeric, finite positive timestamps remain supported.
+- US3/8/9/10 impacted. No real sensor origin, deployed device proof, or validated TVOC/HCHO physics is established by fixture tests. Full HEAD CI and physical acceptance remain open.
