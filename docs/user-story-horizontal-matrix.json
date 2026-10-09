@@ -1,0 +1,722 @@
+{
+  "1": {
+    "title": "Import any home",
+    "status": "PARTIAL",
+    "dimensions": {
+      "function": {
+        "status": "PARTIAL",
+        "evidence": "Partial functionality discussed in docs/product-user-story.md and docs/user-story-traceability-ledger.md; complete story acceptance unproven"
+      },
+      "state": {
+        "status": "MISSING",
+        "evidence": "No story-specific independent horizontal acceptance receipt has been supplied."
+      },
+      "integration": {
+        "status": "MISSING",
+        "evidence": "No story-specific independent horizontal acceptance receipt has been supplied."
+      },
+      "security_correctness": {
+        "status": "MISSING",
+        "evidence": "No story-specific independent horizontal acceptance receipt has been supplied."
+      },
+      "performance": {
+        "status": "MISSING",
+        "evidence": "No story-specific independent horizontal acceptance receipt has been supplied."
+      },
+      "maintainability": {
+        "status": "MISSING",
+        "evidence": "No story-specific independent horizontal acceptance receipt has been supplied."
+      },
+      "observability": {
+        "status": "MISSING",
+        "evidence": "No story-specific independent horizontal acceptance receipt has been supplied."
+      },
+      "testability": {
+        "status": "MISSING",
+        "evidence": "No story-specific independent horizontal acceptance receipt has been supplied."
+      },
+      "user_value": {
+        "status": "MISSING",
+        "evidence": "No story-specific independent horizontal acceptance receipt has been supplied."
+      },
+      "external_compatibility": {
+        "status": "MISSING",
+        "evidence": "No story-specific independent horizontal acceptance receipt has been supplied."
+      }
+    },
+    "vertical_evidence": null,
+    "independent_evidence": null
+  },
+  "2": {
+    "title": "Represent arbitrary room/door/window counts",
+    "status": "PARTIAL",
+    "dimensions": {
+      "function": {
+        "status": "PARTIAL",
+        "evidence": "Partial functionality discussed in docs/product-user-story.md and docs/user-story-traceability-ledger.md; complete story acceptance unproven"
+      },
+      "state": {
+        "status": "MISSING",
+        "evidence": "No story-specific independent horizontal acceptance receipt has been supplied."
+      },
+      "integration": {
+        "status": "MISSING",
+        "evidence": "No story-specific independent horizontal acceptance receipt has been supplied."
+      },
+      "security_correctness": {
+        "status": "MISSING",
+        "evidence": "No story-specific independent horizontal acceptance receipt has been supplied."
+      },
+      "performance": {
+        "status": "MISSING",
+        "evidence": "No story-specific independent horizontal acceptance receipt has been supplied."
+      },
+      "maintainability": {
+        "status": "MISSING",
+        "evidence": "No story-specific independent horizontal acceptance receipt has been supplied."
+      },
+      "observability": {
+        "status": "MISSING",
+        "evidence": "No story-specific independent horizontal acceptance receipt has been supplied."
+      },
+      "testability": {
+        "status": "MISSING",
+        "evidence": "No story-specific independent horizontal acceptance receipt has been supplied."
+      },
+      "user_value": {
+        "status": "MISSING",
+        "evidence": "No story-specific independent horizontal acceptance receipt has been supplied."
+      },
+      "external_compatibility": {
+        "status": "MISSING",
+        "evidence": "No story-specific independent horizontal acceptance receipt has been supplied."
+      }
+    },
+    "vertical_evidence": null,
+    "independent_evidence": null
+  },
+  "3": {
+    "title": "Build environmental world state",
+    "status": "PARTIAL",
+    "dimensions": {
+      "function": {
+        "status": "PARTIAL",
+        "evidence": "Partial functionality discussed in docs/product-user-story.md and docs/user-story-traceability-ledger.md; complete story acceptance unproven"
+      },
+      "state": {
+        "status": "MISSING",
+        "evidence": "No story-specific independent horizontal acceptance receipt has been supplied."
+      },
+      "integration": {
+        "status": "MISSING",
+        "evidence": "No story-specific independent horizontal acceptance receipt has been supplied."
+      },
+      "security_correctness": {
+        "status": "MISSING",
+        "evidence": "No story-specific independent horizontal acceptance receipt has been supplied."
+      },
+      "performance": {
+        "status": "MISSING",
+        "evidence": "No story-specific independent horizontal acceptance receipt has been supplied."
+      },
+      "maintainability": {
+        "status": "MISSING",
+        "evidence": "No story-specific independent horizontal acceptance receipt has been supplied."
+      },
+      "observability": {
+        "status": "MISSING",
+        "evidence": "No story-specific independent horizontal acceptance receipt has been supplied."
+      },
+      "testability": {
+        "status": "MISSING",
+        "evidence": "No story-specific independent horizontal acceptance receipt has been supplied."
+      },
+      "user_value": {
+        "status": "MISSING",
+        "evidence": "No story-specific independent horizontal acceptance receipt has been supplied."
+      },
+      "external_compatibility": {
+        "status": "MISSING",
+        "evidence": "No story-specific independent horizontal acceptance receipt has been supplied."
+      }
+    },
+    "vertical_evidence": null,
+    "independent_evidence": null
+  },
+  "4": {
+    "title": "Express goals not actuator commands",
+    "status": "PARTIAL",
+    "dimensions": {
+      "function": {
+        "status": "PARTIAL",
+        "evidence": "Partial functionality discussed in docs/product-user-story.md and docs/user-story-traceability-ledger.md; complete story acceptance unproven"
+      },
+      "state": {
+        "status": "MISSING",
+        "evidence": "No story-specific independent horizontal acceptance receipt has been supplied."
+      },
+      "integration": {
+        "status": "MISSING",
+        "evidence": "No story-specific independent horizontal acceptance receipt has been supplied."
+      },
+      "security_correctness": {
+        "status": "MISSING",
+        "evidence": "No story-specific independent horizontal acceptance receipt has been supplied."
+      },
+      "performance": {
+        "status": "MISSING",
+        "evidence": "No story-specific independent horizontal acceptance receipt has been supplied."
+      },
+      "maintainability": {
+        "status": "MISSING",
+        "evidence": "No story-specific independent horizontal acceptance receipt has been supplied."
+      },
+      "observability": {
+        "status": "MISSING",
+        "evidence": "No story-specific independent horizontal acceptance receipt has been supplied."
+      },
+      "testability": {
+        "status": "MISSING",
+        "evidence": "No story-specific independent horizontal acceptance receipt has been supplied."
+      },
+      "user_value": {
+        "status": "MISSING",
+        "evidence": "No story-specific independent horizontal acceptance receipt has been supplied."
+      },
+      "external_compatibility": {
+        "status": "MISSING",
+        "evidence": "No story-specific independent horizontal acceptance receipt has been supplied."
+      }
+    },
+    "vertical_evidence": null,
+    "independent_evidence": null
+  },
+  "5": {
+    "title": "Topology-aware coordinated strategies",
+    "status": "PARTIAL",
+    "dimensions": {
+      "function": {
+        "status": "PARTIAL",
+        "evidence": "Partial functionality discussed in docs/product-user-story.md and docs/user-story-traceability-ledger.md; complete story acceptance unproven"
+      },
+      "state": {
+        "status": "MISSING",
+        "evidence": "No story-specific independent horizontal acceptance receipt has been supplied."
+      },
+      "integration": {
+        "status": "MISSING",
+        "evidence": "No story-specific independent horizontal acceptance receipt has been supplied."
+      },
+      "security_correctness": {
+        "status": "MISSING",
+        "evidence": "No story-specific independent horizontal acceptance receipt has been supplied."
+      },
+      "performance": {
+        "status": "MISSING",
+        "evidence": "No story-specific independent horizontal acceptance receipt has been supplied."
+      },
+      "maintainability": {
+        "status": "MISSING",
+        "evidence": "No story-specific independent horizontal acceptance receipt has been supplied."
+      },
+      "observability": {
+        "status": "MISSING",
+        "evidence": "No story-specific independent horizontal acceptance receipt has been supplied."
+      },
+      "testability": {
+        "status": "MISSING",
+        "evidence": "No story-specific independent horizontal acceptance receipt has been supplied."
+      },
+      "user_value": {
+        "status": "MISSING",
+        "evidence": "No story-specific independent horizontal acceptance receipt has been supplied."
+      },
+      "external_compatibility": {
+        "status": "MISSING",
+        "evidence": "No story-specific independent horizontal acceptance receipt has been supplied."
+      }
+    },
+    "vertical_evidence": null,
+    "independent_evidence": null
+  },
+  "6": {
+    "title": "Preview multiple futures",
+    "status": "PARTIAL",
+    "dimensions": {
+      "function": {
+        "status": "PARTIAL",
+        "evidence": "Partial functionality discussed in docs/product-user-story.md and docs/user-story-traceability-ledger.md; complete story acceptance unproven"
+      },
+      "state": {
+        "status": "MISSING",
+        "evidence": "No story-specific independent horizontal acceptance receipt has been supplied."
+      },
+      "integration": {
+        "status": "MISSING",
+        "evidence": "No story-specific independent horizontal acceptance receipt has been supplied."
+      },
+      "security_correctness": {
+        "status": "MISSING",
+        "evidence": "No story-specific independent horizontal acceptance receipt has been supplied."
+      },
+      "performance": {
+        "status": "MISSING",
+        "evidence": "No story-specific independent horizontal acceptance receipt has been supplied."
+      },
+      "maintainability": {
+        "status": "MISSING",
+        "evidence": "No story-specific independent horizontal acceptance receipt has been supplied."
+      },
+      "observability": {
+        "status": "MISSING",
+        "evidence": "No story-specific independent horizontal acceptance receipt has been supplied."
+      },
+      "testability": {
+        "status": "MISSING",
+        "evidence": "No story-specific independent horizontal acceptance receipt has been supplied."
+      },
+      "user_value": {
+        "status": "MISSING",
+        "evidence": "No story-specific independent horizontal acceptance receipt has been supplied."
+      },
+      "external_compatibility": {
+        "status": "MISSING",
+        "evidence": "No story-specific independent horizontal acceptance receipt has been supplied."
+      }
+    },
+    "vertical_evidence": null,
+    "independent_evidence": null
+  },
+  "7": {
+    "title": "Handle conflicting environment goals",
+    "status": "PARTIAL",
+    "dimensions": {
+      "function": {
+        "status": "PARTIAL",
+        "evidence": "Partial functionality discussed in docs/product-user-story.md and docs/user-story-traceability-ledger.md; complete story acceptance unproven"
+      },
+      "state": {
+        "status": "MISSING",
+        "evidence": "No story-specific independent horizontal acceptance receipt has been supplied."
+      },
+      "integration": {
+        "status": "MISSING",
+        "evidence": "No story-specific independent horizontal acceptance receipt has been supplied."
+      },
+      "security_correctness": {
+        "status": "MISSING",
+        "evidence": "No story-specific independent horizontal acceptance receipt has been supplied."
+      },
+      "performance": {
+        "status": "MISSING",
+        "evidence": "No story-specific independent horizontal acceptance receipt has been supplied."
+      },
+      "maintainability": {
+        "status": "MISSING",
+        "evidence": "No story-specific independent horizontal acceptance receipt has been supplied."
+      },
+      "observability": {
+        "status": "MISSING",
+        "evidence": "No story-specific independent horizontal acceptance receipt has been supplied."
+      },
+      "testability": {
+        "status": "MISSING",
+        "evidence": "No story-specific independent horizontal acceptance receipt has been supplied."
+      },
+      "user_value": {
+        "status": "MISSING",
+        "evidence": "No story-specific independent horizontal acceptance receipt has been supplied."
+      },
+      "external_compatibility": {
+        "status": "MISSING",
+        "evidence": "No story-specific independent horizontal acceptance receipt has been supplied."
+      }
+    },
+    "vertical_evidence": null,
+    "independent_evidence": null
+  },
+  "8": {
+    "title": "Execute conservatively on real devices",
+    "status": "BLOCKED",
+    "dimensions": {
+      "function": {
+        "status": "PARTIAL",
+        "evidence": "Partial functionality discussed in docs/product-user-story.md and docs/user-story-traceability-ledger.md; complete story acceptance unproven"
+      },
+      "state": {
+        "status": "MISSING",
+        "evidence": "No story-specific independent horizontal acceptance receipt has been supplied."
+      },
+      "integration": {
+        "status": "BLOCKED",
+        "evidence": "No story-specific independent horizontal acceptance receipt has been supplied."
+      },
+      "security_correctness": {
+        "status": "MISSING",
+        "evidence": "No story-specific independent horizontal acceptance receipt has been supplied."
+      },
+      "performance": {
+        "status": "MISSING",
+        "evidence": "No story-specific independent horizontal acceptance receipt has been supplied."
+      },
+      "maintainability": {
+        "status": "MISSING",
+        "evidence": "No story-specific independent horizontal acceptance receipt has been supplied."
+      },
+      "observability": {
+        "status": "MISSING",
+        "evidence": "No story-specific independent horizontal acceptance receipt has been supplied."
+      },
+      "testability": {
+        "status": "MISSING",
+        "evidence": "No story-specific independent horizontal acceptance receipt has been supplied."
+      },
+      "user_value": {
+        "status": "BLOCKED",
+        "evidence": "No story-specific independent horizontal acceptance receipt has been supplied."
+      },
+      "external_compatibility": {
+        "status": "MISSING",
+        "evidence": "No story-specific independent horizontal acceptance receipt has been supplied."
+      }
+    },
+    "vertical_evidence": null,
+    "independent_evidence": null
+  },
+  "9": {
+    "title": "Replan when reality changes",
+    "status": "PARTIAL",
+    "dimensions": {
+      "function": {
+        "status": "PARTIAL",
+        "evidence": "Partial functionality discussed in docs/product-user-story.md and docs/user-story-traceability-ledger.md; complete story acceptance unproven"
+      },
+      "state": {
+        "status": "MISSING",
+        "evidence": "No story-specific independent horizontal acceptance receipt has been supplied."
+      },
+      "integration": {
+        "status": "MISSING",
+        "evidence": "No story-specific independent horizontal acceptance receipt has been supplied."
+      },
+      "security_correctness": {
+        "status": "MISSING",
+        "evidence": "No story-specific independent horizontal acceptance receipt has been supplied."
+      },
+      "performance": {
+        "status": "MISSING",
+        "evidence": "No story-specific independent horizontal acceptance receipt has been supplied."
+      },
+      "maintainability": {
+        "status": "MISSING",
+        "evidence": "No story-specific independent horizontal acceptance receipt has been supplied."
+      },
+      "observability": {
+        "status": "MISSING",
+        "evidence": "No story-specific independent horizontal acceptance receipt has been supplied."
+      },
+      "testability": {
+        "status": "MISSING",
+        "evidence": "No story-specific independent horizontal acceptance receipt has been supplied."
+      },
+      "user_value": {
+        "status": "MISSING",
+        "evidence": "No story-specific independent horizontal acceptance receipt has been supplied."
+      },
+      "external_compatibility": {
+        "status": "MISSING",
+        "evidence": "No story-specific independent horizontal acceptance receipt has been supplied."
+      }
+    },
+    "vertical_evidence": null,
+    "independent_evidence": null
+  },
+  "10": {
+    "title": "Learn from prediction error",
+    "status": "PARTIAL",
+    "dimensions": {
+      "function": {
+        "status": "PARTIAL",
+        "evidence": "Partial functionality discussed in docs/product-user-story.md and docs/user-story-traceability-ledger.md; complete story acceptance unproven"
+      },
+      "state": {
+        "status": "MISSING",
+        "evidence": "No story-specific independent horizontal acceptance receipt has been supplied."
+      },
+      "integration": {
+        "status": "MISSING",
+        "evidence": "No story-specific independent horizontal acceptance receipt has been supplied."
+      },
+      "security_correctness": {
+        "status": "MISSING",
+        "evidence": "No story-specific independent horizontal acceptance receipt has been supplied."
+      },
+      "performance": {
+        "status": "MISSING",
+        "evidence": "No story-specific independent horizontal acceptance receipt has been supplied."
+      },
+      "maintainability": {
+        "status": "MISSING",
+        "evidence": "No story-specific independent horizontal acceptance receipt has been supplied."
+      },
+      "observability": {
+        "status": "MISSING",
+        "evidence": "No story-specific independent horizontal acceptance receipt has been supplied."
+      },
+      "testability": {
+        "status": "MISSING",
+        "evidence": "No story-specific independent horizontal acceptance receipt has been supplied."
+      },
+      "user_value": {
+        "status": "MISSING",
+        "evidence": "No story-specific independent horizontal acceptance receipt has been supplied."
+      },
+      "external_compatibility": {
+        "status": "MISSING",
+        "evidence": "No story-specific independent horizontal acceptance receipt has been supplied."
+      }
+    },
+    "vertical_evidence": null,
+    "independent_evidence": null
+  },
+  "11": {
+    "title": "Generalize to unseen topology",
+    "status": "PARTIAL",
+    "dimensions": {
+      "function": {
+        "status": "PARTIAL",
+        "evidence": "Partial functionality discussed in docs/product-user-story.md and docs/user-story-traceability-ledger.md; complete story acceptance unproven"
+      },
+      "state": {
+        "status": "MISSING",
+        "evidence": "No story-specific independent horizontal acceptance receipt has been supplied."
+      },
+      "integration": {
+        "status": "MISSING",
+        "evidence": "No story-specific independent horizontal acceptance receipt has been supplied."
+      },
+      "security_correctness": {
+        "status": "MISSING",
+        "evidence": "No story-specific independent horizontal acceptance receipt has been supplied."
+      },
+      "performance": {
+        "status": "MISSING",
+        "evidence": "No story-specific independent horizontal acceptance receipt has been supplied."
+      },
+      "maintainability": {
+        "status": "MISSING",
+        "evidence": "No story-specific independent horizontal acceptance receipt has been supplied."
+      },
+      "observability": {
+        "status": "MISSING",
+        "evidence": "No story-specific independent horizontal acceptance receipt has been supplied."
+      },
+      "testability": {
+        "status": "MISSING",
+        "evidence": "No story-specific independent horizontal acceptance receipt has been supplied."
+      },
+      "user_value": {
+        "status": "MISSING",
+        "evidence": "No story-specific independent horizontal acceptance receipt has been supplied."
+      },
+      "external_compatibility": {
+        "status": "MISSING",
+        "evidence": "No story-specific independent horizontal acceptance receipt has been supplied."
+      }
+    },
+    "vertical_evidence": null,
+    "independent_evidence": null
+  },
+  "12": {
+    "title": "Reproducible research benchmark",
+    "status": "PARTIAL",
+    "dimensions": {
+      "function": {
+        "status": "PARTIAL",
+        "evidence": "Partial functionality discussed in docs/product-user-story.md and docs/user-story-traceability-ledger.md; complete story acceptance unproven"
+      },
+      "state": {
+        "status": "MISSING",
+        "evidence": "No story-specific independent horizontal acceptance receipt has been supplied."
+      },
+      "integration": {
+        "status": "MISSING",
+        "evidence": "No story-specific independent horizontal acceptance receipt has been supplied."
+      },
+      "security_correctness": {
+        "status": "MISSING",
+        "evidence": "No story-specific independent horizontal acceptance receipt has been supplied."
+      },
+      "performance": {
+        "status": "MISSING",
+        "evidence": "No story-specific independent horizontal acceptance receipt has been supplied."
+      },
+      "maintainability": {
+        "status": "MISSING",
+        "evidence": "No story-specific independent horizontal acceptance receipt has been supplied."
+      },
+      "observability": {
+        "status": "MISSING",
+        "evidence": "No story-specific independent horizontal acceptance receipt has been supplied."
+      },
+      "testability": {
+        "status": "MISSING",
+        "evidence": "No story-specific independent horizontal acceptance receipt has been supplied."
+      },
+      "user_value": {
+        "status": "MISSING",
+        "evidence": "No story-specific independent horizontal acceptance receipt has been supplied."
+      },
+      "external_compatibility": {
+        "status": "MISSING",
+        "evidence": "No story-specific independent horizontal acceptance receipt has been supplied."
+      }
+    },
+    "vertical_evidence": null,
+    "independent_evidence": null
+  },
+  "13": {
+    "title": "Third-party independent infrastructure reuse",
+    "status": "BLOCKED",
+    "dimensions": {
+      "function": {
+        "status": "PARTIAL",
+        "evidence": "Partial functionality discussed in docs/product-user-story.md and docs/user-story-traceability-ledger.md; complete story acceptance unproven"
+      },
+      "state": {
+        "status": "MISSING",
+        "evidence": "No story-specific independent horizontal acceptance receipt has been supplied."
+      },
+      "integration": {
+        "status": "BLOCKED",
+        "evidence": "No story-specific independent horizontal acceptance receipt has been supplied."
+      },
+      "security_correctness": {
+        "status": "MISSING",
+        "evidence": "No story-specific independent horizontal acceptance receipt has been supplied."
+      },
+      "performance": {
+        "status": "MISSING",
+        "evidence": "No story-specific independent horizontal acceptance receipt has been supplied."
+      },
+      "maintainability": {
+        "status": "MISSING",
+        "evidence": "No story-specific independent horizontal acceptance receipt has been supplied."
+      },
+      "observability": {
+        "status": "MISSING",
+        "evidence": "No story-specific independent horizontal acceptance receipt has been supplied."
+      },
+      "testability": {
+        "status": "MISSING",
+        "evidence": "No story-specific independent horizontal acceptance receipt has been supplied."
+      },
+      "user_value": {
+        "status": "BLOCKED",
+        "evidence": "No story-specific independent horizontal acceptance receipt has been supplied."
+      },
+      "external_compatibility": {
+        "status": "MISSING",
+        "evidence": "No story-specific independent horizontal acceptance receipt has been supplied."
+      }
+    },
+    "vertical_evidence": null,
+    "independent_evidence": null
+  },
+  "14": {
+    "title": "Post-train from trajectories",
+    "status": "PARTIAL",
+    "dimensions": {
+      "function": {
+        "status": "PARTIAL",
+        "evidence": "Partial functionality discussed in docs/product-user-story.md and docs/user-story-traceability-ledger.md; complete story acceptance unproven"
+      },
+      "state": {
+        "status": "MISSING",
+        "evidence": "No story-specific independent horizontal acceptance receipt has been supplied."
+      },
+      "integration": {
+        "status": "MISSING",
+        "evidence": "No story-specific independent horizontal acceptance receipt has been supplied."
+      },
+      "security_correctness": {
+        "status": "MISSING",
+        "evidence": "No story-specific independent horizontal acceptance receipt has been supplied."
+      },
+      "performance": {
+        "status": "MISSING",
+        "evidence": "No story-specific independent horizontal acceptance receipt has been supplied."
+      },
+      "maintainability": {
+        "status": "MISSING",
+        "evidence": "No story-specific independent horizontal acceptance receipt has been supplied."
+      },
+      "observability": {
+        "status": "MISSING",
+        "evidence": "No story-specific independent horizontal acceptance receipt has been supplied."
+      },
+      "testability": {
+        "status": "MISSING",
+        "evidence": "No story-specific independent horizontal acceptance receipt has been supplied."
+      },
+      "user_value": {
+        "status": "MISSING",
+        "evidence": "No story-specific independent horizontal acceptance receipt has been supplied."
+      },
+      "external_compatibility": {
+        "status": "MISSING",
+        "evidence": "No story-specific independent horizontal acceptance receipt has been supplied."
+      }
+    },
+    "vertical_evidence": null,
+    "independent_evidence": null
+  },
+  "15": {
+    "title": "Playable evidence exploration lab",
+    "status": "PARTIAL",
+    "dimensions": {
+      "function": {
+        "status": "PARTIAL",
+        "evidence": "Partial functionality discussed in docs/product-user-story.md and docs/user-story-traceability-ledger.md; complete story acceptance unproven"
+      },
+      "state": {
+        "status": "MISSING",
+        "evidence": "No story-specific independent horizontal acceptance receipt has been supplied."
+      },
+      "integration": {
+        "status": "MISSING",
+        "evidence": "No story-specific independent horizontal acceptance receipt has been supplied."
+      },
+      "security_correctness": {
+        "status": "MISSING",
+        "evidence": "No story-specific independent horizontal acceptance receipt has been supplied."
+      },
+      "performance": {
+        "status": "MISSING",
+        "evidence": "No story-specific independent horizontal acceptance receipt has been supplied."
+      },
+      "maintainability": {
+        "status": "MISSING",
+        "evidence": "No story-specific independent horizontal acceptance receipt has been supplied."
+      },
+      "observability": {
+        "status": "MISSING",
+        "evidence": "No story-specific independent horizontal acceptance receipt has been supplied."
+      },
+      "testability": {
+        "status": "MISSING",
+        "evidence": "No story-specific independent horizontal acceptance receipt has been supplied."
+      },
+      "user_value": {
+        "status": "MISSING",
+        "evidence": "No story-specific independent horizontal acceptance receipt has been supplied."
+      },
+      "external_compatibility": {
+        "status": "MISSING",
+        "evidence": "No story-specific independent horizontal acceptance receipt has been supplied."
+      }
+    },
+    "vertical_evidence": null,
+    "independent_evidence": null
+  }
+}
