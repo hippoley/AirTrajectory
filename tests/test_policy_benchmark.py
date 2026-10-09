@@ -1,4 +1,5 @@
 from pathlib import Path
+import copy
 import json
 import unittest
 
@@ -6,6 +7,7 @@ from airtrajectory.layout import LayoutContract
 from airtrajectory.policy_benchmark import (
     build_policy_benchmark_report,
     build_required_benchmark_candidates,
+    verify_policy_benchmark_report,
 )
 
 
@@ -91,6 +93,15 @@ class PolicyBenchmarkTests(unittest.TestCase):
             topology=self.topology,
         )
 
+        self.assertTrue(verify_policy_benchmark_report(
+            report=report, response=response, case=self.case, topology=self.topology,
+        ))
+        modified = copy.deepcopy(report)
+        modified["results"][-1]["metrics"]["peak_co2_ppm"] = 0
+        with self.assertRaisesRegex(ValueError, "independently rescored"):
+            verify_policy_benchmark_report(
+                report=modified, response=response, case=self.case, topology=self.topology,
+            )
         self.assertEqual(report["benchmark"], "airtrajectory-policy-benchmark-v0.1")
         self.assertEqual(
             report["required_baselines"],
