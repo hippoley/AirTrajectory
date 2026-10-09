@@ -11,6 +11,7 @@ may change per topology revision.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from math import isfinite
 import hashlib
 import json
 from typing import Any
@@ -65,7 +66,7 @@ class DemoRuntimeSnapshot:
 
         for opening_id, value in (opening_positions or {}).items():
             numeric = float(value)
-            if not 0 <= numeric <= 1:
+            if not isfinite(numeric) or not 0 <= numeric <= 1:
                 raise ValueError(
                     f"opening {opening_id} position must be between 0 and 1"
                 )
@@ -73,7 +74,7 @@ class DemoRuntimeSnapshot:
 
         for opening_id, value in (opening_states or {}).items():
             numeric = float(value)
-            if not 0 <= numeric <= 100:
+            if not isfinite(numeric) or not 0 <= numeric <= 100:
                 raise ValueError(
                     f"opening {opening_id} state must be between 0 and 100"
                 )
