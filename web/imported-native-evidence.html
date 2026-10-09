@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AirTrajectory | Native Imported CONTAM Evidence</title>
+<style>body{font:16px system-ui;background:#0d171d;color:#e9f5f3;max-width:860px;margin:40px auto;padding:0 18px}h1{font-size:2rem}a{color:#80e6d4}.card{padding:22px;border:1px solid #486270;border-radius:14px;background:#15242d;margin:18px 0}dt{color:#92afba;margin-top:12px}dd{margin:4px 0;word-break:break-all}pre{max-height:380px;overflow:auto;background:#091318;padding:18px;border-radius:12px}input{padding:12px}b.bad{color:#ffb6ac}.note{color:#b0c9ce}</style></head><body>
+<a href="./index.html">← Back to ventilation lab</a>
+<h1>Imported home · Native ContamX receipt</h1>
+<p class="note">This is a read-only viewer for a real CI-generated native solver receipt. Upload the <code>native-receipt.json</code> artifact from the <a href="https://github.com/hippoley/AirTrajectory/actions">GitHub Actions workflow</a>. The browser does not run ContamX or verify external provenance signatures.</p>
+<div class="card"><label for="receipt">Load native CONTAM receipt</label><p><input id="receipt" type="file" accept=".json,application/json"></p><strong id="status">No native receipt loaded · no solver result claimed</strong></div>
+<div class="card" id="values" hidden><dl id="fields"></dl><h2>Native zone and path results</h2><pre id="results"></pre><p class="note">Numerical execution is not field validation, safety authorization or independent building geometry acceptance.</p></div>
+<script>
+const input=document.getElementById("receipt"),status=document.getElementById("status"),panel=document.getElementById("values"),fields=document.getElementById("fields"),results=document.getElementById("results");
+input.addEventListener("change",async()=>{
+ panel.hidden=true;fields.replaceChildren();results.textContent="";
+ const file=input.files&&input.files[0];if(!file){status.textContent="No native receipt loaded";return;}
+ try{
+ const p=JSON.parse(await file.text());
+ if(p.marker!=="IMPORTED_CONTAM_NATIVE_EXECUTED"||p.source!=="native-contamxpy-session"||p.engineering_truth!==false||p.execution_authorized!==false||!p.prj_sha256||!p.receipt_sha256||!p.zone_mass_fraction||!p.path_flow_kg_s)throw Error("Not a complete imported native solver receipt");
+ if(Object.keys(p.zone_mass_fraction).length!==p.zone_count||Object.keys(p.path_flow_kg_s).length!==p.path_count)throw Error("Zone/path count mismatch");
+ for(const v of Object.values(p.zone_mass_fraction).concat(Object.values(p.path_flow_kg_s)))if(typeof v!=="number"||!Number.isFinite(v))throw Error("Invalid numerical solver output");
+ status.textContent="Receipt loaded · native execution claimed by supplied artifact (not independently verified here)";
+ for(const [label,value] of [["Topology",p.topology_id],["Evidence class",p.evidence_level],["Solver version",p.solver_version],["Zones",p.zone_count],["Flow paths",p.path_count],["Layout SHA-256",p.layout_contract_sha256],["PRJ SHA-256",p.prj_sha256],["Receipt SHA-256",p.receipt_sha256]]){
+ const dt=document.createElement("dt"),dd=document.createElement("dd");dt.textContent=label;dd.textContent=String(value);fields.append(dt,dd);
+ }
+ results.textContent=JSON.stringify({zones:p.zone_mass_fraction,paths:p.path_flow_kg_s},null,2);panel.hidden=false;
+ }catch(e){status.textContent="Rejected: "+e.message;}
+});
+</script></body></html>
