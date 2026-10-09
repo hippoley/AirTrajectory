@@ -66,7 +66,10 @@ def _normalize_lineage_entry(entry, *, role, runtime_key, site_lineage):
             )
 
     try:
-        timestamp=float(entry.get("timestamp"))
+        raw_timestamp=entry.get("timestamp")
+        if isinstance(raw_timestamp, bool) or not isinstance(raw_timestamp, (int, float)):
+            raise ValueError("timestamp must be numeric, not bool or string")
+        timestamp=float(raw_timestamp)
     except Exception as exc:
         raise RuntimeError(
             f"WindowPilot {runtime_key} sensor lineage timestamp is missing/invalid"
@@ -278,7 +281,10 @@ def _normalize_apply_receipt(
         )
 
     try:
-        sample_timestamp=float(payload.get("sample_timestamp"))
+        raw_sample_timestamp=payload.get("sample_timestamp")
+        if isinstance(raw_sample_timestamp, bool) or not isinstance(raw_sample_timestamp, (int, float)):
+            raise ValueError("sample_timestamp must be numeric, not bool or string")
+        sample_timestamp=float(raw_sample_timestamp)
     except Exception as exc:
         raise RuntimeError(
             f"{role} sensor_apply receipt sample_timestamp is missing/invalid"
