@@ -38,15 +38,35 @@ def correct_layout(layout: LayoutContract, operations: list[Mapping[str, Any]]) 
         "rename_room", "move_opening", "resize_opening", "rewire_wall",
         "add_opening", "remove_opening", "set_room_volume",
         "move_wall", "rename_opening",
+        "add_room", "remove_room", "add_wall", "remove_wall",
     }
     for op in operations:
         name=op.get("op")
         if name not in allowed:
             raise ValueError(f"unsupported correction: {name}")
-        collection="rooms" if name in {"rename_room","set_room_volume"} else "walls" if name in {"rewire_wall","move_wall"} else "openings"
+        collection="rooms" if name in {"rename_room","set_room_volume","add_room","remove_room"} else "walls" if name in {"rewire_wall","move_wall","add_wall","remove_wall"} else "openings"
         ident=str(op.get("id") or "")
         matches=[row for row in data[collection] if row["id"]==ident]
-        if name=="add_opening":
+        if name=="add_room":
+            if not ident or any(room["id"]==ident for room in data["rooms"]):
+                raise ValueError("duplicate or empty room id")
+            data["rooms"].append({
+                "id":ident,"name":str(op.get("name") or ident),
+                "x":float(op["x"]),"y":float(op["y"]),
+                "w":float(op["w"]),"h":float(op["h"]),
+                "volume_m3":float(op["volume_m3"]),
+            })
+        elif name=="add_wall":
+            if not ident or any(wall["id"]==ident for wall in data["walls"]):
+                raise ValueError("duplicate or empty wall id")
+            data["walls"].append({
+                "id":ident,"kind":str(op["kind"]),
+                "source":str(op["source"]),"target":str(op["target"]),
+                "x1":float(op["x1"]),"y1":float(op["y1"]),
+                "x2":float(op["x2"]),"y2":float(op["y2"]),
+                "length_m":op.get("length_m"),"azimuth_deg":op.get("azimuth_deg"),
+            })
+        elif name=="add_opening":
             if any(row["id"]==ident for row in data["openings"]):
                 raise ValueError("duplicate opening id")
             wall=next((w for w in data["walls"] if w["id"]==op.get("wall_id")),None)
@@ -67,7 +87,15 @@ def correct_layout(layout: LayoutContract, operations: list[Mapping[str, Any]]) 
             if len(matches)!=1:
                 raise ValueError(f"unknown {collection} id: {ident}")
             item=matches[0]
-            if name=="rename_room":
+            if name=="remove_room":
+                if any(item["id"] in (wall["source"],wall["target"]) for wall in data["walls"]):
+                    raise ValueError("cannot remove room referenced by a wall")
+                data["rooms"].remove(item)
+            elif name=="remove_wall":
+                if any(opening["wall_id"]==ident for opening in data["openings"]):
+                    raise ValueError("cannot remove wall referenced by an opening")
+                data["walls"].remove(item)
+            elif name=="rename_room":
                 item["name"]=str(op["name"])
             elif name=="set_room_volume":
                 item["volume_m3"]=float(op["volume_m3"])

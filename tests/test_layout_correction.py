@@ -43,6 +43,33 @@ class LayoutCorrectionTests(unittest.TestCase):
         self.assertEqual(edited.openings[0].target,"r2")
         self.assertEqual(edited.walls[0].kind,"internal")
 
+    def test_add_room_and_wall_to_new_topology(self):
+        edited=correct_layout(fixture(),[
+            {"op":"add_room","id":"r3","x":8,"y":0,"w":3,"h":4,"volume_m3":30},
+            {"op":"add_wall","id":"w2","kind":"internal",
+             "source":"r2","target":"r3","x1":8,"y1":0,"x2":8,"y2":4},
+        ])
+        self.assertEqual(len(edited.rooms),3)
+        self.assertEqual(len(edited.walls),2)
+
+    def test_remove_referenced_room_and_wall_fails_closed(self):
+        with self.assertRaisesRegex(ValueError,"referenced by a wall"):
+            correct_layout(fixture(),[{"op":"remove_room","id":"r1"}])
+        with self.assertRaisesRegex(ValueError,"referenced by an opening"):
+            correct_layout(fixture(),[{"op":"remove_wall","id":"w1"}])
+
+    def test_remove_unreferenced_room(self):
+        edited=correct_layout(fixture(),[{"op":"remove_room","id":"r2"}])
+        self.assertEqual([x.id for x in edited.rooms],["r1"])
+
+    def test_unknown_room_endpoint_rejected(self):
+        with self.assertRaises(ValueError):
+            correct_layout(fixture(),[{
+                "op":"add_wall","id":"bad","kind":"internal",
+                "source":"r1","target":"missing",
+                "x1":1,"y1":0,"x2":1,"y2":4,
+            }])
+
     def test_rejects_invalid_opening_geometry(self):
         with self.assertRaises(ValueError):
             correct_layout(fixture(),[
