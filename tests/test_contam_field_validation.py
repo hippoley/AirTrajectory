@@ -178,6 +178,21 @@ class FieldFiniteAdversarialTests(unittest.TestCase):
     def setUp(self):
         self.layout = LayoutContract.from_file(LAYOUT)
 
+    def test_reject_duplicate_runtime_prediction_steps(self):
+        layout = self.layout
+        runtime = runtime_receipt(layout)
+        runtime["prediction_series"][1]["step"] = 0
+        spec = validate_field_validation_protocol(layout, protocol())
+        bundle = field_bundle(
+            protocol_sha=spec["protocol_sha256"],
+            runtime_sha=runtime["runtime_receipt_sha256"],
+        )
+        with self.assertRaisesRegex(ValueError, "duplicate prediction steps"):
+            validate_contam_against_field(
+                layout=layout, runtime_receipt=runtime,
+                protocol=protocol(), field_bundle=bundle,
+            )
+
     def test_reject_nonfinite_protocol_limits(self):
         for section, key in (
             ("co2", "rmse_ppm_max"),
