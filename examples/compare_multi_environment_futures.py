@@ -15,7 +15,7 @@ def main() -> int:
         "scenario",
         type=Path,
         nargs="?",
-        default=Path("examples/multi_environment_conflict_v0.1.json"),
+        default=Path("examples/multi_environment_conflict_v0.2.json"),
     )
     parser.add_argument("--out", type=Path)
     args = parser.parse_args()
