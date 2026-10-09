@@ -228,10 +228,10 @@ def compare_candidate_futures(
     """Compare same-origin and same-horizon consequences with no silent imputation."""
     if len(candidates) < 2:
         raise ValueError("comparison requires HOLD and at least one alternative")
-    rows = [_validate_candidate(c, objective, origin_openings) for c in candidates]
-    labels = [row["label"] for row in rows]
-    if len(set(labels)) != len(labels) or "HOLD" not in labels:
+    labels = [str(c.get("label") or "") for c in candidates]
+    if not all(labels) or len(set(labels)) != len(labels) or "HOLD" not in labels:
         raise ValueError("candidate labels must be unique and include simulated HOLD")
+    rows = [_validate_candidate(c, objective, origin_openings) for c in candidates]
     if len({row["origin_sha256"] for row in rows}) != 1:
         raise ValueError("candidate futures do not share the same origin")
     if len({tuple(row["time_grid_min"]) for row in rows}) != 1:
