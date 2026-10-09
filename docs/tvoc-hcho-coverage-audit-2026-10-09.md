@@ -32,3 +32,9 @@ Resume: latest HEAD CI plus end-to-end sensor fixture -> canonical state -> Obje
 - CI `37891805084` had 682 tests, one failure in duplicate-runtime-step adversarial fixture. The injected step mutation did not rehash the runtime receipt, so the existing digest guard rejected it before the duplicate-step guard. This was a **test fixture bug**, not proof that the new TVOC/HCHO comparator failed.
 - `e7513b7360` fixed the fixture by recomputing both `prediction_series_sha256` and `runtime_receipt_sha256` after deliberate mutation, so the negative test exercises its intended validation boundary.
 - New HEAD workflow https://github.com/hippoley/AirTrajectory/actions/runs/37892169280 was queued at last inspection. Leave US3/4/6/7 and cross-story P0 open until it passes and physics integration evidence is collected.
+
+## Horizontal regression continuation — 2026-10-09
+- `955a60be`: extend canonical indoor state validation beyond TVOC/HCHO to CO2 and PM2.5, plus explicit relative-humidity [0,100] validation. This reuses existing state contract, no dependency introduced.
+- `b9c3a03a`: independent negative tests for NaN, Infinity, negative/boolean concentrations and out-of-range humidity.
+- Latest CI `37892301236` was QUEUED when observed. Previous run `37891805084` had one failing negative fixture; `e7513b73` repaired that fixture, but subsequent runs were cancelled, so no verified full-suite acceptance yet.
+- Story impact: US3 state validity, US4/6/7 candidate evaluation, US8/10 field/learning provenance. **Status remains PARTIAL**, not Verified Closed. No TVOC/HCHO sensor commissioning or validated multi-species CONTAM prediction is claimed.
