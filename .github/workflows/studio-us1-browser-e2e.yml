@@ -37,3 +37,26 @@ jobs:
           sleep 2
       - name: Verify US1 in Chromium
         run: node tests/studio-browser-e2e.cjs
+      - name: Verify non-fixed layout in Python runtime
+        run: |
+          python3 -m pip install -e .
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          from airtrajectory.layout import LayoutContract
+          from airtrajectory.topology_acceptance import verify_topology_runtime
+          layout=LayoutContract.from_file("artifacts/studio/edited-layout.json")
+          receipt=verify_topology_runtime(layout)
+          assert receipt["status"]=="PASS",receipt
+          assert len(layout.rooms)==4
+          assert len(layout.walls)==6
+          assert len(layout.openings)==6
+          Path("artifacts/studio/topology-acceptance.json").write_text(json.dumps(receipt,indent=2,sort_keys=True)+"\\n")
+          print("PASS: edited topology reached shared physical and trajectory runtime")
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: studio-us1-browser-acceptance
+          path: artifacts/studio/
+          if-no-files-found: warn
