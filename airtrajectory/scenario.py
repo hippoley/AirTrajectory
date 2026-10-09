@@ -52,3 +52,37 @@ def topology_manifest(topology: BuildingTopology) -> dict:
             for e in topology.openings.values()
         ],
     }
+
+
+def generate_structured_scenario(seed: int, rooms: int = 5, family: str = "hub") -> VentilationScenario:
+    """Generate held-out non-chain graph families using deterministic local randomness.
+
+    Internal door graph families: hub (star), loop (cycle), branch (fork).
+    This is a toy simulation fixture, never imported-building/CONTAM evidence.
+    """
+    if rooms < 5:
+        raise ValueError("structured benchmark requires at least five rooms")
+    if family not in {"hub", "loop", "branch"}:
+        raise ValueError("unsupported topology family")
+    rng = random.Random(seed)
+    zones = [ZoneNode(f"room{i+1}", rng.uniform(24, 55)) for i in range(rooms)]
+    openings = [
+        OpeningEdge(f"W{i+1}", z.id, "OUTSIDE", "window", rng.uniform(.8, 1.6))
+        for i, z in enumerate(zones)
+    ]
+    if family == "hub":
+        edges = [(0, i) for i in range(1, rooms)]
+    elif family == "loop":
+        edges = [(i, i+1) for i in range(rooms-1)] + [(rooms-1, 0)]
+    else:
+        edges = [(0, 1), (0, 2)] + [(i-1, i) for i in range(3, rooms)]
+    for i, (a, z) in enumerate(edges):
+        openings.append(OpeningEdge(f"D{i+1}", zones[a].id, zones[z].id,
+                                    "door", rng.uniform(1.4, 2.0)))
+    topology = BuildingTopology.from_parts(zones, openings)
+    return VentilationScenario(
+        id=f"{family}-{rooms}-s{seed}", topology=topology,
+        initial_co2={z.id: rng.uniform(700, 1550) for z in zones},
+        occupancy={z.id: rng.randint(0, 3) for z in zones},
+        rain=rng.random() < .2, outdoor_temp_c=rng.uniform(5, 34),
+    )
