@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 from dataclasses import asdict, dataclass
 import time
+from math import isfinite
 from typing import Iterable, List, Optional
 from .trajectory import ActuatorFeedback, RewardVector, SemanticAction, Trajectory, TrajectoryStep, TrajectoryStore, TransitionAction
 from .commissioning import validate_commissioning_behavior_context
@@ -143,12 +144,32 @@ class PhysicalWindowEnvironment:
         self._sleep=sleep_fn
         self._clock=clock_fn
     def _validate_readings(self, readings):
-        now=time.time()
-        stale=[r.sensor_id for r in readings if now-r.timestamp>self.max_sensor_age_s]
-        if stale: raise RuntimeError("stale sensor readings: "+",".join(stale))
+        now=self._clock()
+        seen=set()
+        for reading in readings:
+            if reading.sensor_type in {"co2","rain"}:
+                if reading.sensor_type in seen:
+                    raise RuntimeError(f"duplicate {reading.sensor_type} sensor readings are ambiguous")
+                seen.add(reading.sensor_type)
+            if not isinstance(reading.timestamp,(int,float)) or not isfinite(reading.timestamp) or reading.timestamp<=0:
+                raise RuntimeError(f"invalid sensor timestamp: {reading.sensor_id}")
+            if reading.timestamp>now+1.0:
+                raise RuntimeError(f"future sensor timestamp: {reading.sensor_id}")
+            if now-reading.timestamp>self.max_sensor_age_s:
+                raise RuntimeError(f"stale sensor readings: {reading.sensor_id}")
+            if not isinstance(reading.value,(int,float)) or not isfinite(reading.value):
+                raise RuntimeError(f"invalid sensor value: {reading.sensor_id}")
+            if reading.sensor_type=="rain" and reading.value not in (0,1):
+                raise RuntimeError("rain sensor must be boolean 0/1")
+            if reading.sensor_type=="co2" and reading.value<0:
+                raise RuntimeError("co2 sensor must be nonnegative")
     def _validate_feedback(self, feedback):
-        if feedback.timestamp<=0: raise RuntimeError("actuator feedback missing timestamp")
-        age=time.time()-feedback.timestamp
+        now=self._clock()
+        if not isinstance(feedback.timestamp,(int,float)) or not isfinite(feedback.timestamp) or feedback.timestamp<=0:
+            raise RuntimeError("actuator feedback missing valid timestamp")
+        if feedback.timestamp>now+1.0:
+            raise RuntimeError("future actuator feedback timestamp")
+        age=now-feedback.timestamp
         if age>self.max_feedback_age_s: raise RuntimeError(f"stale actuator feedback: {age:.3f}s")
         if self.require_measured_feedback and feedback.measured_position_pct is None:
             raise RuntimeError("measured actuator position required but unavailable")
@@ -177,10 +198,19 @@ class PhysicalWindowEnvironment:
         caps=self.driver.capabilities()
         return self._observe(),{"backend":"physical-window","driver":type(self.driver).__name__,"driver_capabilities":asdict(caps),"evidence_kind":"synthetic" if caps.simulated else "physical"}
     def step(self, actions):
+        actions=list(actions)
+        # Validate the *whole* batch before the first irreversible write.
+        # This does not make transport dispatch atomic; it prevents an
+        # invalid later action from causing a partial physical movement.
+        if len(actions)>1:
+            raise RuntimeError("single-window physical driver accepts at most one action")
+        for a in actions:
+            if a.opening_id!=self.opening_id:raise KeyError(f"unknown physical opening: {a.opening_id}")
+            if not isinstance(a.target_pct,(int,float)) or not isfinite(a.target_pct) or not 0<=a.target_pct<=100:
+                raise ValueError("invalid physical target_pct")
         feedback=[]
         command_acks=[]
         for a in actions:
-            if a.opening_id!=self.opening_id:raise KeyError(f"unknown physical opening: {a.opening_id}")
             f=self.driver.set_position(a.opening_id,a.target_pct);self._validate_feedback(f);feedback.append(f);self.last_feedback=f
             ack=getattr(self.driver,"last_command_ack",None)
             if isinstance(ack,dict):
