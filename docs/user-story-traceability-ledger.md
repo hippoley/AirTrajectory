@@ -78,3 +78,12 @@ Audit date: 2026-10-09. **Source of requirements:** `docs/product-user-story.md`
 - Added `tests/test_imported_contam_readiness.py`: missing metric input rejection, positive metric-complete symbolic IR, and fixed demo rejection. Also extended `tests/test_layout_correction.py` with canonical JSON roundtrip and runtime assertions.
 - Evidence classification: toy topology PASS != ContamX simulated output != physical hardware measurements. D-P0-001 remains OPEN until real PRJ generation, actual solver run, immutable receipt, and browser integration for the same imported topology.
 - Latest PR #222 head must pass Core and Pages CI before merge. No complete Story 01/02 closure claimed.
+
+## Horizontal completeness audit — 2026-10-09
+
+- Added machine-readable `docs/user-story-horizontal-matrix.json` with **all 15 canonical stories × 10 dimensions**, deliberately conservative statuses. A fully populated audit record is NOT proof of story completion.
+- Added `airtrajectory/horizontal_audit.py` and `examples/audit_user_stories.py`: reject missing dimension/evidence/rationale; fail any `VERIFIED_CLOSED` claim without all applicable dimension evidence, independent/vertical evidence or closed upstream dependencies. `python examples/audit_user_stories.py --out artifacts/story-horizontal-audit.json`.
+- Added `tests/test_horizontal_audit.py` with independent negative tests for fake closure, missing status/evidence, unavailable N/A rationale and incomplete dependency closure. CI for latest PR SHA remains the gate.
+- Dependency graph is explicitly an **engineering interpretation** derived from user-story acceptance flows, not a new product requirement. Update mapping when real user story history disproves an edge.
+- External option review (official docs, 2026-10-09): NIST CONTAM 3.4 / 2026 CONTAM APIs https://www.nist.gov/el/beed/nist-multizone-modeling/software/contam/contam-documentation ; IfcOpenShell geometry/spatial tools https://docs.ifcopenshell.org/ifcopenshell-python/geometry_processing.html . Prefer validated adapters, not a custom IFC geometry kernel / airflow solver. No dependency replacement until license/version/API and independent integration tests are recorded.
+- Remaining D-P0-001: browser imported layout → actual CONTAM solve still absent; IR readiness explicitly **not** a solver run. D-P0-002: visual correction remains incomplete. D-P0-003: varied imported topology actual CONTAM tests absent.
