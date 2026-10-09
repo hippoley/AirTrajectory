@@ -4,6 +4,7 @@ from __future__ import annotations
 import hashlib
 import json
 from statistics import mean
+from math import isfinite
 from typing import Any, Mapping
 
 from .agents import MultiWindowRuleAgent
@@ -211,11 +212,15 @@ def score_strategy_branch(
 
     zone_order = sorted(series)
     step_count = next(iter(lengths))
+    if step_count != normalized["horizon_steps"]:
+        raise ValueError("strategy branch horizon does not match golden case")
     vectors = [
         [float(series[zone][index]) for zone in zone_order]
         for index in range(step_count)
     ]
     all_values = [value for vector in vectors for value in vector]
+    if any(not isfinite(value) or value < 0 for value in all_values):
+        raise ValueError("strategy branch CO2 must be finite and nonnegative")
     iaq_ref = normalized["metrics"]["iaq_reference_ppm"]
     high = normalized["metrics"]["high_co2_ppm"]
 
@@ -228,7 +233,13 @@ def score_strategy_branch(
     action_targets = {}
     for action in branch.get("actions") or []:
         if action.get("kind") == "opening":
-            action_targets[str(action["opening_id"])] = float(action["target_pct"])
+            opening_id = str(action["opening_id"])
+            if opening_id in action_targets:
+                raise ValueError("strategy branch has duplicate opening actions")
+            target = float(action["target_pct"])
+            if not isfinite(target) or not 0 <= target <= 100:
+                raise ValueError("strategy branch opening target must be finite and within [0,100]")
+            action_targets[opening_id] = target
     exterior_ids = {
         edge.id
         for edge in topology.openings.values()
@@ -285,6 +296,9 @@ def compare_independent_vs_joint(
         score_strategy_branch(branch, case=normalized, topology=topology)
         for branch in branches
     ]
+    labels = [row["label"] for row in scored]
+    if any(not label for label in labels) or len(set(labels)) != len(labels):
+        raise ValueError("strategy branch labels must be unique and nonempty")
     by_label = {row["label"]: row for row in scored}
     independent = by_label.get("independent-reference")
     if independent is None:
