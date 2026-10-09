@@ -1,4 +1,5 @@
 import unittest
+import time
 
 from airtrajectory.multiwindow_physical import MultiWindowPhysicalEnvironment
 from airtrajectory.physical import DriverCapabilities
@@ -12,7 +13,7 @@ class Driver:
         self.ready = ready
         self.simulated = simulated
         self.position = 0.0
-        self.ts = 100.0
+        self.ts = time.time()
 
     def capabilities(self):
         return DriverCapabilities(
@@ -29,7 +30,7 @@ class Driver:
         }
 
     def read_sensors(self):
-        self.ts += 1.0
+        self.ts = time.time()
         return [
             SensorReading(
                 sensor_id=self.zone+"-co2",
@@ -50,7 +51,7 @@ class Driver:
         ]
 
     def set_position(self, opening_id, target_pct):
-        self.ts += 1.0
+        self.ts = time.time()
         self.position = float(target_pct)
         return ActuatorFeedback(
             actuator_id=opening_id,
