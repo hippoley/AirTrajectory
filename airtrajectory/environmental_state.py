@@ -49,7 +49,7 @@ class EnvironmentalValue:
         if self.evidence == "measured" and self.value is None:
             raise ValueError("measured values cannot be null")
         if isinstance(self.value, (int, float)) and not isinstance(self.value, bool):
-            if not isfinite(self.value) or self.value < 0:
+            if not isfinite(self.value):
                 raise ValueError("environmental measurement must be finite and nonnegative")
         if self.confidence is not None and not isfinite(self.confidence):
             raise ValueError("confidence must be finite")
@@ -73,6 +73,11 @@ class ZoneEnvironmentalState:
     source_terms: Mapping[str, EnvironmentalValue] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
+        for name in ("tvoc_ug_m3", "hcho_mg_m3"):
+            item = self.values.get(name)
+            if item is not None and item.value is not None:
+                if isinstance(item.value, bool) or not isinstance(item.value, (int, float)) or item.value < 0:
+                    raise ValueError(f"{name} must be nonnegative numeric")
         unknown = set(self.values) - INDOOR_FIELDS
         if unknown:
             raise ValueError(f"unsupported indoor fields: {sorted(unknown)}")
