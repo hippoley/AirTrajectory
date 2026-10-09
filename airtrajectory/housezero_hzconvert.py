@@ -201,6 +201,8 @@ def adapt_hzconvert_row(
         if "/window_opening/" not in key or not key.startswith("zone/"):
             continue
         value = _float_or_none(raw)
+        if value is not None and not 0 <= value <= 100:
+            raise ValueError(f"window opening percentage outside [0,100]: {key}")
         openings[key] = {
             "position_pct": value,
             "evidence": "measured" if value is not None else "unavailable",
