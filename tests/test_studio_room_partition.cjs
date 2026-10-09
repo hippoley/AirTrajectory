@@ -1,5 +1,5 @@
 const assert=require('node:assert/strict');
-const {splitRectRoom}=require('../web/vendor/room-partition.js');
+const {splitRectRoom,mergeSplitRoom}=require('../web/vendor/room-partition.js');
 const base={schema_version:'0.1',topology_id:'test',outside_id:'OUTSIDE',rooms:[
 {id:'A',name:'Alpha',x:0,y:0,w:100,h:100,volume_m3:50},
 {id:'B',name:'Beta',x:100,y:0,w:100,h:100,volume_m3:50}],
@@ -24,4 +24,15 @@ assert.throws(()=>splitRectRoom(base,'A','z'),/Unsupported/);
 assert.throws(()=>splitRectRoom(base,'A','x',0),/Unsupported/);
 const obstruction=structuredClone(base);obstruction.openings[0].position_t=.5;
 assert.throws(()=>splitRectRoom(obstruction,'A'),/Opening intersects/);
+const merged=mergeSplitRoom(result,'A');
+assert.equal(merged.rooms.length,base.rooms.length);
+assert.equal(merged.walls.length,base.walls.length);
+assert.equal(merged.openings.length,base.openings.length);
+assert.equal(merged.rooms[0].volume_m3,base.rooms[0].volume_m3);
+assert.ok(merged.walls.some(w=>w.id==='top'&&w.x2===100));
+assert.ok(Math.abs(merged.openings.find(o=>o.id==='W1').position_t-.75)<1e-10);
+assert.throws(()=>mergeSplitRoom(base,'A'),/No supported partition/);
+const editedPartition=structuredClone(result);
+editedPartition.openings.push({id:'injected',wall_id:'partition-A-split-3',source:'A',target:'A-split-3',position_t:.5});
+assert.throws(()=>mergeSplitRoom(editedPartition,'A'),/Partition still hosts/);
 console.log('PASS room partition: wall segmentation, opening remap, room volume, immutability and fail-closed cases');
