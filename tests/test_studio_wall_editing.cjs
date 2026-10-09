@@ -1,0 +1,15 @@
+const assert=require('node:assert/strict');
+const {planResize,length}=require('../web/vendor/openplan-wall-editing.js');
+const walls=[{id:'a',x1:0,y1:0,x2:100,y2:0},{id:'b',x1:100,y1:0,x2:100,y2:100},{id:'c',x1:500,y1:0,x2:600,y2:0}];
+const snapshot=JSON.stringify(walls);
+const p=planResize(walls,'a',160);
+assert.equal(p.get('a').x2,160);
+assert.equal(p.get('b').x1,160);
+assert.equal(p.has('c'),false);
+assert.equal(JSON.stringify(walls),snapshot,'planning must not mutate input');
+assert.equal(length({...walls[0],...p.get('a')}),160);
+assert.throws(()=>planResize(walls,'a',0),/length/);
+assert.throws(()=>planResize(walls,'a',NaN),/length/);
+assert.throws(()=>planResize(walls,'missing',20),/Unknown/);
+assert.throws(()=>planResize([{id:'a',x1:0,y1:0,x2:100,y2:0},{id:'b',x1:100,y1:0,x2:101,y2:0}],'a',150),/collapse/);
+console.log('PASS joined-wall resize: atomic edits, joins, disconnected walls, invalid and collapsing geometry');
