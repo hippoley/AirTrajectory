@@ -45,3 +45,9 @@ Resume: latest HEAD CI plus end-to-end sensor fixture -> canonical state -> Obje
 - `7d1c7341` added fail-closed field-specific checks, preserving negative Celsius; `339d612d` added adversarial outdoor-boundary regression tests.
 - New test workflow https://github.com/hippoley/AirTrajectory/actions/runs/37892603583 queued at inspection. Status of this increment: CODE COMMITTED / CI PENDING, not Verified Closed.
 - Relevant canonical stories: US3 environment state, US4 objective hard constraints, US6/7 competing air-quality futures, US8 safety. Field and real TVOC/HCHO physical prediction gates remain open.
+
+## 2026-10-09 follow-up: occupancy and confidence evidence quality
+- P0 US3 source-model audit found occupancy_count accepted fractional/boolean/negative values, and confidence accepted boolean values (Python bool is numeric). Such inputs are incompatible with typed occupancy and probabilistic evidence semantics.
+- Code `260eab071` constrains occupancy_count to nonnegative integers and confidence to finite numeric probabilities excluding bool; tests `ea735c453` inject negative, fractional, boolean, string occupancy and boolean/string/NaN confidence, plus zero occupancy acceptance.
+- Latest relevant test workflow https://github.com/hippoley/AirTrajectory/actions/runs/37892728460 was queued when checked. The prior green software baseline remains `6a336b52c` at run 37892333430; newer commits are *not* accepted until current HEAD CI completes.
+- Cross-story impact: US3 environmental state, US4 user goals, US6/7 candidate futures, US8/10 readback/learning. Real TVOC/HCHO sensor fidelity and physical multi-species forecast are still not validated. No complete User Story closed.
