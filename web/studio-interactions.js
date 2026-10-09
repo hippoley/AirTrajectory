@@ -33,7 +33,12 @@ function closestWall(p,kind){
 svg.addEventListener("click",e=>{
  if(!["window","door"].includes(mode))return;
  e.stopImmediatePropagation();e.preventDefault();
- const match=closestWall(toWorld(e),mode);
+ const p=toWorld(e);
+ const directId=e.target?.getAttribute?.("data-wall-id");
+ const layout=api.getLayout();
+ const direct=layout?.walls.find(w=>w.id===directId&&(mode!=="window"||w.kind==="exterior"));
+ const projected=direct&&window.AirTrajectoryWallGeometry.projectOntoWall(p,direct,.06,.94);
+ const match=direct&&projected?{wall:direct,projection:projected}:closestWall(p,mode);
  if(!match){info.textContent="请点击目标墙体的附近区域放置开口。";return;}
  try{
   api.placeOpening(mode,match.wall.id,match.projection.position);
