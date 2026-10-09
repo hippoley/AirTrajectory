@@ -27,6 +27,13 @@ def apply_metric_geometry_overlay(
         raise ValueError("unsupported metric overlay schema_version")
     if overlay.get("topology_id") != layout.topology_id:
         raise ValueError("metric overlay topology_id does not match layout")
+    # Imported plans can retain topology_id across edits. Never apply stale metric
+    # measurements to a revised geometry merely because entity IDs still match.
+    supplied_hash = overlay.get("layout_contract_sha256")
+    if layout.source_kind == "imported-floorplan" and not supplied_hash:
+        raise ValueError("imported metric overlay requires layout_contract_sha256")
+    if supplied_hash is not None and supplied_hash != layout.sha256():
+        raise ValueError("metric overlay layout_contract_sha256 does not match layout")
 
     rooms = overlay.get("rooms")
     walls = overlay.get("walls")
