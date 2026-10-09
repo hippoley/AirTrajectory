@@ -346,7 +346,7 @@ jobs:
               json.dump(receipt,fh,indent=2,sort_keys=True)
           print("RECOVERY_ORIGIN_CONTRACT_FIXTURE_CREATED",receipt["origin_sha256"])
           '@ | python -
-          python examples/run_contam_joint_closed_loop.py artifacts/multispace-transient.prj artifacts/multispace-transient.prj.json --control-steps 1 --prediction-horizon-steps 3 --physical-origin-receipt artifacts/recovery-origin-ci-fixture.json --out artifacts/contam-replan-from-recovery-origin.json | Tee-Object -FilePath contam-replan-from-recovery-origin.log
+          python examples/run_contam_joint_closed_loop.py artifacts/multispace-transient.prj artifacts/multispace-transient.prj.json --spatialruntime-verify --control-steps 1 --prediction-horizon-steps 3 --physical-origin-receipt artifacts/recovery-origin-ci-fixture.json --out artifacts/contam-replan-from-recovery-origin.json | Tee-Object -FilePath contam-replan-from-recovery-origin.log
           if (-not (Select-String -Path contam-replan-from-recovery-origin.log -Pattern "REAL_CONTAM_REPLAN_FROM_PHYSICAL_ORIGIN")) { exit 1 }
           @'
           import json
