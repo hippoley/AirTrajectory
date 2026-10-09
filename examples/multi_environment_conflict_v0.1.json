@@ -28,6 +28,9 @@
         },
         "outdoor": {
           "pm25_ug_m3": 90
+        },
+        "opening_kind": {
+          "W1": "window"
         }
       },
       "time_grid_min": [
@@ -100,6 +103,9 @@
         },
         "outdoor": {
           "pm25_ug_m3": 90
+        },
+        "opening_kind": {
+          "W1": "window"
         }
       },
       "time_grid_min": [
@@ -172,6 +178,9 @@
         },
         "outdoor": {
           "pm25_ug_m3": 90
+        },
+        "opening_kind": {
+          "W1": "window"
         }
       },
       "time_grid_min": [
