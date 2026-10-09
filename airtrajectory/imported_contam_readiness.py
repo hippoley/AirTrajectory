@@ -35,6 +35,6 @@ def verify_imported_contam_readiness(layout: LayoutContract) -> dict[str, Any]:
         receipt["blockers"].append(str(exc))
         return receipt
     receipt["contam_ir_status"] = "PASS"
-    receipt["contam_ir_sha256"] = ir.get("ir_sha256") or ir.get("sha256")
+    receipt["contam_ir_sha256"] = ir["contam_semantics_sha256"]
     receipt["status"] = "PASS"
     return receipt
