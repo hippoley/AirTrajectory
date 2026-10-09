@@ -60,3 +60,18 @@ def validate_horizontal_matrix(matrix: dict[str, Any]) -> dict[str, Any]:
         "failures":failures,
         "dependencies":{str(k):list(v) for k,v in DEPENDENCIES.items()},
     }
+
+
+def impacted_stories(changed: set[int]) -> list[int]:
+    """Transitive downstream impact from changed canonical story IDs."""
+    unknown=set(changed)-set(DEPENDENCIES)
+    if unknown:
+        raise ValueError(f"unknown story IDs: {sorted(unknown)}")
+    affected=set(changed)
+    while True:
+        new={story for story,deps in DEPENDENCIES.items()
+             if any(dep in affected for dep in deps)}
+        if new<=affected:
+            break
+        affected|=new
+    return sorted(affected)
