@@ -84,6 +84,21 @@ class EnvironmentalStateTests(unittest.TestCase):
         zone = ZoneEnvironmentalState("living", {"temperature_c": EnvironmentalValue(-4.0, "measured")})
         self.assertEqual(zone.values["temperature_c"].value, -4.0)
 
+    def test_cross_metric_invalid_concentrations_and_humidity_rejected(self):
+        for field in ("co2_ppm", "pm25_ug_m3", "tvoc_ug_m3", "hcho_mg_m3"):
+            for bad in (-1.0, True, float("nan"), float("inf")):
+                with self.subTest(field=field, bad=bad):
+                    with self.assertRaises(ValueError):
+                        ZoneEnvironmentalState(
+                            "living", {field: EnvironmentalValue(bad, "measured")}
+                        )
+        for bad in (-0.1, 100.1, True):
+            with self.subTest(humidity=bad):
+                with self.assertRaisesRegex(ValueError, "relative_humidity_pct"):
+                    ZoneEnvironmentalState(
+                        "living", {"relative_humidity_pct": EnvironmentalValue(bad, "measured")}
+                    )
+
     def test_unavailable_cannot_carry_fake_value(self):
         with self.assertRaisesRegex(ValueError, "unavailable"):
             EnvironmentalValue(12.0, "unavailable")
