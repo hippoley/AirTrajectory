@@ -1,0 +1,26 @@
+# Builds full pinned upstream Pascal Editor plus AirTrajectory native import page.
+# Public GitHub repository does NOT contain private homeowner CAD or SceneGraphs.
+FROM alpine:3.22 AS source
+RUN apk add --no-cache git ca-certificates
+ARG PASCAL_SHA=7fc874faec800e18f8be2dab78e7dc2ff2327bd7
+RUN git clone --filter=blob:none https://github.com/pascalorg/editor.git /pascal && \
+    cd /pascal && git fetch origin "${PASCAL_SHA}" && git checkout --detach "${PASCAL_SHA}" && \
+    test "$(git rev-parse HEAD)" = "${PASCAL_SHA}" && grep -q "MIT License" LICENSE
+COPY integrations/pascal-native-overlay/app/airtrajectory/import/page.tsx /pascal/apps/editor/app/airtrajectory/import/page.tsx
+
+FROM oven/bun:1.3.14-alpine
+RUN apk add --no-cache nodejs
+WORKDIR /app
+COPY --from=source /pascal/ ./
+ENV SKIP_ENV_VALIDATION=1
+ENV PASCAL_PORTABLE_BUILD=1
+RUN bun install --frozen-lockfile && ./node_modules/.bin/turbo run build --filter=editor
+RUN mkdir -p /data && chown -R bun:bun /data /app
+ENV PASCAL_DATA_DIR=/data
+ENV NODE_ENV=production
+ENV HOSTNAME=0.0.0.0
+ENV PORT=3000
+USER bun
+EXPOSE 3000
+WORKDIR /app/apps/editor
+CMD ["bun","run","start"]
