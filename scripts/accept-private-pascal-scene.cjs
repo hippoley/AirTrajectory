@@ -16,8 +16,14 @@ async function verify({sceneFile,base='http://127.0.0.1:3002',out='artifacts/pri
  assert(zones.length>=1,'Requires zone nodes');
  assert(Object.values(graph.nodes).every(x=>!['door','window'].includes(x.type))||process.env.ALLOW_UNREVIEWED_OPENINGS==='1',
     'Private unreconciled openings must not be presented as reviewed');
- const result=await importScene({source:sceneFile,id:sceneId,name:'Private residential native acceptance',url:base});
+ // Preflight browser availability and native service BEFORE mutating persistent scene state.
  const browser=await chromium.launch({headless:true,args:['--no-sandbox','--use-gl=angle','--use-angle=swiftshader']});
+ let result;
+ try {
+   const health=await fetch(base.replace(/\/$/,'')+'/api/scenes');
+   assert(health.ok,'Native Pascal /api/scenes not reachable');
+   result=await importScene({source:sceneFile,id:sceneId,name:'Private residential native acceptance',url:base});
+ } catch (error) { await browser.close(); throw error; }
  let report;
  try{
   const page=await browser.newPage({viewport:{width:1600,height:960}});
