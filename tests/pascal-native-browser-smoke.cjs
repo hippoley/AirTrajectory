@@ -14,8 +14,25 @@ const fs = require('node:fs');
   const text=await page.locator('body').innerText();
   for(const label of ['Scene','Build','Paint','Items']) assert(text.includes(label),'upstream editor missing tab '+label);
   fs.mkdirSync('artifacts/pascal-native',{recursive:true});
+  // Exercise real upstream tabs, not just their presence in static HTML.
+  const panelClicks={};
+  for(const tab of ['Build','Paint','Items','Scene']){
+   const button=page.getByRole('button',{name:tab,exact:true}).first();
+   const fallback=page.getByText(tab,{exact:true}).first();
+   const target=await button.count()?button:fallback;
+   if(await target.count()&&await target.isVisible()){
+    await target.click({timeout:8000});
+    await page.waitForTimeout(350);
+    panelClicks[tab]=true;
+    await page.screenshot({path:'artifacts/pascal-native/panel-'+tab.toLowerCase()+'.png'});
+   }else{
+    panelClicks[tab]=false;
+   }
+  }
+  assert(panelClicks.Build&&panelClicks.Paint&&panelClicks.Items,'Native tool panel interaction unavailable');
+  fs.mkdirSync('artifacts/pascal-native',{recursive:true});
   await page.screenshot({path:'artifacts/pascal-native/full-editor.png',fullPage:true});
-  const report={url:page.url(),title:await page.title(),tabs:['Scene','Build','Paint','Items'],canvas_count:await page.locator('canvas').count(),runtime_errors:bad.slice(0,10)};
+  const report={url:page.url(),title:await page.title(),tabs:['Scene','Build','Paint','Items'],canvas_count:await page.locator('canvas').count(),panelClicks,runtime_errors:bad.slice(0,10)};
   fs.writeFileSync('artifacts/pascal-native/browser-smoke.json',JSON.stringify(report,null,2));
   assert(report.canvas_count>0,'No native 2D/3D rendering canvas mounted');
   assert(!bad.some(x=>/uncaught|TypeError|ReferenceError/i.test(x)),'Uncaught JavaScript runtime error');
