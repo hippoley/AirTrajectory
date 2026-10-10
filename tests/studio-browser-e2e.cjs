@@ -8,7 +8,7 @@ const path=require('node:path');
   const errors=[];
   page.on('pageerror',e=>errors.push(e.message));
   try{
-    await page.goto(process.env.STUDIO_URL||'http://127.0.0.1:8765/web/studio.html',{waitUntil:'load'});
+    await page.goto(process.env.STUDIO_URL||'http://127.0.0.1:8765/web/legacy-studio.html',{waitUntil:'load'});
     await page.locator('#summary').getByText('3 rooms').waitFor({timeout:12000});
     await page.locator('#vent-paths .scene-entry').first().waitFor({timeout:12000});
     assert.match(await page.locator('#vent-paths').innerText(),/W1|W2|W3/);
@@ -70,7 +70,7 @@ const path=require('node:path');
     const window=payload.openings[payload.openings.length-1];
     assert.ok(payload.walls.some(w=>w.id===window.wall_id));
     const other=await browser.newPage({viewport:{width:1450,height:900}});
-    await other.goto(process.env.STUDIO_URL||'http://127.0.0.1:8765/web/studio.html');
+    await other.goto(process.env.STUDIO_URL||'http://127.0.0.1:8765/web/legacy-studio.html');
     await other.locator('#file').setInputFiles({name:'edited-layout.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(payload))});
     assert.match(await other.locator('#summary').innerText(),/4 rooms · 6 walls · 6 openings/);
     assert.match(await other.locator('#report').innerText(),/基本检查通过/);
