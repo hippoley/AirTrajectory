@@ -95,7 +95,8 @@
       "width": 1.2,
       "height": 1.1,
       "metadata": {
-        "airtrajectory_position_t": 0.25
+        "airtrajectory_position_t": 0.25,
+        "airtrajectory_sill_height_m": 0.9
       }
     },
     "door_1": {
@@ -105,7 +106,8 @@
       "width": 0.9,
       "height": 2,
       "metadata": {
-        "airtrajectory_position_t": 0.6
+        "airtrajectory_position_t": 0.6,
+        "airtrajectory_sill_height_m": 0
       }
     }
   }
