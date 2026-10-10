@@ -73,6 +73,21 @@ jobs:
           if [ "$healthy" -ne 1 ]; then tail -n 100 /tmp/pascal-native-editor.log; exit 1; fi
           grep -q -E '<html|<!DOCTYPE html' /tmp/pascal-native-editor.html
           echo "PASS authentic Pascal production editor HTTP entrypoint"
+      - name: Install headless browser
+        run: |
+          mkdir -p /tmp/pascal-smoke
+          npm install --prefix /tmp/pascal-smoke --no-save --no-package-lock playwright@1.56.1
+          /tmp/pascal-smoke/node_modules/.bin/playwright install --with-deps chromium
+      - name: Verify native editor interaction shell in Chromium
+        env:
+          NODE_PATH: /tmp/pascal-smoke/node_modules
+        run: node tests/pascal-native-browser-smoke.cjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: pascal-native-frontend-evidence
+          path: artifacts/pascal-native/
+          if-no-files-found: warn
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
