@@ -20,6 +20,15 @@ jobs:
       - run: python -m pip install -e ".[contracts]"
       - run: node --check integrations/pascal-studio/pascal-scene-bridge.cjs
       - run: node tests/test_pascal_scene_bridge.cjs
+      - run: node tests/test_pascal_native_readiness.cjs
+      - run: node tests/test_pascal_physical_sidecar.cjs
+      - run: node tests/test_pascal_native_importer.cjs
+      - name: Verify annotated Pascal-to-CONTAM symbolic contract and receipt
+        run: python -m unittest -v tests/test_pascal_contam_integration.py
+      - name: Verify Pascal native-node projection contract against runtime receipt
+        run: python -m unittest -v tests/test_pascal_result_projection.py
+      - name: Fail closed on missing three-gate runtime evidence
+        run: python -m unittest -v tests/test_pascal_three_gates.py
       - run: node tests/test_studio_editor_entry.cjs
       - name: Verify Pascal SceneNodes reach canonical Python layout
         run: |
