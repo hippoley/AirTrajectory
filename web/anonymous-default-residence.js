@@ -27,5 +27,26 @@ export function makeAnonymousDefaultGraph(){
   nodes[id]={id,type:'wall',start:[+(a[0]-8.5).toFixed(3),+(a[1]-19).toFixed(3)],end:[+(b[0]-8.5).toFixed(3),+(b[1]-19).toFixed(3)],thickness:.16,visible:true,children:[],editorRole:'exterior'};
   rootNodeIds.push(id);
  }
+ // Demo shell is the authoritative outside boundary. Remove coincident
+ // source-wall candidates that created offset double exterior walls in 3D.
+ // Preserve hosted openings by keeping their wall when it is not sufficiently aligned.
+ const distanceToSegment=(p,a,b)=>{
+  const dx=b[0]-a[0],dy=b[1]-a[1],len2=dx*dx+dy*dy;
+  const t=len2?Math.max(0,Math.min(1,((p[0]-a[0])*dx+(p[1]-a[1])*dy)/len2)):0;
+  return Math.hypot(p[0]-a[0]-t*dx,p[1]-a[1]-t*dy);
+ };
+ const exterior=Object.values(nodes).filter(n=>n.editorRole==='exterior');
+ for(const w of Object.values(nodes).filter(n=>n.type==='wall'&&!n.editorRole)){
+  if(w.children.length)continue;
+  const a=w.start,b=w.end,mid=[(a[0]+b[0])/2,(a[1]+b[1])/2];
+  const dx=b[0]-a[0],dy=b[1]-a[1],len=Math.hypot(dx,dy);
+  if(len<.01)continue;
+  const duplicate=exterior.some(e=>{
+   const ex=e.end[0]-e.start[0],ey=e.end[1]-e.start[1],el=Math.hypot(ex,ey);
+   if(el<.01||Math.abs(dx*ey-dy*ex)/(len*el)>.08)return false;
+   return distanceToSegment(mid,e.start,e.end)<.22;
+  });
+  if(duplicate){delete nodes[w.id];const i=rootNodeIds.indexOf(w.id);if(i>=0)rootNodeIds.splice(i,1)}
+ }
  return {nodes,rootNodeIds};
 }
