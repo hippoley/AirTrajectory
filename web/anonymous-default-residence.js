@@ -1,3 +1,4 @@
+import {nodeFloorplanSegments} from './floorplan-to-scene.js';
 // Single authoritative, editable six-zone demonstration topology.
 // All walls and openings are derived from these edges. No CAD candidate wall overlay.
 export function makeAnonymousDefaultGraph(){
@@ -15,7 +16,8 @@ export function makeAnonymousDefaultGraph(){
  ];
  const colors=['#bbb3a7','#bcb9b0','#c0b5a8','#b5bcb5','#c6b8a6','#b7b5aa'];
  zones.forEach((polygon,i)=>add({id:'zone-'+i,type:'zone',polygon,color:colors[i],visible:true}));
- const edge=(id,start,end,role='interior')=>add({id,type:'wall',start,end,thickness:role==='exterior'?.16:.12,visible:true,editorRole:role,children:[]});
+ const linework=[];
+ const edge=(id,start,end,role='interior')=>linework.push({id,start,end,thickness:role==='exterior'?.16:.12,editorRole:role});
  for(let i=0;i<outline.length;i++)edge('shell-'+i,outline[i],outline[(i+1)%outline.length],'exterior');
  // Every partition terminates exactly on another structural edge.
  const partitions=[
@@ -38,13 +40,9 @@ export function makeAnonymousDefaultGraph(){
   ['partition-4','door',1.75,1.05,.86,2.1],
   ['shell-1','door',5.7,1.05,.96,2.1]
  ];
- holes.forEach(([wallId,type,x,y,width,height],i)=>{
-  const id='opening-'+i;
-  const wall=nodes[wallId];if(!wall)throw Error('Opening host not found: '+wallId);
-  const L=Math.hypot(wall.end[0]-wall.start[0],wall.end[1]-wall.start[1]);
-  if(x-width/2<.05||x+width/2>L-.05)throw Error('Opening outside wall: '+wallId);
-  add({id,type,visible:true,wallId,parentId:wallId,position:[x,y,0],width,height},false);
-  wall.children.push(id);
- });
- return {nodes,rootNodeIds};
+ const floorplanOpenings=holes.map(([wallId,type,offset,y,width,height],i)=>({id:'opening-'+i,wallId,type,offset,y,width,height}));
+ const built=nodeFloorplanSegments(linework,floorplanOpenings);
+ built.walls.forEach(w=>add(w));
+ built.openings.forEach(o=>add(o,false));
+ return {nodes,rootNodeIds,floorplanDerived:true};
 }
