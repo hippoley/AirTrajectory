@@ -48,7 +48,7 @@ export function loadPascalGraph(THREE, scene, graph) {
  const furniture=[];
  for(const n of nodes.filter(n=>n.type==='procedural-item'&&n.visible!==false)){
   const root=new THREE.Group(),[x,z]=pos([n.position[0],n.position[2]]);
-  root.name=n.name||n.id;root.position.set(x,n.position[1]||0,z);root.rotation.y=n.rotation?.[1]||0;group.add(root);
+  root.name=n.name||n.id;root.position.set(x,n.position[1]||0,z);root.rotation.y=n.rotation?.[1]||0;if(Array.isArray(n.scale)&&n.scale.length===3)root.scale.set(...n.scale);group.add(root);
   const slots=Object.fromEntries((n.recipe?.slots||[]).map(s=>[s.id,s.color||'#b7a797']));
   for(const part of n.recipe?.parts||[])for(const shape of part.shapes||[]){
    if(shape.primitive!=='box'||!Array.isArray(shape.size))continue;
@@ -57,7 +57,7 @@ export function loadPascalGraph(THREE, scene, graph) {
    const piece=mesh(w,h,d,slots[shape.slot]||'#b8b0a1',px,py,pz,root);
    piece.userData.pascalMaterialSlot=shape.slot||null;
   }
-  root.userData={id:n.id,type:'pascal',name:n.name||n.id,color:Object.values(slots)[0]||'#b7a797',paintSlot:(n.recipe?.slots||[])[0]?.id||null,rotation:root.rotation.y,scale:1,pascalNode:n};furniture.push(root);
+  root.userData={id:n.id,type:'pascal',name:n.name||n.id,color:Object.values(slots)[0]||'#b7a797',paintSlot:(n.recipe?.slots||[])[0]?.id||null,rotation:root.rotation.y,scale:root.scale.x,pascalNode:n};furniture.push(root);
  }
  return {group,walls:wallMeshes,floors,furniture,stats:{rooms:zones.length,walls:walls.length,openings,furniture:furniture.length},center};
 }
