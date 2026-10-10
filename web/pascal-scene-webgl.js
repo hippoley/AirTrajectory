@@ -1,0 +1,62 @@
+// Genuine Pascal SceneGraph geometry renderer for the public Three.js studio.
+// Reads local File objects only: no network upload of private homeowner coordinates.
+export function loadPascalGraph(THREE, scene, graph) {
+ if (!graph || !graph.nodes || !Array.isArray(graph.rootNodeIds)) throw Error('Pascal SceneGraph required');
+ const nodes=Object.values(graph.nodes), zones=nodes.filter(n=>n.type==='zone'), walls=nodes.filter(n=>n.type==='wall'&&n.visible!==false);
+ if(!zones.length||!walls.length)throw Error('Missing Pascal zones or walls');
+ if(nodes.length>20000)throw Error('Scene exceeds 20,000 nodes');
+ const group=new THREE.Group();group.name='Imported Pascal residence';scene.add(group);
+ const xy=zones.flatMap(z=>z.polygon||[]);const center=[(Math.min(...xy.map(p=>p[0]))+Math.max(...xy.map(p=>p[0])))/2,(Math.min(...xy.map(p=>p[1]))+Math.max(...xy.map(p=>p[1])))/2];
+ const pos=p=>[p[0]-center[0],p[1]-center[1]];
+ const mesh=(w,h,d,color,x,y,z,root=group)=>{const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),new THREE.MeshStandardMaterial({color,roughness:.8}));m.position.set(x,y,z);m.castShadow=true;m.receiveShadow=true;root.add(m);return m};
+ const floors=[];
+ for(const z of zones){
+  const points=(z.polygon||[]).map(p=>pos(p));if(points.length<3)continue;
+  const shape=new THREE.Shape();shape.moveTo(points[0][0],-points[0][1]);points.slice(1).forEach(p=>shape.lineTo(p[0],-p[1]));
+  const geometry=new THREE.ShapeGeometry(shape);const material=new THREE.MeshStandardMaterial({color:z.color||'#a98a65',side:THREE.DoubleSide,roughness:.94});
+  const floor=new THREE.Mesh(geometry,material);floor.rotation.x=-Math.PI/2;floor.position.y=.025;floor.receiveShadow=true;group.add(floor);floors.push(floor);
+ }
+ let openings=0;const wallMeshes=[];
+ for(const wall of walls){
+  const a=pos(wall.start),b=pos(wall.end);if(!a||!b)continue;
+  const dx=b[0]-a[0],dz=b[1]-a[1],L=Math.hypot(dx,dz);if(L<.01)continue;
+  const height=2.5,thick=Math.max(.06,Math.min(wall.thickness||.12,.45));
+  // Native opening positions use wall-local x coordinate, dimensions in metres.
+  const holes=(wall.children||[]).map(id=>graph.nodes[id]).filter(n=>n&&['door','window'].includes(n.type)&&n.visible!==false)
+    .map(n=>({lo:Math.max(0,n.position[0]-n.width/2),hi:Math.min(L,n.position[0]+n.width/2),bottom:n.type==='door'?0:Math.max(.6,n.position[1]-n.height/2),top:n.type==='door'?Math.min(height,n.height):Math.min(height,n.position[1]+n.height/2),type:n.type})).filter(h=>h.hi>h.lo);
+  const boundaries=[0,L,...holes.flatMap(h=>[h.lo,h.hi])].sort((a,b)=>a-b).filter((v,i,arr)=>!i||v-arr[i-1]>.001);
+  const addSection=(x0,x1,y0,y1,color)=>{if(x1-x0<.01||y1-y0<.01)return;
+    const t=(x0+x1)/2/L,X=(a[0]+dx*t),Z=(a[1]+dz*t);
+    const m=mesh(x1-x0,y1-y0,thick,color,X,(y0+y1)/2,Z);m.rotation.y=-Math.atan2(dz,dx);wallMeshes.push(m)};
+  for(let i=1;i<boundaries.length;i++){
+   const lo=boundaries[i-1],hi=boundaries[i],mid=(lo+hi)/2;
+   const covering=holes.filter(h=>h.lo<=mid&&h.hi>=mid);
+   if(!covering.length)addSection(lo,hi,0,height,'#e9e6df');
+   else{let intervals=covering.map(h=>[h.bottom,h.top]).sort((a,b)=>a[0]-b[0]),cursor=0;
+     for(const [y0,y1] of intervals){if(y0>cursor)addSection(lo,hi,cursor,y0,'#e9e6df');cursor=Math.max(cursor,y1)}
+     if(cursor<height)addSection(lo,hi,cursor,height,'#e9e6df');
+   }
+  }
+  for(const h of holes){
+   openings++;if(h.type==='window'){
+    const t=(h.lo+h.hi)/2/L,X=a[0]+dx*t,Z=a[1]+dz*t;
+    const glass=mesh(h.hi-h.lo,Math.max(.1,h.top-h.bottom),.022,'#8cbac9',X,(h.top+h.bottom)/2,Z);
+    glass.material.transparent=true;glass.material.opacity=.28;glass.rotation.y=-Math.atan2(dz,dx);
+   }
+  }
+ }
+ const furniture=[];
+ for(const n of nodes.filter(n=>n.type==='procedural-item'&&n.visible!==false)){
+  const root=new THREE.Group(),[x,z]=pos([n.position[0],n.position[2]]);
+  root.name=n.name||n.id;root.position.set(x,n.position[1]||0,z);root.rotation.y=n.rotation?.[1]||0;group.add(root);
+  const slots=Object.fromEntries((n.recipe?.slots||[]).map(s=>[s.id,s.color||'#b7a797']));
+  for(const part of n.recipe?.parts||[])for(const shape of part.shapes||[]){
+   if(shape.primitive!=='box'||!Array.isArray(shape.size))continue;
+   const [w,h,d]=shape.size;if(![w,h,d].every(v=>Number.isFinite(v)&&v>0&&v<10))continue;
+   const [px,py,pz]=shape.position||[0,h/2,0];
+   mesh(w,h,d,slots[shape.slot]||'#b8b0a1',px,py,pz,root);
+  }
+  root.userData={id:n.id,type:'pascal',name:n.name||n.id,color:Object.values(slots)[0]||'#b7a797',rotation:root.rotation.y,scale:1,pascalNode:n};furniture.push(root);
+ }
+ return {group,walls:wallMeshes,floors,furniture,stats:{rooms:zones.length,walls:walls.length,openings,furniture:furniture.length},center};
+}

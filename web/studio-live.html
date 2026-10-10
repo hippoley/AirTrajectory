@@ -1,12 +1,13 @@
 <!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>AirTrajectory Studio · WebGL 3D</title>
 <style>*{box-sizing:border-box}body{margin:0;background:#17191d;color:#e7eaee;font:13px Inter,system-ui,"Segoe UI",sans-serif}header{height:56px;background:#202328;border-bottom:1px solid #393d43;display:flex;align-items:center;gap:12px;padding:0 17px}header strong{font-size:16px;letter-spacing:-.3px}button{background:#30343a;color:#e7e9ee;border:1px solid #484d55;border-radius:7px;padding:8px 12px;cursor:pointer}button:hover{background:#3d444c}button.active{background:#3b665b;border-color:#78c7aa}header .spacer{flex:1}.workspace{display:grid;grid-template-columns:62px minmax(300px,1fr) 285px;height:calc(100dvh - 56px)}.tools{background:#202328;border-right:1px solid #363b41;display:flex;align-items:center;flex-direction:column;gap:14px;padding:20px 5px}.tools button{width:49px;min-height:49px;font-size:11px;padding:5px;border:0;background:transparent}.tools button span{display:block;font-size:20px}.viewport{position:relative;min-width:0;background:radial-gradient(ellipse at 50% 37%,#353b42,#1e2228 70%);overflow:hidden}#canvas{width:100%;height:100%;display:block;touch-action:none}.views{position:absolute;top:16px;left:18px;display:flex;gap:7px}.status{position:absolute;bottom:18px;left:20px;padding:10px 14px;color:#a8b6be;background:#20282ec9;border:1px solid #3e4d54;border-radius:8px;pointer-events:none}.inspector{background:#22252a;border-left:1px solid #41464d;overflow:auto}.panel{padding:17px 18px;border-bottom:1px solid #3c4249}.panel h3{font-size:12px;font-weight:650;margin:0 0 14px;color:#d5dce1}.layer{display:flex;justify-content:space-between;align-items:center;padding:9px 2px;color:#b9c5cf}.layer input{accent-color:#8eccae}.value{margin:8px 0;color:#a4aeb7}.row{display:flex;justify-content:space-between;align-items:center;gap:12px;margin:10px 0}.row input[type=color]{width:65px;height:34px;border:0;background:transparent}.row input[type=range]{max-width:135px;accent-color:#8eccae}.desc{line-height:1.7;color:#aab6c0}.pill{color:#a4e4c6;border:1px solid #557e69;border-radius:15px;padding:5px 9px;font-size:11px}#message{font-size:12px;color:#9bdcb6;margin:10px 0}.foot{color:#9aa8b5;line-height:1.65;font-size:11px}.add{display:grid;grid-template-columns:1fr 1fr;gap:7px}.add button{font-size:12px}.hidden{display:none!important}@media(max-width:850px){.workspace{grid-template-columns:48px minmax(0,1fr)}.tools{gap:5px}.tools button{width:44px}.inspector{grid-column:1/-1;border-top:1px solid #41464d}.workspace{height:auto}.viewport{height:70vh;min-height:450px}header{flex-wrap:wrap;height:auto;min-height:56px;padding:10px}}</style>
 <script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.161.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.161.0/examples/jsm/"}}</script></head><body>
-<header><strong>AirTrajectory <span style="color:#91afa3">Studio</span></strong><span class="pill">WEBGL · PUBLIC SHOWROOM</span><div class="spacer"></div><button id="undo">↶ Undo</button><button id="reset">Reset</button><button id="save">Save</button><button id="export">Export</button></header>
+<header><strong>AirTrajectory <span style="color:#91afa3">Studio</span></strong><span class="pill">WEBGL · PUBLIC SHOWROOM</span><div class="spacer"></div><button id="uploadPascal">Import Pascal JSON</button><input type="file" id="pascalFile" accept=".json,application/json" hidden><button id="undo">↶ Undo</button><button id="reset">Reset</button><button id="save">Save</button><button id="export">Export</button></header>
 <div class="workspace"><aside class="tools"><button id="selectTool" class="active"><span>↖</span>Move</button><button id="orbitTool"><span>◎</span>Orbit</button><button id="planTool"><span>▤</span>Plan</button><button id="addTool"><span>＋</span>Add</button></aside>
 <main class="viewport"><canvas id="canvas"></canvas><div class="views"><button id="iso" class="active">3D Perspective</button><button id="top">2D Floor Plan</button><button id="wallsBtn">Walls: on</button></div><div class="status">拖动旋转视角 · 滚轮缩放 · 点击家具选择 · Move 模式拖动家具 <span id="stats"></span></div></main>
 <aside class="inspector"><section class="panel"><h3>Layers</h3><label class="layer">▣ Floor Plan <input id="floorLayer" type="checkbox" checked></label><label class="layer">▣ Furniture <input id="furnLayer" type="checkbox" checked></label><label class="layer">▣ Walls <input id="wallLayer" type="checkbox" checked></label><label class="layer">▣ Dimensions <input id="dimLayer" type="checkbox" checked></label></section><section class="panel"><h3>Properties</h3><div id="objectName" style="font-size:17px;font-weight:650">Select an object</div><p class="desc" id="objectType">Furniture, material, rotation and placement</p><div id="editFields" class="hidden"><label class="row">Material <input id="color" type="color" value="#b0b4b2"></label><label class="row">Rotation <input id="rotation" type="range" min="0" max="360" value="0"></label><label class="row">Scale <input id="scale" type="range" min="65" max="145" value="100"></label><button id="delete">Delete object</button></div><div id="message"></div></section><section class="panel"><h3>Furniture Library</h3><div class="add"><button data-add="sofa">＋ Sofa</button><button data-add="bed">＋ Bed</button><button data-add="table">＋ Table</button><button data-add="chair">＋ Chair</button><button data-add="cabinet">＋ Cabinet</button><button data-add="plant">＋ Plant</button></div></section><section class="panel"><h3>Scene</h3><div id="sceneInfo" class="value"></div><p class="foot">这是使用 Three.js 实时渲染的在线交互展厅，不是原版 Pascal、真实 CAD 或 CONTAM 仿真。当前加载的是非私密示例公寓。完整 Pascal 编辑器需要独立后端托管及访问保护。</p><a href="./index.html" style="color:#9ad6be">← AirTrajectory Lab</a></section></aside></div>
 <script type="module">
 import * as THREE from 'three';
+import {loadPascalGraph} from './pascal-scene-webgl.js';
 import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
 const canvas=document.getElementById('canvas'),scene=new THREE.Scene();scene.background=new THREE.Color('#24282c');
 const camera=new THREE.PerspectiveCamera(40,1,.1,100),renderer=new THREE.WebGLRenderer({canvas,antialias:true});renderer.setPixelRatio(Math.min(devicePixelRatio,2));renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.25;
@@ -14,7 +15,7 @@ camera.position.set(12,13,14);const controls=new OrbitControls(camera,canvas);co
 scene.add(new THREE.HemisphereLight(0xdfeefc,0x6f6460,2.5));const sun=new THREE.DirectionalLight(0xffefda,3.3);sun.position.set(-5,15,9);sun.castShadow=true;sun.shadow.mapSize.set(2048,2048);sun.shadow.camera.left=-14;sun.shadow.camera.right=14;sun.shadow.camera.top=14;sun.shadow.camera.bottom=-14;sun.shadow.bias=-.00025;scene.add(sun);
 const mat=(c,roughness=.78,metalness=0)=>new THREE.MeshStandardMaterial({color:c,roughness,metalness});
 const M={floor:mat('#ad8963'),wall:mat('#f1ede4'),edge:mat('#fbf9f3'),glass:new THREE.MeshPhysicalMaterial({color:'#c9e7f1',transmission:.28,transparent:true,opacity:.38,roughness:.08,metalness:.05,side:THREE.DoubleSide}),dark:mat('#34383c'),wood:mat('#8f6845'),fabric:mat('#adb7b4'),bed:mat('#e8dacc'),metal:mat('#aeb6b8',.3,.65)};
-let walls=[],floor=[],furniture=[],selected=null,history=[],mode='move',wallOn=true,dimOn=true;const store='airtrajectory-webgl-studio-v1';
+let walls=[],floor=[],furniture=[],selected=null,history=[],mode='move',wallOn=true,dimOn=true;const store='airtrajectory-webgl-studio-v1';let nativeImported=null,nativeGraph=null;
 function box(w,h,d,material,x=0,y=0,z=0,parent=scene){const o=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),material);o.position.set(x,y,z);o.castShadow=true;o.receiveShadow=true;parent.add(o);return o}
 function wall(x,z,w,d,h=2.5){let v=box(w,h,d,M.wall,x,h/2,z);walls.push(v);return v}
 function setup(){
@@ -74,6 +75,44 @@ document.getElementById('selectTool').onclick=()=>{mode='move';document.getEleme
 document.getElementById('orbitTool').onclick=()=>{mode='orbit';document.getElementById('orbitTool').classList.add('active');document.getElementById('selectTool').classList.remove('active')};
 document.getElementById('planTool').onclick=()=>cameraView(true);
 document.getElementById('addTool').onclick=()=>document.querySelector('[data-add="sofa"]').click();
+document.getElementById('uploadPascal').onclick=()=>document.getElementById('pascalFile').click();
+document.getElementById('pascalFile').onchange=async e=>{
+ const file=e.target.files?.[0];if(!file)return;
+ try{
+  if(file.size>12000000)throw Error('Scene is over 12 MB');
+  const graph=JSON.parse(await file.text());
+  const preview=loadPascalGraph(THREE,scene,graph);
+  if(nativeImported)scene.remove(nativeImported.group);
+  nativeImported=preview;nativeGraph=graph;
+  // Drop the public illustration while the actual owner geometry is visible.
+  for(const child of scene.children)if(child.isMesh||child.isGridHelper)child.visible=false;
+  for(const w of walls)w.visible=false;for(const f of floor)f.visible=false;
+  for(const f of furniture)f.visible=false;
+  furniture.push(...preview.furniture);walls.push(...preview.walls);floor.push(...preview.floors);
+  const oldBase=scene.getObjectByName('NO_PUBLIC_BASE'); // imported scene does not alter ground here
+  const sphere=new THREE.Box3().setFromObject(preview.group);const size=sphere.getSize(new THREE.Vector3());
+  camera.position.set(Math.max(8,size.x*1.2),Math.max(9,size.x*.85),Math.max(8,size.z*1.3));
+  controls.target.copy(sphere.getCenter(new THREE.Vector3()));controls.target.y=0;controls.update();
+  select(null);drawPanel();
+  document.getElementById('sceneInfo').textContent=preview.stats.rooms+' native rooms · '+preview.stats.walls+' walls · '+preview.stats.openings+' openings · '+preview.stats.furniture+' native objects';
+  document.getElementById('message').textContent='Private SceneGraph loaded LOCALLY; nothing uploaded to GitHub.';
+ }catch(error){document.getElementById('message').textContent='Import error: '+error.message}
+};
+// Native edits are applied back to imported Pascal graph on export (browser file download).
+const existingExport=document.getElementById('export').onclick;
+document.getElementById('export').onclick=()=>{
+ if(!nativeGraph){existingExport();return}
+ const output=structuredClone(nativeGraph),center=nativeImported.center;
+ for(const f of nativeImported.furniture){
+  const n=output.nodes[f.userData.id];if(!n)continue;
+  n.position=[f.position.x+center[0],f.position.y,f.position.z+center[1]];
+  n.rotation=[0,f.rotation.y,0];
+  const slot=n.recipe?.slots?.[0];if(slot)slot.color=f.userData.color;
+ }
+ const url=URL.createObjectURL(new Blob([JSON.stringify(output,null,2)],{type:'application/json'}));
+ const a=document.createElement('a');a.href=url;a.download='pascal-residence-edited.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),2000);
+ document.getElementById('message').textContent='Exported edited native Pascal SceneGraph (private/local).';
+};
 const ro=new ResizeObserver(()=>{const w=canvas.clientWidth,h=canvas.clientHeight;renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix()});ro.observe(canvas);
 function frame(){requestAnimationFrame(frame);controls.update();renderer.render(scene,camera)}frame();drawPanel();
 </script></body></html>
