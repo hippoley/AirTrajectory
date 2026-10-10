@@ -35,6 +35,16 @@ const unhosted=structuredClone(scene);unhosted.nodes.window_1.wallId='missing';
 assert.throws(()=>exportLayout(unhosted,{source_sha256:sha}),/wall host/);
 const missingSill=structuredClone(scene);delete missingSill.nodes.window_1.metadata.airtrajectory_sill_height_m;
 assert.throws(()=>exportLayout(missingSill,{source_sha256:sha}),/verified sill height/);
+const nativeOffset=structuredClone(scene);
+delete nativeOffset.nodes.window_1.metadata.airtrajectory_position_t;
+nativeOffset.nodes.window_1.position=[.75,0,0]; // 0.75 m along a 3 m wall
+assert.equal(exportLayout(nativeOffset,{source_sha256:sha}).openings[0].position_t,.25);
+const conflicting=structuredClone(scene);
+conflicting.nodes.window_1.position=[1.5,0,0];
+assert.throws(()=>exportLayout(conflicting,{source_sha256:sha}),/conflicts with native position/);
+const overflow=structuredClone(scene);
+overflow.nodes.window_1.position=[9,0,0];
+assert.throws(()=>exportLayout(overflow,{source_sha256:sha}),/wall-local offset invalid/);
 const wrongPosition=structuredClone(scene);delete wrongPosition.nodes.window_1.metadata.airtrajectory_position_t;
 assert.throws(()=>exportLayout(wrongPosition,{source_sha256:sha}),/verified normalized/);
 console.log('PASS Pascal scene adapter: 2 rooms, host openings, dimensions, SHA provenance, fail-closed evidence');
