@@ -1,7 +1,9 @@
+import {normalizeWallGraph} from './pascal-wall-normalize.js';
 // Genuine Pascal SceneGraph geometry renderer for the public Three.js studio.
 // Reads local File objects only: no network upload of private homeowner coordinates.
 export function loadPascalGraph(THREE, scene, graph) {
  if (!graph || !graph.nodes || !Array.isArray(graph.rootNodeIds)) throw Error('Pascal SceneGraph required');
+ graph=normalizeWallGraph(graph);
  const nodes=Object.values(graph.nodes), zones=nodes.filter(n=>n.type==='zone'), walls=nodes.filter(n=>n.type==='wall'&&n.visible!==false);
  if(!zones.length||!walls.length)throw Error('Missing Pascal zones or walls');
  if(nodes.length>20000)throw Error('Scene exceeds 20,000 nodes');
@@ -74,22 +76,22 @@ export function loadPascalGraph(THREE, scene, graph) {
    const t=(h.lo+h.hi)/2/L,X=a[0]+dx*t,Z=a[1]+dz*t;
    const angle=-Math.atan2(dz,dx),frameWidth=Math.min(.07,width*.08,high*.08);
    if(h.type==='window'){
-    const glass=mesh(width,high,.022,'#8cbac9',X,(h.top+h.bottom)/2,Z);
+    const glass=mesh(width,high,.016,'#8cbac9',X,(h.top+h.bottom)/2,Z);
     glass.material.transparent=true;glass.material.opacity=.27;glass.material.depthWrite=false;glass.rotation.y=angle;
     // Actual frame and sash members in the same wall coordinate frame.
     for(const side of [-1,1]){
-     const edge=mesh(frameWidth,high,thick+.025,'#d7dee0',
+     const edge=mesh(frameWidth,high,thick+.008,'#d7dee0',
        X+Math.cos(angle)*side*(width-frameWidth)/2,(h.top+h.bottom)/2,
        Z-Math.sin(angle)*side*(width-frameWidth)/2);
      edge.rotation.y=angle;
     }
     for(const y of [h.bottom+frameWidth/2,h.top-frameWidth/2]){
-     const rail=mesh(width,frameWidth,thick+.025,'#d7dee0',X,y,Z);rail.rotation.y=angle;
+     const rail=mesh(width,frameWidth,thick+.008,'#d7dee0',X,y,Z);rail.rotation.y=angle;
     }
-    const middle=mesh(Math.min(.035,frameWidth),high,.04,'#d7dee0',X,(h.top+h.bottom)/2,Z);middle.rotation.y=angle;
+    const middle=mesh(Math.min(.035,frameWidth),high,thick+.008,'#d7dee0',X,(h.top+h.bottom)/2,Z);middle.rotation.y=angle;
    }else if(h.type==='door'){
     // Show the door leaf in its native host opening rather than an unexplained wall gap.
-    const door=mesh(Math.max(.05,width-.09),Math.max(.2,high-.07),Math.min(.048,thick*.6),'#a88968',X,h.bottom+high/2,Z);
+    const door=mesh(Math.max(.05,width-.09),Math.max(.2,high-.07),Math.min(.048,thick*.55),'#a88968',X,h.bottom+high/2,Z);
     door.rotation.y=angle;door.userData.pascalOpeningType='door';
     const handle=mesh(.10,.035,.055,'#b3a992',
       X+Math.cos(angle)*width*.32,h.bottom+Math.min(1.02,high*.55),
