@@ -20,6 +20,7 @@ jobs:
       - run: python -m pip install -e ".[contracts]"
       - run: node --check integrations/pascal-studio/pascal-scene-bridge.cjs
       - run: node tests/test_pascal_scene_bridge.cjs
+      - run: node tests/test_pascal_native_readiness.cjs
       - name: Verify annotated Pascal-to-CONTAM symbolic contract and receipt
         run: python -m unittest -v tests/test_pascal_contam_integration.py
       - name: Verify Pascal native-node projection contract against runtime receipt
