@@ -18,5 +18,14 @@ export function makeAnonymousDefaultGraph(){
   nodes[id]={id,type,visible:true,wallId,parentId:wallId,position:[x,y,0],width,height};
   nodes[wallId].children.push(id);
  });
+ // The default editor scene needs a genuinely closed outer envelope.
+ // Derived from the union of the 6 zone polygons, simplified for presentation.
+ // All shell edges form one cyclic contour, independent of internal partition walls.
+ const shell=[[2.81,15],[2.81,23.73],[7.09,23.65],[7.18,23.07],[8.88,23.02],[8.97,24.5],[14.56,24.5],[14.56,15.59],[12.71,15.55],[12.67,13.52],[6.2,13.52],[6.11,15]];
+ for(let i=0;i<shell.length;i++){
+  const a=shell[i],b=shell[(i+1)%shell.length],id='envelope-'+i;
+  nodes[id]={id,type:'wall',start:[+(a[0]-8.5).toFixed(3),+(a[1]-19).toFixed(3)],end:[+(b[0]-8.5).toFixed(3),+(b[1]-19).toFixed(3)],thickness:.16,visible:true,children:[],editorRole:'exterior'};
+  rootNodeIds.push(id);
+ }
  return {nodes,rootNodeIds};
 }
