@@ -23,18 +23,42 @@ export function loadPascalGraph(THREE, scene, graph) {
   const geometry=new THREE.ShapeGeometry(shape);const material=new THREE.MeshStandardMaterial({color:z.color||'#a98a65',side:THREE.DoubleSide,roughness:.94});
   const floor=new THREE.Mesh(geometry,material);floor.rotation.x=-Math.PI/2;floor.position.y=.025;floor.receiveShadow=true;group.add(floor);floors.push(floor);
  }
+ // Build endpoint adjacency in the same world-space frame as the rendered walls.
+ // Only seal a joint when the endpoint actually touches another wall centerline.
+ const segmentData=walls.map(w=>{const a=pos(w.start),b=pos(w.end);
+  return {id:w.id,a,b,dx:b[0]-a[0],dz:b[1]-a[1],length:Math.hypot(b[0]-a[0],b[1]-a[1]),thickness:Math.max(.06,Math.min(w.thickness||.12,.45))};
+ }).filter(w=>w.length>.01);
+ function sealedEnd(point,current){
+  for(const other of segmentData){
+   if(other.id===current.id)continue;
+   const t=((point[0]-other.a[0])*other.dx+(point[1]-other.a[1])*other.dz)/(other.length*other.length);
+   if(t<-.025/other.length||t>1+.025/other.length)continue;
+   const q=[other.a[0]+t*other.dx,other.a[1]+t*other.dz];
+   if(Math.hypot(point[0]-q[0],point[1]-q[1])>Math.min(.035,other.thickness*.35))continue;
+   const cross=Math.abs(current.dx*other.dz-current.dz*other.dx)/(current.length*other.length);
+   if(cross>.5)return Math.min(current.thickness,other.thickness)*.5;
+  }
+  return 0;
+ }
  let openings=0;const wallMeshes=[];
  for(const wall of walls){
   const a=pos(wall.start),b=pos(wall.end);if(!a||!b)continue;
   const dx=b[0]-a[0],dz=b[1]-a[1],L=Math.hypot(dx,dz);if(L<.01)continue;
   const height=2.5,thick=Math.max(.06,Math.min(wall.thickness||.12,.45));
+  const current=segmentData.find(w=>w.id===wall.id);
+  const startCap=current?sealedEnd(a,current):0,endCap=current?sealedEnd(b,current):0;
   // Native opening positions use wall-local x coordinate, dimensions in metres.
   const holes=[...new Map([...(openingsByWall.get(wall.id)||[]),...(wall.children||[]).map(id=>graph.nodes[id]).filter(Boolean)].map(n=>[n.id,n])).values()].filter(n=>n&&['door','window'].includes(n.type)&&n.visible!==false)
     .map(n=>({lo:Math.max(0,n.position[0]-n.width/2),hi:Math.min(L,n.position[0]+n.width/2),bottom:n.type==='door'?0:Math.max(.6,n.position[1]-n.height/2),top:n.type==='door'?Math.min(height,n.height):Math.min(height,n.position[1]+n.height/2),type:n.type})).filter(h=>h.hi>h.lo);
   const boundaries=[0,L,...holes.flatMap(h=>[h.lo,h.hi])].sort((a,b)=>a-b).filter((v,i,arr)=>!i||v-arr[i-1]>.001);
   const addSection=(x0,x1,y0,y1,color)=>{if(x1-x0<.01||y1-y0<.01)return;
     const t=(x0+x1)/2/L,X=(a[0]+dx*t),Z=(a[1]+dz*t);
-    const m=mesh(x1-x0,y1-y0,thick,color,X,(y0+y1)/2,Z);m.rotation.y=-Math.atan2(dz,dx);wallMeshes.push(m)};
+    const extraStart=x0<.001?startCap:0,extraEnd=x1>L-.001?endCap:0;
+    // Extend solely solid ends into perpendicular touching walls; do not bridge openings.
+    const m=mesh(x1-x0+extraStart+extraEnd,y1-y0,thick,color,
+      X+(extraEnd-extraStart)*dx/(2*L),(y0+y1)/2,
+      Z+(extraEnd-extraStart)*dz/(2*L));
+    m.rotation.y=-Math.atan2(dz,dx);wallMeshes.push(m)};
   for(let i=1;i<boundaries.length;i++){
    const lo=boundaries[i-1],hi=boundaries[i],mid=(lo+hi)/2;
    const covering=holes.filter(h=>h.lo<=mid&&h.hi>=mid);
