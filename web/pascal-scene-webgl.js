@@ -3,7 +3,7 @@ import {normalizeWallGraph} from './pascal-wall-normalize.js';
 // Reads local File objects only: no network upload of private homeowner coordinates.
 export function loadPascalGraph(THREE, scene, graph) {
  if (!graph || !graph.nodes || !Array.isArray(graph.rootNodeIds)) throw Error('Pascal SceneGraph required');
- graph=normalizeWallGraph(graph);
+ if(!graph.floorplanDerived)graph=normalizeWallGraph(graph);
  const nodes=Object.values(graph.nodes), zones=nodes.filter(n=>n.type==='zone'), walls=nodes.filter(n=>n.type==='wall'&&n.visible!==false);
  if(!zones.length||!walls.length)throw Error('Missing Pascal zones or walls');
  if(nodes.length>20000)throw Error('Scene exceeds 20,000 nodes');
