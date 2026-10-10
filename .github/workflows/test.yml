@@ -36,6 +36,7 @@ jobs:
           assert layout.source_provenance["source_sha256"]==hashlib.sha256(p.read_bytes()).hexdigest()
           print("PASS Pascal SceneNodes -> LayoutContract Python parser")
           PY
+      - run: node tests/test_native_frontend_cutover.cjs
       - run: node --check web/studio.js
       - run: node --check web/studio-interactions.js
       - run: node --check web/topology-path-explorer.js
