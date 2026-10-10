@@ -1,6 +1,10 @@
 name: pascal-native-upstream-smoke
 on:
   workflow_dispatch:
+  pull_request:
+    paths:
+      - 'tests/native-pascal-persistence-gate.cjs'
+      - '.github/workflows/pascal-native-upstream-smoke.yml'
   push:
     branches: [main]
     paths:
@@ -51,6 +55,11 @@ jobs:
       - name: Validate native scene editor
         working-directory: _pascal_native
         run: bunx turbo run check-types --filter=editor
+      - name: Install in-editor private residence import page
+        run: |
+          mkdir -p _pascal_native/apps/editor/app/airtrajectory/import
+          cp integrations/pascal-native-overlay/app/airtrajectory/import/page.tsx _pascal_native/apps/editor/app/airtrajectory/import/page.tsx
+          test -s _pascal_native/apps/editor/app/airtrajectory/import/page.tsx
       - name: Build complete native Pascal Next.js application
         working-directory: _pascal_native
         env:
@@ -79,10 +88,63 @@ jobs:
           mkdir -p /tmp/pascal-smoke
           npm install --prefix /tmp/pascal-smoke --no-save --no-package-lock playwright@1.56.1
           /tmp/pascal-smoke/node_modules/.bin/playwright install --with-deps chromium
+      - name: Verify native in-editor import page HTTP route
+        run: |
+          curl -fsS --max-time 15 http://127.0.0.1:3002/airtrajectory/import > /tmp/pascal-native-import.html
+          grep -q 'Open your private residence' /tmp/pascal-native-import.html
+          echo 'PASS REAL native Pascal application serves residential import screen'
       - name: Verify native editor interaction shell in Chromium
         env:
           NODE_PATH: /tmp/pascal-smoke/node_modules
         run: node tests/pascal-native-browser-smoke.cjs
+      - name: Generate authentic upstream multi-room SceneGraph template
+        working-directory: _pascal_native
+        run: |
+          bun -e "import {template} from './packages/mcp/src/templates/two-bedroom.ts'; await Bun.write('../artifacts/pascal-native/native-graph.json',JSON.stringify(template,null,2));"
+      - name: Verify preferred native residential template has full architecture
+        run: |
+          node -e "const fs=require('fs');const g=require('./artifacts/pascal-native/native-graph.json');const n=Object.values(g.nodes);for(const [t,k] of [['zone',4],['wall',9],['window',5],['door',4]]){if(n.filter(x=>x.type===t).length<k)process.exit(1)}console.log('PASS native two-bedroom residential template',n.length)"
+      - name: Load public synthetic six-room native SceneGraph in real Pascal Chromium
+        env:
+          NODE_PATH: /tmp/pascal-smoke/node_modules
+        run: |
+          python scripts/convert_reviewed_rooms_to_pascal.py tests/fixtures/pascal-synthetic-six-rooms.json --output artifacts/pascal-native/synthetic-six-rooms.json
+          node -e "const g=require('./artifacts/pascal-native/synthetic-six-rooms.json');if(Object.values(g.nodes).filter(n=>n.type==='zone').length!==6)process.exit(1)"
+          node scripts/accept-private-pascal-scene.cjs artifacts/pascal-native/synthetic-six-rooms.json synthetic-six-room-${{ github.run_id }}-${{ github.run_attempt }}
+          cp artifacts/private-pascal/native-private-residence.png artifacts/pascal-native/synthetic-six-room-browser.png
+          cp artifacts/private-pascal/acceptance.json artifacts/pascal-native/synthetic-six-room-browser.json
+      - name: Audit actual Pascal native template physics-readiness gaps
+        run: |
+          node scripts/audit-pascal-native-scene.cjs artifacts/pascal-native/native-graph.json artifacts/pascal-native/native-physics-review.json
+          node -e "const p=require('./artifacts/pascal-native/native-physics-review.json');if(p.status!=='PHYSICAL_REVIEW_REQUIRED'||!p.issues.length)process.exit(1);console.log('PASS native unannotated graph remains blocked:',p.issues.length)"
+      - name: Import full upstream residential template using native editor API
+        run: |
+          node scripts/import-pascal-native-scene.cjs artifacts/pascal-native/native-graph.json --id imported-${{ github.run_id }}-${{ github.run_attempt }} --name "AirTrajectory Native Residence"
+      - name: Persist and reload actual scene through Pascal SQLite API
+        env:
+          PASCAL_GATE_SCENE_ID: native-gate-${{ github.run_id }}-${{ github.run_attempt }}
+        run: |
+          node tests/native-pascal-persistence-gate.cjs before artifacts/pascal-native/native-graph.json artifacts/pascal-native
+          kill "$(cat /tmp/pascal-native-editor.pid)"
+          for i in $(seq 1 20); do
+            if ! kill -0 "$(cat /tmp/pascal-native-editor.pid)" 2>/dev/null; then break; fi
+            sleep 1
+          done
+          (cd _pascal_native/apps/editor && PORT=3002 NODE_ENV=production PASCAL_DATA_DIR=/tmp/pascal-airtrajectory-scenes bun run start > /tmp/pascal-native-restart.log 2>&1 &)
+          healthy=0
+          for i in $(seq 1 40); do
+            if curl --fail --silent --max-time 5 http://127.0.0.1:3002/ >/dev/null; then healthy=1; break; fi
+            sleep 2
+          done
+          if [ "$healthy" -ne 1 ]; then tail -n 100 /tmp/pascal-native-restart.log; exit 1; fi
+          node tests/native-pascal-persistence-gate.cjs after artifacts/pascal-native/native-graph.json artifacts/pascal-native
+          cp /tmp/pascal-native-restart.log artifacts/pascal-native/process-restart.log
+      - name: Reopen persisted scene in Chromium
+        env:
+          NODE_PATH: /tmp/pascal-smoke/node_modules
+          PASCAL_GATE_SCENE_ID: native-gate-${{ github.run_id }}-${{ github.run_attempt }}
+        run: |
+          node tests/pascal-native-browser-reopen.cjs
       - uses: actions/upload-artifact@v4
         if: always()
         with:
