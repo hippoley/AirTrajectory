@@ -50,3 +50,31 @@ jobs:
       - name: Validate native scene editor
         working-directory: _pascal_native
         run: bunx turbo run check-types --filter=editor
+      - name: Build complete native Pascal Next.js application
+        working-directory: _pascal_native
+        env:
+          SKIP_ENV_VALIDATION: "1"
+          PASCAL_PORTABLE_BUILD: "1"
+        run: bunx turbo run build --filter=editor
+      - name: Start full editor and verify HTTP boot
+        working-directory: _pascal_native/apps/editor
+        env:
+          PORT: "3002"
+          NODE_ENV: production
+          PASCAL_DATA_DIR: /tmp/pascal-airtrajectory-scenes
+        run: |
+          mkdir -p "$PASCAL_DATA_DIR"
+          (bun run start > /tmp/pascal-native-editor.log 2>&1 & echo $! > /tmp/pascal-native-editor.pid)
+          healthy=0
+          for i in $(seq 1 35); do
+            if curl --fail --silent --max-time 5 http://127.0.0.1:3002/ > /tmp/pascal-native-editor.html; then healthy=1; break; fi
+            sleep 2
+          done
+          if [ "$healthy" -ne 1 ]; then tail -n 100 /tmp/pascal-native-editor.log; exit 1; fi
+          grep -q -E '<html|<!DOCTYPE html' /tmp/pascal-native-editor.html
+          echo "PASS authentic Pascal production editor HTTP entrypoint"
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: pascal-native-build-logs
+          path: /tmp/pascal-native-editor.log
