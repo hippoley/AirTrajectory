@@ -59,7 +59,7 @@ document.getElementById('color').oninput=e=>{if(!selected)return;selected.userDa
 document.getElementById('rotation').oninput=e=>{if(!selected)return;selected.rotation.y=+e.target.value*Math.PI/180;selected.userData.rotation=selected.rotation.y};
 document.getElementById('scale').oninput=e=>{if(!selected)return;selected.scale.setScalar(+e.target.value/100);selected.userData.scale=selected.scale.x};
 document.getElementById('delete').onclick=()=>{if(selected){snapshot();scene.remove(selected);furniture=furniture.filter(f=>f!==selected);select(null)}};
-document.querySelectorAll('[data-add]').forEach(b=>b.onclick=()=>{snapshot();const type=b.dataset.add;select(register('obj'+Date.now(),type,type[0].toUpperCase()+type.slice(1),0,1,'#b1bab3'));document.getElementById('message').textContent='Object added. Drag in Move mode.'});
+document.querySelectorAll('[data-add]').forEach(b=>b.onclick=()=>{if(nativeImported){document.getElementById('message').textContent='Native furniture creation requires Pascal node templates; existing objects can be moved, rotated and painted.';return}snapshot();const type=b.dataset.add;select(register('obj'+Date.now(),type,type[0].toUpperCase()+type.slice(1),0,1,'#b1bab3'));document.getElementById('message').textContent='Object added. Drag in Move mode.'});
 function cameraView(top){document.getElementById('iso').classList.toggle('active',!top);document.getElementById('top').classList.toggle('active',top);if(top){camera.position.set(0,18,.05);controls.target.set(0,0,0)}else{camera.position.set(12,13,14);controls.target.set(0,0,0)}controls.update()}
 document.getElementById('iso').onclick=()=>cameraView(false);document.getElementById('top').onclick=()=>cameraView(true);
 function showWalls(on){wallOn=on;walls.forEach(w=>w.visible=on);document.getElementById('wallLayer').checked=on;document.getElementById('wallsBtn').textContent='Walls: '+(on?'on':'off')}
@@ -67,9 +67,20 @@ document.getElementById('wallsBtn').onclick=()=>showWalls(!wallOn);document.getE
 document.getElementById('furnLayer').onchange=e=>furniture.forEach(f=>f.visible=e.target.checked);
 document.getElementById('floorLayer').onchange=e=>floor.forEach(f=>f.visible=e.target.checked);
 document.getElementById('dimLayer').onchange=e=>{dimOn=e.target.checked;document.getElementById('stats').textContent=dimOn?' · 9.6m × 6.3m':''};
-document.getElementById('reset').onclick=()=>{snapshot();reset();document.getElementById('message').textContent='Scene reset'};
+document.getElementById('reset').onclick=()=>{
+ if(nativeImported){document.getElementById('message').textContent='Imported private residence remains active. Reimport its original JSON to reset it.';return}
+ snapshot();reset();document.getElementById('message').textContent='Scene reset'
+};
 document.getElementById('undo').onclick=()=>{if(history.length)restore(history.pop())};
-document.getElementById('save').onclick=()=>{localStorage.setItem(store,JSON.stringify(serialize()));document.getElementById('message').textContent='Saved in browser'};
+document.getElementById('save').onclick=()=>{
+ if(nativeGraph){
+  const output=exportNativeGraph();
+  try{localStorage.setItem('airtrajectory-private-native-scene-v1',JSON.stringify(output));document.getElementById('message').textContent='Private Pascal SceneGraph saved in this browser; Export to back up as JSON.'}
+  catch(e){document.getElementById('message').textContent='Browser storage unavailable: use Export JSON to save.'}
+ }else{
+  localStorage.setItem(store,JSON.stringify(serialize()));document.getElementById('message').textContent='Saved in browser';
+ }
+};
 document.getElementById('export').onclick=()=>{const blob=new Blob([JSON.stringify({format:'airtrajectory-webgl-showroom-v1',furniture:serialize()},null,2)],{type:'application/json'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='airtrajectory-studio.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)};
 document.getElementById('selectTool').onclick=()=>{mode='move';document.getElementById('selectTool').classList.add('active');document.getElementById('orbitTool').classList.remove('active')};
 document.getElementById('orbitTool').onclick=()=>{mode='orbit';document.getElementById('orbitTool').classList.add('active');document.getElementById('selectTool').classList.remove('active')};
@@ -82,14 +93,17 @@ document.getElementById('pascalFile').onchange=async e=>{
   if(file.size>12000000)throw Error('Scene is over 12 MB');
   const graph=JSON.parse(await file.text());
   const preview=loadPascalGraph(THREE,scene,graph);
-  if(nativeImported)scene.remove(nativeImported.group);
-  nativeImported=preview;nativeGraph=graph;
-  // Drop the public illustration while the actual owner geometry is visible.
-  for(const child of scene.children)if(child.isMesh||child.isGridHelper)child.visible=false;
+  // Detach any previous imported scene and remove stale selectable objects.
+  if(nativeImported){scene.remove(nativeImported.group);nativeImported.group.traverse(o=>{if(o.isMesh){o.geometry.dispose();o.material?.dispose?.()}})}
   for(const w of walls)w.visible=false;for(const f of floor)f.visible=false;
   for(const f of furniture)f.visible=false;
-  furniture.push(...preview.furniture);walls.push(...preview.walls);floor.push(...preview.floors);
-  const oldBase=scene.getObjectByName('NO_PUBLIC_BASE'); // imported scene does not alter ground here
+  nativeImported=preview;nativeGraph=graph;
+  // The active edit targets are precisely the imported native furniture.
+  furniture=preview.furniture;
+  walls=preview.walls;
+  floor=preview.floors;
+  for(const child of scene.children)if((child.isMesh||child.isGridHelper)&&child!==preview.group)child.visible=false;
+  preview.group.visible=true;
   const sphere=new THREE.Box3().setFromObject(preview.group);const size=sphere.getSize(new THREE.Vector3());
   camera.position.set(Math.max(8,size.x*1.2),Math.max(9,size.x*.85),Math.max(8,size.z*1.3));
   controls.target.copy(sphere.getCenter(new THREE.Vector3()));controls.target.y=0;controls.update();
@@ -98,10 +112,7 @@ document.getElementById('pascalFile').onchange=async e=>{
   document.getElementById('message').textContent='Private SceneGraph loaded LOCALLY; nothing uploaded to GitHub.';
  }catch(error){document.getElementById('message').textContent='Import error: '+error.message}
 };
-// Native edits are applied back to imported Pascal graph on export (browser file download).
-const existingExport=document.getElementById('export').onclick;
-document.getElementById('export').onclick=()=>{
- if(!nativeGraph){existingExport();return}
+function exportNativeGraph(){
  const output=structuredClone(nativeGraph),center=nativeImported.center;
  for(const f of nativeImported.furniture){
   const n=output.nodes[f.userData.id];if(!n)continue;
@@ -109,6 +120,13 @@ document.getElementById('export').onclick=()=>{
   n.rotation=[0,f.rotation.y,0];
   const slot=n.recipe?.slots?.[0];if(slot)slot.color=f.userData.color;
  }
+ return output;
+}
+// Native edits are applied back to imported Pascal graph on export (browser file download).
+const existingExport=document.getElementById('export').onclick;
+document.getElementById('export').onclick=()=>{
+ if(!nativeGraph){existingExport();return}
+ const output=exportNativeGraph();
  const url=URL.createObjectURL(new Blob([JSON.stringify(output,null,2)],{type:'application/json'}));
  const a=document.createElement('a');a.href=url;a.download='pascal-residence-edited.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),2000);
  document.getElementById('message').textContent='Exported edited native Pascal SceneGraph (private/local).';
