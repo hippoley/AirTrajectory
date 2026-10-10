@@ -1,0 +1,10 @@
+const assert=require('node:assert/strict');
+const {hasVisibleCanvas}=require('../scripts/pascal-canvas-proof.cjs');
+assert.equal(hasVisibleCanvas([]),false);
+assert.equal(hasVisibleCanvas([{visible:true,width:0,height:0}]),false);
+assert.equal(hasVisibleCanvas([{visible:false,width:1600,height:900}]),false);
+assert.equal(hasVisibleCanvas([{visible:true,width:159,height:900}]),false);
+assert.equal(hasVisibleCanvas([{visible:true,width:160,height:120}]),true);
+assert.equal(hasVisibleCanvas([{visible:false,width:1600,height:900},{visible:true,width:900,height:640}]),true);
+assert.equal(hasVisibleCanvas([{visible:true,width:Infinity,height:900}]),false);
+console.log('PASS Pascal native canvas visibility gate (positive and negative cases)');
