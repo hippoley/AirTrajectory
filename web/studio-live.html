@@ -8,13 +8,14 @@
 #privateGate small{display:block;margin-top:18px;color:#abbac2}
 </style></head><body>
 <header><strong>AirTrajectory <span style="color:#91afa3">Studio</span></strong><span class="pill">WEBGL · PUBLIC SHOWROOM</span><div class="spacer"></div><button id="uploadDxf">Import original DXF</button><input type="file" id="dxfFile" accept=".dxf" hidden><button id="uploadPascal">Import Pascal JSON</button><input type="file" id="pascalFile" accept=".json,application/json" hidden><button id="undo">↶ Undo</button><button id="reset">Reset</button><button id="save">Save</button><button id="export">Export</button></header>
-<div id="privateGate" role="dialog" aria-modal="true" aria-label="导入老板家的住宅户型"><div class="gateBody"><span class="pill">PRIVATE RESIDENCE · LOCAL FILE</span><h2>先加载老板家的真实住宅</h2><p>当前正式工作台不再将示例公寓当作老板家。推荐直接选择老板家的原始 DXF，在线显示其真实 CAD 图层和二维建筑线条；也可以导入已有 Pascal JSON 查看三维草模。DXF 不会被上传。</p><button id="gateDxf">直接选择老板家原始 DXF →</button> <button id="gateImport">选择已有 Pascal JSON</button><small>住宅坐标只在你的浏览器中读取；不会提交到公开 GitHub Pages。未选择文件前不会展示虚构户型。</small></div></div><div class="workspace"><aside class="tools"><button id="selectTool" class="active"><span>↖</span>Move</button><button id="orbitTool"><span>◎</span>Orbit</button><button id="planTool"><span>▤</span>Plan</button><button id="addTool"><span>＋</span>Add</button></aside>
+<div id="privateGate" role="dialog" aria-modal="true" aria-label="导入老板家的住宅户型"><div class="gateBody"><span class="pill">ANONYMOUS FLOOR PLAN · READY</span><h2>默认已加载匿名住宅户型</h2><p>当前正式工作台不再将示例公寓当作老板家。默认将自动展示去标识化的建筑轮廓；也可以导入原始 DXF 查看完整 CAD 线条，或导入 Pascal JSON 编辑。</p><button id="gateDxf">直接选择老板家原始 DXF →</button> <button id="gateImport">选择已有 Pascal JSON</button><small>住宅坐标只在你的浏览器中读取；不会提交到公开 GitHub Pages。未选择文件前不会展示虚构户型。</small></div></div><div class="workspace"><aside class="tools"><button id="selectTool" class="active"><span>↖</span>Move</button><button id="orbitTool"><span>◎</span>Orbit</button><button id="planTool"><span>▤</span>Plan</button><button id="addTool"><span>＋</span>Add</button></aside>
 <main class="viewport"><canvas id="canvas"></canvas><div class="views"><button id="iso" class="active">3D Perspective</button><button id="top">2D Floor Plan</button><button id="wallsBtn">Walls: on</button></div><div class="status">拖动旋转视角 · 滚轮缩放 · 点击家具选择 · Move 模式拖动家具 <span id="stats"></span></div></main>
 <aside class="inspector"><section class="panel"><h3>Layers</h3><label class="layer">▣ Floor Plan <input id="floorLayer" type="checkbox" checked></label><label class="layer">▣ Furniture <input id="furnLayer" type="checkbox" checked></label><label class="layer">▣ Walls <input id="wallLayer" type="checkbox" checked></label><label class="layer">▣ Dimensions <input id="dimLayer" type="checkbox" checked></label></section><section class="panel"><h3>Properties</h3><div id="objectName" style="font-size:17px;font-weight:650">Select an object</div><p class="desc" id="objectType">Furniture, material, rotation and placement</p><div id="editFields" class="hidden"><label class="row">Material <input id="color" type="color" value="#b0b4b2"></label><label class="row">Rotation <input id="rotation" type="range" min="0" max="360" value="0"></label><label class="row">Scale <input id="scale" type="range" min="65" max="145" value="100"></label><button id="delete">Delete object</button></div><div id="message"></div></section><section class="panel"><h3>Furniture Library</h3><div class="add"><button data-add="sofa">＋ Sofa</button><button data-add="bed">＋ Bed</button><button data-add="table">＋ Table</button><button data-add="chair">＋ Chair</button><button data-add="cabinet">＋ Cabinet</button><button data-add="plant">＋ Plant</button></div></section><section class="panel"><h3>Scene</h3><div id="sceneInfo" class="value"></div><p class="foot">这是使用 Three.js 实时渲染的在线交互展厅，不是原版 Pascal、真实 CAD 或 CONTAM 仿真。当前加载的是非私密示例公寓。完整 Pascal 编辑器需要独立后端托管及访问保护。</p><a href="./index.html" style="color:#9ad6be">← AirTrajectory Lab</a></section></aside></div>
 <script type="module">
 import * as THREE from 'three';
 import {loadPascalGraph} from './pascal-scene-webgl.js';
 import {loadLocalDxf} from './dxf-cad-webgl.js';
+import {makeAnonymousDefaultGraph} from './anonymous-default-residence.js';
 import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
 const canvas=document.getElementById('canvas'),scene=new THREE.Scene();scene.background=new THREE.Color('#24282c');
 const camera=new THREE.PerspectiveCamera(40,1,.1,100),renderer=new THREE.WebGLRenderer({canvas,antialias:true});renderer.setPixelRatio(Math.min(devicePixelRatio,2));renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.25;
@@ -202,12 +203,17 @@ document.getElementById('export').onclick=()=>{
 };
 const ro=new ResizeObserver(()=>{const w=canvas.clientWidth,h=canvas.clientHeight;renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix()});ro.observe(canvas);
 function frame(){requestAnimationFrame(frame);controls.update();renderer.render(scene,camera)}frame();drawPanel();
-// Restore the previously saved PRIVATE graph from the same browser, never from public assets.
-try{
- const savedNative=localStorage.getItem('airtrajectory-private-native-scene-v1');
- if(savedNative){
-  const parsed=JSON.parse(savedNative);
-  activateNativeGraph(parsed).then(ok=>{if(ok)document.getElementById('message').textContent='Restored private Pascal residence from browser storage.'});
- }
-}catch(error){document.getElementById('message').textContent='Saved residence could not be restored; import the JSON file again.'}
+// Default opens the de-identified geometry on EVERY device.
+// A user-edited private scene, if explicitly saved here, takes precedence only in this browser.
+(async()=>{
+ try{
+  const savedNative=localStorage.getItem('airtrajectory-private-native-scene-v1');
+  const graph=savedNative?JSON.parse(savedNative):makeAnonymousDefaultGraph();
+  const ok=await activateNativeGraph(graph);
+  if(ok){
+   document.getElementById('privateGate').style.display='none';
+   document.getElementById('message').textContent=savedNative?'已恢复本机保存的场景':'已自动加载匿名默认户型（建筑轮廓版）。可导入原始 DXF 查看细节。';
+  }else document.getElementById('privateGate').style.display='flex';
+ }catch(error){document.getElementById('privateGate').style.display='flex';document.getElementById('message').textContent='默认场景加载失败，请选择 DXF / JSON。';}
+})();
 </script></body></html>
