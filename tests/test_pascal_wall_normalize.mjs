@@ -23,3 +23,19 @@ const again=normalizeWallGraph(normalized);
 assert.equal(Object.values(again.nodes).filter(n=>n.type==='wall').length,2);
 assert.equal(again.nodes.win.position[0],normalized.nodes.win.position[0]);
 console.log('Wall collinearity, overlap, perpendicular isolation, host-offset, reversal and idempotence: PASS');
+
+import {makeAnonymousDefaultGraph} from '../web/anonymous-default-residence.js';
+const starter=makeAnonymousDefaultGraph();
+const shell=Object.values(starter.nodes).filter(n=>n.editorRole==='exterior');
+assert.equal(shell.length,12,'default room has a concise outer shell');
+for(let i=0;i<shell.length;i++){
+ const current=starter.nodes['envelope-'+i],next=starter.nodes['envelope-'+((i+1)%shell.length)];
+ assert.ok(current&&next);
+ assert.deepEqual(current.end,next.start,'exterior segments must form one cyclic closed loop');
+ assert.ok(starter.rootNodeIds.includes(current.id),'every exterior wall stays in Editor SceneGraph');
+}
+assert.equal(Object.values(starter.nodes).filter(n=>n.type==='zone').length,6);
+const normalizedStarter=normalizeWallGraph(starter);
+assert.ok(Object.values(normalizedStarter.nodes).some(n=>n.type==='wall'));
+assert.equal(Object.values(normalizedStarter.nodes).filter(n=>n.type==='window'||n.type==='door').length,18,'preserve 18 hosted doors and windows');
+console.log('Six-room default envelope, closure, editor nodes, and 18 openings: PASS');
