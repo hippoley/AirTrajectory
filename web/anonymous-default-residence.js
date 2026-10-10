@@ -1,76 +1,29 @@
-// Anonymized CAD-derived structural wall segments, in a local non-georeferenced frame.
-// Openings are hosted by wall index; dimensions remain provisional until field review.
-const structural=[
-[2.712,23.735,2.712,23.07],[2.814,14.995,2.814,19.35],[2.814,19.35,4.429,19.35],[2.814,19.47,2.814,20.12],
-[4.429,19.47,2.814,19.47],[2.814,20.12,2.814,23.07],[4.429,20.17,4.429,19.47],[5.03,20.29,4.429,20.29],
-[4.429,23.735,4.429,21.306],[4.549,19.47,4.549,20.17],[4.549,21.306,4.549,23.649],[5.999,18.95,5.999,15.59],
-[6.754,19.07,5.999,19.07],[6.119,15.39,6.814,15.39],[6.814,15.59,6.119,15.59],[6.119,15.59,6.119,18.95],
-[6.119,18.95,6.814,18.95],[7.094,23.07,7.094,20.29],[7.214,20.29,7.214,23.07],[8.774,18.89,8.774,15.59],
-[8.774,21.306,8.774,20.29],[8.774,23.07,8.774,21.306],[8.854,15.39,8.854,13.52],[8.974,15.59,8.974,19.01],
-[8.974,13.52,8.974,15.39],[8.974,20.29,8.974,21.306],[8.974,21.306,8.974,23.07],[12.654,20.17,14.564,20.17],
-[12.804,20.29,12.804,20.97],[14.564,20.29,12.804,20.29],[12.804,23.17,12.804,24.5],[14.564,16.625,14.564,15.59],
-[14.564,19.065,14.564,18.4],[14.564,20.17,14.564,19.065],
-[6.478,13.52,12.178,13.52],[2.849,14.917,6.449,14.917],[12.414,15.523,15.044,15.523],[7.474,19.01,9.129,19.01],
-[6.859,20.23,8.514,20.23],[6.839,23.136,8.954,23.136],[4.069,23.649,6.969,23.649],[2.859,23.735,4.859,23.735],
-[9.384,24.5,14.244,24.5],[14.664,16.91,14.664,18.855],[14.564,22.84,14.564,24.93],[12.747,13.185,12.747,15.579],
-[12.654,20.54,12.654,23.4],[6.814,18.755,6.814,20.37],[5.089,19.935,5.089,21.465],[6.478,13.52,6.199,13.52],
-[6.859,20.29,6.484,20.29],[6.969,23.649,7.094,23.649],[6.814,18.95,7.474,18.95],[7.474,19.07,6.874,19.07],
-[8.774,20.29,8.514,20.29],[8.514,20.17,8.974,20.17],[8.974,24.5,9.384,24.5],[12.674,13.52,12.178,13.52],
-[12.654,20.54,12.654,20.29],[12.654,24.5,12.654,23.4],[14.244,24.5,14.564,24.5],[14.564,22.84,14.564,20.29]
-];
-const hosted=[
-[42,'window',1.875,1.5,2.79,1.2],[42,'window',3.9,1.5,.96,1.2],
-[35,'window',1.35,1.5,1.74,1.2],[35,'window',2.745,1.5,.75,1.2],
-[34,'door',1.257,1.05,1.554,2.1],[34,'door',3.966,1.05,2.509,2.1],
-[40,'window',1.45,1.5,1.94,1.2],[39,'window',1.058,1.5,1.155,1.2],
-[38,'door',.828,1.05,.695,2.1],[36,'window',1.315,1.5,1.67,1.2],
-[37,'door',.828,1.05,.695,2.1],[48,'door',.765,1.05,.57,2.1],
-[46,'door',1.43,1.05,1.9,2.1],[47,'door',.807,1.05,.655,2.1],
-[45,'window',1.197,1.5,1.434,1.2],[43,'door',.973,1.05,.985,2.1],
-[44,'door',1.045,1.05,1.13,2.1],[41,'window',1,1.5,1.04,1.2]
-];
-
-// De-identified geometric approximation derived from the supplied floor plan.
-// No original DXF, annotations, names, identifying labels, CAD headers or metadata.
-// Original CAD remains available through private browser-only DXF import.
-const outlines=[
-[[-1.29,4.07],[.27,4.07],[.27,1.29],[-.42,1.23],[-.47,1.92],[-.47,1.23],[-1.16,1.23],[-1.29,1.29]],
-[[-2.38,-.05],[-.6,.01],[-.6,-.69],[-.55,.01],[.15,.01],[.15,-.1],[.27,-.11],[.27,-3.41],[-.27,-3.41],[-.27,-3.61],[.35,-3.61],[.35,-5.48],[-2.3,-5.48],[-2.38,-3.61],[-1.69,-3.61],[-1.69,-3.41],[-2.38,-3.41]],
-[[-3.95,1.17],[-3.35,1.23],[-3.39,2.29],[-3.95,2.29],[-3.95,4.65],[-1.41,4.65],[-1.41,1.29],[-2.02,1.29],[-2.02,1.17],[-1.75,1.17],[-1.69,.94],[-2.34,.94],[-1.69,.89],[-1.75,.07],[-2.5,.07],[-2.5,-4],[-5.69,-4],[-5.69,.35],[-4.07,.35],[-4.07,-.05],[-3.61,-.05],[-3.61,.07],[-3.95,.07]],
-[[-4.07,1.29],[-4.07,.47],[-5.69,.47],[-5.69,4.07],[-5.21,4.07],[-5.21,4.31],[-5.69,4.31],[-5.69,4.73],[-4.07,4.73],[-4.07,2.04],[-3.41,2.04],[-3.98,2.04],[-3.41,1.99],[-3.47,1.29]],
-[[4.3,1.29],[4.3,5.5],[6.06,5.5],[6.06,4.27],[5.59,4.27],[5.59,4.07],[6.06,4.07],[6.06,1.29]],
-[[4.17,-5.48],[.47,-5.48],[.47,-3.61],[.94,-3.61],[.94,-3.41],[.47,-3.41],[.47,.01],[.17,.12],[.12,.01],[-.58,.01],[-.58,.12],[-1.63,.07],[-1.63,1.17],[.47,1.17],[.47,4.07],[.94,4.07],[.94,4.27],[.47,4.27],[.47,5.5],[4.15,5.5],[4.15,1.17],[6.06,1.17],[6.06,-.65],[6.16,-.65],[6.06,-3.41],[4.17,-3.41]]
-];
+// Clean fictional starter apartment. Not reconstructed from any private CAD.
+// Orthogonal shared walls, four hosted openings, no duplicate wall fragments.
 export function makeAnonymousDefaultGraph(){
- const nodes={},rootNodeIds=[],seen=new Set();let wi=0;
- outlines.forEach((polygon,i)=>{
-  const zid='zone-'+(i+1);
-  nodes[zid]={id:zid,type:'zone',polygon,visible:true,color:['#b4ad9e','#b9afa3','#b5a58d','#b7b3a9','#a9b5ab','#c0ae91'][i]};
-  rootNodeIds.push(zid);
-  polygon.forEach((a,k)=>{
-   const b=polygon[(k+1)%polygon.length],len=Math.hypot(b[0]-a[0],b[1]-a[1]);
-   if(len<.14)return;
-   const p=[a[0].toFixed(2),a[1].toFixed(2)].join(','),q=[b[0].toFixed(2),b[1].toFixed(2)].join(',');
-   const key=[p,q].sort().join('|');
-   if(seen.has(key))return;seen.add(key);
-   const id='wall-'+(++wi);
-   nodes[id]={id,type:'wall',start:a,end:b,thickness:.12,visible:true,children:[]};
-   rootNodeIds.push(id);
-  });
- });
- // Replace outline-as-wall guesses with the CAD-derived candidate wall chains.
- for(const id of rootNodeIds.filter(id=>nodes[id]?.type==='wall'))delete nodes[id];
- const rootZones=rootNodeIds.filter(id=>nodes[id]?.type==='zone');
- rootNodeIds.splice(0,rootNodeIds.length,...rootZones);
- structural.forEach((v,i)=>{
-  const id='structure-'+i;
-  nodes[id]={id,type:'wall',visible:true,start:[v[0]-8.5,v[1]-19],end:[v[2]-8.5,v[3]-19],thickness:.12,children:[]};
-  rootNodeIds.push(id);
- });
- hosted.forEach(([host,type,x,y,width,height],i)=>{
-  const wallId='structure-'+host,id='opening-'+i;
-  nodes[id]={id,type,parentId:wallId,wallId,visible:true,position:[x,y,0],width,height};
-  nodes[wallId].children.push(id);
- });
+ const nodes={},rootNodeIds=[];
+ const zones=[
+  ['living',[[0,0],[6,0],[6,4.1],[0,4.1]],'#bba989'],
+  ['bedroom',[[6,0],[9.5,0],[9.5,4.1],[6,4.1]],'#bbb5a8'],
+  ['kitchen',[[0,4.1],[3,4.1],[3,6.8],[0,6.8]],'#b2b8ae'],
+  ['bathroom',[[3,4.1],[6,4.1],[6,6.8],[3,6.8]],'#b8b7b2']
+ ];
+ for(const [name,polygon,color] of zones){const id='zone-'+name;nodes[id]={id,type:'zone',name,polygon,color,visible:true};rootNodeIds.push(id)}
+ const walls=[
+  [[0,0],[9.5,0]],[[9.5,0],[9.5,4.1]],[[9.5,4.1],[6,4.1]],
+  [[6,4.1],[6,6.8]],[[6,6.8],[0,6.8]],[[0,6.8],[0,0]],
+  [[6,0],[6,4.1]],[[0,4.1],[6,4.1]],[[3,4.1],[3,6.8]]
+ ];
+ walls.forEach(([start,end],i)=>{const id='wall-'+i;nodes[id]={id,type:'wall',start,end,thickness:.14,visible:true,children:[]};rootNodeIds.push(id)});
+ // Local along-wall offsets from the start node, y = opening center above floor.
+ const openings=[
+  [0,'window',2.9,1.55,2.4,1.35],
+  [1,'window',1.75,1.55,1.65,1.25],
+  [6,'door',2.1,1.05,.9,2.1],
+  [7,'door',4.7,1.05,.82,2.1],
+  [8,'door',1.4,1.05,.8,2.1],
+  [4,'window',4.5,1.65,1.25,1.05]
+ ];
+ openings.forEach(([index,type,x,y,width,height],i)=>{const id='opening-'+i,wallId='wall-'+index;nodes[id]={id,type,wallId,parentId:wallId,position:[x,y,0],width,height,visible:true};nodes[wallId].children.push(id)});
  return {nodes,rootNodeIds};
 }
