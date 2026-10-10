@@ -27,15 +27,22 @@ console.log('Wall collinearity, overlap, perpendicular isolation, host-offset, r
 import {makeAnonymousDefaultGraph} from '../web/anonymous-default-residence.js';
 const starter=makeAnonymousDefaultGraph();
 const shell=Object.values(starter.nodes).filter(n=>n.editorRole==='exterior');
-assert.equal(shell.length,12,'default room has a concise outer shell');
+assert.equal(shell.length,6,'six exterior segments in one authoritative shell');
 for(let i=0;i<shell.length;i++){
- const current=starter.nodes['envelope-'+i],next=starter.nodes['envelope-'+((i+1)%shell.length)];
- assert.ok(current&&next);
- assert.deepEqual(current.end,next.start,'exterior segments must form one cyclic closed loop');
- assert.ok(starter.rootNodeIds.includes(current.id),'every exterior wall stays in Editor SceneGraph');
+ const a=starter.nodes['shell-'+i],b=starter.nodes['shell-'+((i+1)%shell.length)];
+ assert.deepEqual(a.end,b.start,'shell edges form a closed polygon');
+ assert.ok(starter.rootNodeIds.includes(a.id));
 }
 assert.equal(Object.values(starter.nodes).filter(n=>n.type==='zone').length,6);
+const baseWalls=Object.values(starter.nodes).filter(n=>n.type==='wall');
+assert.equal(baseWalls.length,12,'exactly six shell and six partition walls');
+const openings=Object.values(starter.nodes).filter(n=>n.type==='door'||n.type==='window');
+assert.equal(openings.length,9);
+for(const n of openings){
+ const wall=starter.nodes[n.wallId];assert.ok(wall&&wall.children.includes(n.id));
+ const L=Math.hypot(wall.end[0]-wall.start[0],wall.end[1]-wall.start[1]);
+ assert.ok(n.position[0]-n.width/2>=.05&&n.position[0]+n.width/2<=L-.05);
+}
 const normalizedStarter=normalizeWallGraph(starter);
-assert.ok(Object.values(normalizedStarter.nodes).some(n=>n.type==='wall'));
-assert.equal(Object.values(normalizedStarter.nodes).filter(n=>n.type==='window'||n.type==='door').length,18,'preserve 18 hosted doors and windows');
-console.log('Six-room default envelope, closure, editor nodes, and 18 openings: PASS');
+assert.equal(Object.values(normalizedStarter.nodes).filter(n=>n.type==='door'||n.type==='window').length,9);
+console.log('Single-topology default: shell closure, six zones, walls, opening host bounds PASS');
