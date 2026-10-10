@@ -36,9 +36,15 @@ export function loadPascalGraph(THREE, scene, graph) {
    const t=((point[0]-other.a[0])*other.dx+(point[1]-other.a[1])*other.dz)/(other.length*other.length);
    if(t<-.025/other.length||t>1+.025/other.length)continue;
    const q=[other.a[0]+t*other.dx,other.a[1]+t*other.dz];
-   if(Math.hypot(point[0]-q[0],point[1]-q[1])>Math.min(.035,other.thickness*.35))continue;
+   const gap=Math.hypot(point[0]-q[0],point[1]-q[1]);
    const cross=Math.abs(current.dx*other.dz-current.dz*other.dx)/(current.length*other.length);
-   if(cross>.5)return Math.min(current.thickness,other.thickness)*.5;
+   // The CAD-derived demo has endpoints offset from the neighbouring wall
+   // centerline. Extend only toward a nearby crossing, never across a room.
+   if(cross>.5&&gap<.24){
+    const along=((q[0]-point[0])*current.dx+(q[1]-point[1])*current.dz)/current.length;
+    const inward=(Math.hypot(point[0]-current.a[0],point[1]-current.a[1])<.001)?-1:1;
+    if(along*inward>-.005)return Math.max(0,along*inward)+Math.min(current.thickness,other.thickness)*.5;
+   }
   }
   return 0;
  }
