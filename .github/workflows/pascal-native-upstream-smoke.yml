@@ -1,6 +1,10 @@
 name: pascal-native-upstream-smoke
 on:
   workflow_dispatch:
+  pull_request:
+    paths:
+      - 'tests/native-pascal-persistence-gate.cjs'
+      - '.github/workflows/pascal-native-upstream-smoke.yml'
   push:
     branches: [main]
     paths:
@@ -83,6 +87,39 @@ jobs:
         env:
           NODE_PATH: /tmp/pascal-smoke/node_modules
         run: node tests/pascal-native-browser-smoke.cjs
+      - name: Generate authentic upstream multi-room SceneGraph template
+        working-directory: _pascal_native
+        run: |
+          bun -e "import {template} from './packages/mcp/src/templates/two-bedroom.ts'; await Bun.write('../artifacts/pascal-native/native-graph.json',JSON.stringify(template,null,2));"
+      - name: Audit actual Pascal native template physics-readiness gaps
+        run: |
+          node scripts/audit-pascal-native-scene.cjs artifacts/pascal-native/native-graph.json artifacts/pascal-native/native-physics-review.json
+          node -e "const p=require('./artifacts/pascal-native/native-physics-review.json');if(p.status!=='PHYSICAL_REVIEW_REQUIRED'||!p.issues.length)process.exit(1);console.log('PASS native unannotated graph remains blocked:',p.issues.length)"
+      - name: Persist and reload actual scene through Pascal SQLite API
+        env:
+          PASCAL_GATE_SCENE_ID: native-gate-${{ github.run_id }}-${{ github.run_attempt }}
+        run: |
+          node tests/native-pascal-persistence-gate.cjs before artifacts/pascal-native/native-graph.json artifacts/pascal-native
+          kill "$(cat /tmp/pascal-native-editor.pid)"
+          for i in $(seq 1 20); do
+            if ! kill -0 "$(cat /tmp/pascal-native-editor.pid)" 2>/dev/null; then break; fi
+            sleep 1
+          done
+          (cd _pascal_native/apps/editor && PORT=3002 NODE_ENV=production PASCAL_DATA_DIR=/tmp/pascal-airtrajectory-scenes bun run start > /tmp/pascal-native-restart.log 2>&1 &)
+          healthy=0
+          for i in $(seq 1 40); do
+            if curl --fail --silent --max-time 5 http://127.0.0.1:3002/ >/dev/null; then healthy=1; break; fi
+            sleep 2
+          done
+          if [ "$healthy" -ne 1 ]; then tail -n 100 /tmp/pascal-native-restart.log; exit 1; fi
+          node tests/native-pascal-persistence-gate.cjs after artifacts/pascal-native/native-graph.json artifacts/pascal-native
+          cp /tmp/pascal-native-restart.log artifacts/pascal-native/process-restart.log
+      - name: Reopen persisted scene in Chromium
+        env:
+          NODE_PATH: /tmp/pascal-smoke/node_modules
+          PASCAL_GATE_SCENE_ID: native-gate-${{ github.run_id }}-${{ github.run_attempt }}
+        run: |
+          node tests/pascal-native-browser-reopen.cjs
       - uses: actions/upload-artifact@v4
         if: always()
         with:
