@@ -4,6 +4,9 @@ const {importScene,checkGraph}=require('../scripts/import-pascal-native-scene.cj
 (async()=>{
  const graph={nodes:{site:{id:'site',type:'site',parentId:null,children:['wall']},wall:{id:'wall',type:'wall',parentId:'site',start:[0,0],end:[4,0]}},rootNodeIds:['site']};
  assert.equal(checkGraph(graph),2);
+ assert.throws(()=>checkGraph({...graph,rootNodeIds:['site','site']}),/Duplicate root/);
+ assert.throws(()=>checkGraph({nodes:{...graph.nodes,site:{...graph.nodes.site,children:[]}},rootNodeIds:['site']}),/Child-parent mismatch/);
+ assert.throws(()=>checkGraph({nodes:{...graph.nodes,wall:{...graph.nodes.wall,parentId:'wall',children:['wall']}},rootNodeIds:['site']}),/Parent-child mismatch|Cycle detected|Child-parent mismatch/);
  assert.throws(()=>checkGraph({...graph,nodes:{...graph.nodes,wall:{...graph.nodes.wall,parentId:'missing'}}}),/Missing parent/);
  const dir=fs.mkdtempSync(path.join(os.tmpdir(),'pascal-import-'));
  try{
