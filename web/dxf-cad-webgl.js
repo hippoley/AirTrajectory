@@ -1,3 +1,4 @@
+import {extractArchitecturalSkeleton} from './dxf-architecture-extract.js';
 // Browser-only original DXF loader. No CAD upload, no lossy guessed rooms.
 // All real geometries are drawn on the XZ floor plane with their source layers.
 const ACCEPTED=new Set(['LINE','LWPOLYLINE','POLYLINE','ARC','CIRCLE']);
@@ -28,6 +29,7 @@ export async function loadLocalDxf(THREE, scene, file){
  if(file.size>30000000)throw Error('DXF 超过浏览器导入上限 30MB');
  const {default:DxfParser}=await import('https://cdn.jsdelivr.net/npm/dxf-parser@1.1.2/+esm');
  const parser=new DxfParser(),doc=parser.parseSync(await file.text());
+ const architecture=extractArchitecturalSkeleton(doc);
  const all=[],layers=new Map(),stats={};
  for(const ent of doc.entities||[]){
   if(!ACCEPTED.has(ent.type))continue;
@@ -66,7 +68,7 @@ export async function loadLocalDxf(THREE, scene, file){
   }
   scene.add(group);
  }catch(e){group.traverse(o=>o.geometry?.dispose());materials.forEach(m=>m.dispose());throw e}
- return {group,entries,stats:{entities:doc.entities?.length||0,visible:entries.reduce((n,e)=>n+e.count,0),layers:entries.length,width:(maxX-minX)*scale,height:(maxY-minY)*scale,units},dispose(){
+ return {group,entries,architecture,stats:{entities:doc.entities?.length||0,visible:entries.reduce((n,e)=>n+e.count,0),layers:entries.length,width:(maxX-minX)*scale,height:(maxY-minY)*scale,units},dispose(){
   scene.remove(group);group.traverse(o=>o.geometry?.dispose());materials.forEach(m=>m.dispose())
  }};
 }
