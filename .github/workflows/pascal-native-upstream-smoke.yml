@@ -91,6 +91,9 @@ jobs:
         working-directory: _pascal_native
         run: |
           bun -e "import {template} from './packages/mcp/src/templates/two-bedroom.ts'; await Bun.write('../artifacts/pascal-native/native-graph.json',JSON.stringify(template,null,2));"
+      - name: Verify preferred native residential template has full architecture
+        run: |
+          node -e "const fs=require('fs');const g=require('./artifacts/pascal-native/native-graph.json');const n=Object.values(g.nodes);for(const [t,k] of [['zone',4],['wall',9],['window',5],['door',4]]){if(n.filter(x=>x.type===t).length<k)process.exit(1)}console.log('PASS native two-bedroom residential template',n.length)"
       - name: Audit actual Pascal native template physics-readiness gaps
         run: |
           node scripts/audit-pascal-native-scene.cjs artifacts/pascal-native/native-graph.json artifacts/pascal-native/native-physics-review.json
