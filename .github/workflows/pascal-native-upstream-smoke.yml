@@ -91,6 +91,10 @@ jobs:
         working-directory: _pascal_native
         run: |
           bun -e "import {template} from './packages/mcp/src/templates/two-bedroom.ts'; await Bun.write('../artifacts/pascal-native/native-graph.json',JSON.stringify(template,null,2));"
+      - name: Audit actual Pascal native template physics-readiness gaps
+        run: |
+          node scripts/audit-pascal-native-scene.cjs artifacts/pascal-native/native-graph.json artifacts/pascal-native/native-physics-review.json
+          node -e "const p=require('./artifacts/pascal-native/native-physics-review.json');if(p.status!=='PHYSICAL_REVIEW_REQUIRED'||!p.issues.length)process.exit(1);console.log('PASS native unannotated graph remains blocked:',p.issues.length)"
       - name: Persist and reload actual scene through Pascal SQLite API
         env:
           PASCAL_GATE_SCENE_ID: native-gate-${{ github.run_id }}-${{ github.run_attempt }}
