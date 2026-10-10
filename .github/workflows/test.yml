@@ -25,6 +25,7 @@ jobs:
       - run: node tests/test_pascal_native_importer.cjs
       - run: node --check scripts/accept-private-pascal-scene.cjs
       - run: node tests/test_pascal_canvas_proof.cjs
+      - run: node tests/test_pascal_private_preflight.cjs
       - name: Verify annotated Pascal-to-CONTAM symbolic contract and receipt
         run: python -m unittest -v tests/test_pascal_contam_integration.py
       - name: Verify Pascal native-node projection contract against runtime receipt
