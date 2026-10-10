@@ -21,7 +21,7 @@ export function makeAnonymousDefaultGraph(){
  const partitions=[
   [[4.1,0],[4.1,4.1]],[[8.1,0],[8.1,4.1]],
   [[0,4.1],[11.6,4.1]],[[3.1,4.1],[3.1,9.3]],
-  [[7.9,4.1],[7.9,7.6]],[[3.1,7.6],[7.9,7.6]]
+  [[7.9,4.1],[7.9,7.6]]
  ];
  partitions.forEach(([a,b],i)=>edge('partition-'+i,a,b));
  const holes=[
@@ -31,9 +31,12 @@ export function makeAnonymousDefaultGraph(){
   ['shell-4','window',3.8,1.5,1.5,1.3],
   ['partition-0','door',2.05,1.05,.88,2.1],
   ['partition-1','door',2.05,1.05,.88,2.1],
-  ['partition-2','door',1.45,1.05,.86,2.1],
+  ['partition-2','door',2,1.05,.86,2.1],
+  ['partition-2','door',5.65,1.05,.86,2.1],
+  ['partition-2','door',9.65,1.05,.86,2.1],
   ['partition-3','door',1.85,1.05,.86,2.1],
-  ['partition-4','door',1.75,1.05,.86,2.1]
+  ['partition-4','door',1.75,1.05,.86,2.1],
+  ['shell-1','door',5.7,1.05,.96,2.1]
  ];
  holes.forEach(([wallId,type,x,y,width,height],i)=>{
   const id='opening-'+i;
