@@ -55,6 +55,11 @@ jobs:
       - name: Validate native scene editor
         working-directory: _pascal_native
         run: bunx turbo run check-types --filter=editor
+      - name: Install in-editor private residence import page
+        run: |
+          mkdir -p _pascal_native/apps/editor/app/airtrajectory/import
+          cp integrations/pascal-native-overlay/app/airtrajectory/import/page.tsx _pascal_native/apps/editor/app/airtrajectory/import/page.tsx
+          test -s _pascal_native/apps/editor/app/airtrajectory/import/page.tsx
       - name: Build complete native Pascal Next.js application
         working-directory: _pascal_native
         env:
@@ -83,6 +88,11 @@ jobs:
           mkdir -p /tmp/pascal-smoke
           npm install --prefix /tmp/pascal-smoke --no-save --no-package-lock playwright@1.56.1
           /tmp/pascal-smoke/node_modules/.bin/playwright install --with-deps chromium
+      - name: Verify native in-editor import page HTTP route
+        run: |
+          curl -fsS --max-time 15 http://127.0.0.1:3002/airtrajectory/import > /tmp/pascal-native-import.html
+          grep -q 'Open your private residence' /tmp/pascal-native-import.html
+          echo 'PASS REAL native Pascal application serves residential import screen'
       - name: Verify native editor interaction shell in Chromium
         env:
           NODE_PATH: /tmp/pascal-smoke/node_modules
