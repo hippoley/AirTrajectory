@@ -7,6 +7,7 @@ const path=require('node:path');
 const crypto=require('node:crypto');
 const assert=require('node:assert/strict');
 const {importScene,checkGraph}=require('../scripts/import-pascal-native-scene.cjs');
+const {hasVisibleCanvas}=require('./pascal-canvas-proof.cjs');
 const hash=b=>crypto.createHash('sha256').update(b).digest('hex');
 async function verify({sceneFile,base='http://127.0.0.1:3002',out='artifacts/private-pascal',sceneId}){
  const content=fs.readFileSync(sceneFile);
@@ -45,7 +46,7 @@ async function verify({sceneFile,base='http://127.0.0.1:3002',out='artifacts/pri
    const box=el.getBoundingClientRect(); const styles=getComputedStyle(el);
    return {width:box.width,height:box.height,visible:styles.visibility!=='hidden'&&styles.display!=='none'&&Number(styles.opacity)>0};
   }));
-  assert(canvasBounds.some(box=>box.visible&&box.width>=160&&box.height>=120),
+  assert(hasVisibleCanvas(canvasBounds),
     'Native canvas mounted but was hidden or too small for a rendered scene');
   assert.equal(errors.length,0,'Browser runtime exceptions: '+errors.join(' | '));
   fs.mkdirSync(out,{recursive:true});
