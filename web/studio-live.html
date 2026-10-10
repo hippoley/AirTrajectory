@@ -85,6 +85,7 @@ document.getElementById('pascalFile').onchange=async e=>{
   if(nativeImported)scene.remove(nativeImported.group);
   nativeImported=preview;nativeGraph=graph;
   // Drop the public illustration while the actual owner geometry is visible.
+  for(const child of scene.children)if(child.isMesh||child.isGridHelper)child.visible=false;
   for(const w of walls)w.visible=false;for(const f of floor)f.visible=false;
   for(const f of furniture)f.visible=false;
   furniture.push(...preview.furniture);walls.push(...preview.walls);floor.push(...preview.floors);
