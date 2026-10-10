@@ -7,13 +7,14 @@
 #privateGate button{padding:13px 20px;background:#a5ebc7;color:#19362a;font-weight:700}
 #privateGate small{display:block;margin-top:18px;color:#abbac2}
 </style></head><body>
-<header><strong>AirTrajectory <span style="color:#91afa3">Studio</span></strong><span class="pill">WEBGL · PUBLIC SHOWROOM</span><div class="spacer"></div><button id="uploadPascal">Import Pascal JSON</button><input type="file" id="pascalFile" accept=".json,application/json" hidden><button id="undo">↶ Undo</button><button id="reset">Reset</button><button id="save">Save</button><button id="export">Export</button></header>
-<div id="privateGate" role="dialog" aria-modal="true" aria-label="导入老板家的住宅户型"><div class="gateBody"><span class="pill">PRIVATE RESIDENCE · LOCAL FILE</span><h2>先加载老板家的真实住宅</h2><p>当前正式工作台不再将示例公寓当作老板家。请选择私有 Pascal SceneGraph v7 文件，浏览器将用真实六房间、墙体、门窗和家具替换演示场景。</p><button id="gateImport">选择老板家住宅 JSON →</button><small>住宅坐标只在你的浏览器中读取；不会提交到公开 GitHub Pages。未选择文件前不会展示虚构户型。</small></div></div><div class="workspace"><aside class="tools"><button id="selectTool" class="active"><span>↖</span>Move</button><button id="orbitTool"><span>◎</span>Orbit</button><button id="planTool"><span>▤</span>Plan</button><button id="addTool"><span>＋</span>Add</button></aside>
+<header><strong>AirTrajectory <span style="color:#91afa3">Studio</span></strong><span class="pill">WEBGL · PUBLIC SHOWROOM</span><div class="spacer"></div><button id="uploadDxf">Import original DXF</button><input type="file" id="dxfFile" accept=".dxf" hidden><button id="uploadPascal">Import Pascal JSON</button><input type="file" id="pascalFile" accept=".json,application/json" hidden><button id="undo">↶ Undo</button><button id="reset">Reset</button><button id="save">Save</button><button id="export">Export</button></header>
+<div id="privateGate" role="dialog" aria-modal="true" aria-label="导入老板家的住宅户型"><div class="gateBody"><span class="pill">PRIVATE RESIDENCE · LOCAL FILE</span><h2>先加载老板家的真实住宅</h2><p>当前正式工作台不再将示例公寓当作老板家。推荐直接选择老板家的原始 DXF，在线显示其真实 CAD 图层和二维建筑线条；也可以导入已有 Pascal JSON 查看三维草模。DXF 不会被上传。</p><button id="gateDxf">直接选择老板家原始 DXF →</button> <button id="gateImport">选择已有 Pascal JSON</button><small>住宅坐标只在你的浏览器中读取；不会提交到公开 GitHub Pages。未选择文件前不会展示虚构户型。</small></div></div><div class="workspace"><aside class="tools"><button id="selectTool" class="active"><span>↖</span>Move</button><button id="orbitTool"><span>◎</span>Orbit</button><button id="planTool"><span>▤</span>Plan</button><button id="addTool"><span>＋</span>Add</button></aside>
 <main class="viewport"><canvas id="canvas"></canvas><div class="views"><button id="iso" class="active">3D Perspective</button><button id="top">2D Floor Plan</button><button id="wallsBtn">Walls: on</button></div><div class="status">拖动旋转视角 · 滚轮缩放 · 点击家具选择 · Move 模式拖动家具 <span id="stats"></span></div></main>
 <aside class="inspector"><section class="panel"><h3>Layers</h3><label class="layer">▣ Floor Plan <input id="floorLayer" type="checkbox" checked></label><label class="layer">▣ Furniture <input id="furnLayer" type="checkbox" checked></label><label class="layer">▣ Walls <input id="wallLayer" type="checkbox" checked></label><label class="layer">▣ Dimensions <input id="dimLayer" type="checkbox" checked></label></section><section class="panel"><h3>Properties</h3><div id="objectName" style="font-size:17px;font-weight:650">Select an object</div><p class="desc" id="objectType">Furniture, material, rotation and placement</p><div id="editFields" class="hidden"><label class="row">Material <input id="color" type="color" value="#b0b4b2"></label><label class="row">Rotation <input id="rotation" type="range" min="0" max="360" value="0"></label><label class="row">Scale <input id="scale" type="range" min="65" max="145" value="100"></label><button id="delete">Delete object</button></div><div id="message"></div></section><section class="panel"><h3>Furniture Library</h3><div class="add"><button data-add="sofa">＋ Sofa</button><button data-add="bed">＋ Bed</button><button data-add="table">＋ Table</button><button data-add="chair">＋ Chair</button><button data-add="cabinet">＋ Cabinet</button><button data-add="plant">＋ Plant</button></div></section><section class="panel"><h3>Scene</h3><div id="sceneInfo" class="value"></div><p class="foot">这是使用 Three.js 实时渲染的在线交互展厅，不是原版 Pascal、真实 CAD 或 CONTAM 仿真。当前加载的是非私密示例公寓。完整 Pascal 编辑器需要独立后端托管及访问保护。</p><a href="./index.html" style="color:#9ad6be">← AirTrajectory Lab</a></section></aside></div>
 <script type="module">
 import * as THREE from 'three';
 import {loadPascalGraph} from './pascal-scene-webgl.js';
+import {loadLocalDxf} from './dxf-cad-webgl.js';
 import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
 const canvas=document.getElementById('canvas'),scene=new THREE.Scene();scene.background=new THREE.Color('#24282c');
 const camera=new THREE.PerspectiveCamera(40,1,.1,100),renderer=new THREE.WebGLRenderer({canvas,antialias:true});renderer.setPixelRatio(Math.min(devicePixelRatio,2));renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.25;
@@ -21,7 +22,7 @@ camera.position.set(12,13,14);const controls=new OrbitControls(camera,canvas);co
 scene.add(new THREE.HemisphereLight(0xdfeefc,0x6f6460,2.5));const sun=new THREE.DirectionalLight(0xffefda,3.3);sun.position.set(-5,15,9);sun.castShadow=true;sun.shadow.mapSize.set(2048,2048);sun.shadow.camera.left=-14;sun.shadow.camera.right=14;sun.shadow.camera.top=14;sun.shadow.camera.bottom=-14;sun.shadow.bias=-.00025;scene.add(sun);
 const mat=(c,roughness=.78,metalness=0)=>new THREE.MeshStandardMaterial({color:c,roughness,metalness});
 const M={floor:mat('#ad8963'),wall:mat('#f1ede4'),edge:mat('#fbf9f3'),glass:new THREE.MeshPhysicalMaterial({color:'#c9e7f1',transmission:.28,transparent:true,opacity:.38,roughness:.08,metalness:.05,side:THREE.DoubleSide}),dark:mat('#34383c'),wood:mat('#8f6845'),fabric:mat('#adb7b4'),bed:mat('#e8dacc'),metal:mat('#aeb6b8',.3,.65)};
-let walls=[],floor=[],furniture=[],selected=null,history=[],mode='move',wallOn=true,dimOn=true;const store='airtrajectory-webgl-studio-v1';let nativeImported=null,nativeGraph=null;
+let walls=[],floor=[],furniture=[],selected=null,history=[],mode='move',wallOn=true,dimOn=true;const store='airtrajectory-webgl-studio-v1';let nativeImported=null,nativeGraph=null,cadImported=null;
 function box(w,h,d,material,x=0,y=0,z=0,parent=scene){const o=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),material);o.position.set(x,y,z);o.castShadow=true;o.receiveShadow=true;parent.add(o);return o}
 function wall(x,z,w,d,h=2.5){let v=box(w,h,d,M.wall,x,h/2,z);walls.push(v);return v}
 function setup(){
@@ -107,6 +108,41 @@ document.getElementById('selectTool').onclick=()=>{mode='move';document.getEleme
 document.getElementById('orbitTool').onclick=()=>{mode='orbit';document.getElementById('orbitTool').classList.add('active');document.getElementById('selectTool').classList.remove('active')};
 document.getElementById('planTool').onclick=()=>cameraView(true);
 document.getElementById('addTool').onclick=()=>document.querySelector('[data-add="sofa"]').click();
+document.getElementById('uploadDxf').onclick=()=>document.getElementById('dxfFile').click();
+document.getElementById('gateDxf').onclick=()=>document.getElementById('dxfFile').click();
+document.getElementById('dxfFile').onchange=async e=>{
+ const file=e.target.files?.[0];if(!file)return;
+ document.getElementById('message').textContent='Reading local DXF geometries…';
+ try{
+  const next=await loadLocalDxf(THREE,scene,file);
+  if(cadImported)cadImported.dispose();
+  cadImported=next;
+  // Preserve homeowner privacy; never store raw CAD in publicly accessible assets.
+  if(nativeImported){nativeImported.group.visible=false}
+  for(const f of furniture)f.visible=false;
+  for(const w of walls)w.visible=false;
+  for(const f of floor)f.visible=false;
+  for(const child of scene.children)if(child!==next.group && (child.isMesh||child.isGridHelper))child.visible=false;
+  document.getElementById('privateGate').style.display='none';
+  select(null);
+  camera.position.set(0,Math.max(12,Math.max(next.stats.width,next.stats.height)*1.5),.01);
+  controls.target.set(0,0,0);controls.update();
+  // Expose true source layers in Layers sidebar.
+  const panel=document.getElementById('wallLayer').closest('.panel');
+  let list=document.getElementById('dxfLayerList');
+  if(!list){list=document.createElement('div');list.id='dxfLayerList';panel.append(list)}
+  list.replaceChildren();
+  for(const entry of next.entries){
+   const label=document.createElement('label');label.className='layer';
+   const name=document.createElement('span');name.textContent=entry.name+' ('+entry.count+')';
+   const checked=document.createElement('input');checked.type='checkbox';checked.checked=true;checked.onchange=()=>{entry.object.visible=checked.checked};
+   label.append(name,checked);list.append(label);
+  }
+  document.getElementById('sceneInfo').textContent=next.stats.entities+' DXF entities · '+next.stats.layers+' layers · '+next.stats.width.toFixed(2)+'m × '+next.stats.height.toFixed(2)+'m · source units '+next.stats.units;
+  document.getElementById('message').textContent='Original private DXF loaded locally. This is a CAD layer view, not an invented 3D reconstruction.';
+ }catch(error){document.getElementById('message').textContent='DXF import failed: '+error.message}
+ e.target.value='';
+};
 document.getElementById('uploadPascal').onclick=()=>document.getElementById('pascalFile').click();
 document.getElementById('gateImport').onclick=()=>document.getElementById('pascalFile').click();
 async function activateNativeGraph(graph){
@@ -116,6 +152,7 @@ async function activateNativeGraph(graph){
   if(nativeImported){scene.remove(nativeImported.group);nativeImported.group.traverse(o=>{if(o.isMesh){o.geometry.dispose();o.material?.dispose?.()}})}
   for(const w of walls)w.visible=false;for(const f of floor)f.visible=false;
   for(const f of furniture)f.visible=false;
+  if(cadImported){cadImported.dispose();cadImported=null}
   nativeImported=preview;nativeGraph=graph;
   document.getElementById('privateGate').style.display='none';
   // The active edit targets are precisely the imported native furniture.
