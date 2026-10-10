@@ -1,0 +1,18 @@
+const assert=require('node:assert/strict');
+const fs=require('node:fs');
+const {audit}=require('../scripts/audit-pascal-native-scene.cjs');
+const fixture=JSON.parse(fs.readFileSync('tests/fixtures/pascal-scene-two-rooms.json','utf8'));
+const ready=audit(fixture);
+assert.equal(ready.status,'ANNOTATIONS_READY_FOR_LAYOUT_VALIDATION');
+assert.equal(ready.issues.length,0);
+const missing=structuredClone(fixture);
+delete missing.nodes.zone_a.spaceRole;
+delete missing.nodes.wall_inner.metadata.airtrajectory_target_room;
+delete missing.nodes.window_1.metadata.airtrajectory_sill_height_m;
+const blocked=audit(missing);
+assert.equal(blocked.status,'PHYSICAL_REVIEW_REQUIRED');
+assert(blocked.issues.some(x=>x.field==='spaceRole'&&x.node_id==='zone_a'));
+assert(blocked.issues.some(x=>x.field==='metadata.airtrajectory_target_room'&&x.node_id==='wall_inner'));
+assert(blocked.issues.some(x=>x.field==='metadata.airtrajectory_sill_height_m'&&x.node_id==='window_1'));
+assert.throws(()=>audit({nodes:{a:{id:'dup'},b:{id:'dup'}}}),/duplicate/);
+console.log('PASS native scene engineering readiness audit');
