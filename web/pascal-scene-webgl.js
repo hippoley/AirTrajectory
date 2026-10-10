@@ -54,9 +54,10 @@ export function loadPascalGraph(THREE, scene, graph) {
    if(shape.primitive!=='box'||!Array.isArray(shape.size))continue;
    const [w,h,d]=shape.size;if(![w,h,d].every(v=>Number.isFinite(v)&&v>0&&v<10))continue;
    const [px,py,pz]=shape.position||[0,h/2,0];
-   mesh(w,h,d,slots[shape.slot]||'#b8b0a1',px,py,pz,root);
+   const piece=mesh(w,h,d,slots[shape.slot]||'#b8b0a1',px,py,pz,root);
+   piece.userData.pascalMaterialSlot=shape.slot||null;
   }
-  root.userData={id:n.id,type:'pascal',name:n.name||n.id,color:Object.values(slots)[0]||'#b7a797',rotation:root.rotation.y,scale:1,pascalNode:n};furniture.push(root);
+  root.userData={id:n.id,type:'pascal',name:n.name||n.id,color:Object.values(slots)[0]||'#b7a797',paintSlot:(n.recipe?.slots||[])[0]?.id||null,rotation:root.rotation.y,scale:1,pascalNode:n};furniture.push(root);
  }
  return {group,walls:wallMeshes,floors,furniture,stats:{rooms:zones.length,walls:walls.length,openings,furniture:furniture.length},center};
 }
