@@ -1,24 +1,21 @@
-// Simplified geometry based on the six actual room footprints in the source plan.
-// Deliberately keeps the irregular L-shaped living room and the real room adjacency.
-// Clean wall preview only: selected long wall chains, not every tiny CAD fragment.
+// Public default: CAD-derived six zone polygons, real consolidated opening host wall geometry.
+// Coordinates offset to an anonymous local origin. Candidate geometry is NOT survey-certified.
 export function makeAnonymousDefaultGraph(){
  const zones=[[[-1.29,4.07],[0.27,4.07],[0.27,1.29],[-0.42,1.23],[-0.47,1.92],[-0.47,1.23],[-1.16,1.23],[-1.29,1.29]],[[-2.38,-0.05],[-0.6,0.01],[-0.6,-0.69],[-0.55,0.01],[0.15,0.01],[0.15,-0.1],[0.27,-0.11],[0.27,-3.41],[-0.27,-3.41],[-0.27,-3.61],[0.35,-3.61],[0.35,-5.48],[-2.3,-5.48],[-2.38,-3.61],[-1.69,-3.61],[-1.69,-3.41],[-2.38,-3.41]],[[-3.95,1.17],[-3.35,1.23],[-3.39,2.29],[-3.95,2.29],[-3.95,4.65],[-1.41,4.65],[-1.41,1.29],[-2.02,1.29],[-2.02,1.17],[-1.75,1.17],[-1.69,0.94],[-2.34,0.94],[-1.69,0.89],[-1.75,0.07],[-2.5,0.07],[-2.5,-4],[-5.69,-4],[-5.69,0.35],[-4.07,0.35],[-4.07,-0.05],[-3.61,-0.05],[-3.61,0.07],[-3.95,0.07]],[[-4.07,1.29],[-4.07,0.47],[-5.69,0.47],[-5.69,4.07],[-5.21,4.07],[-5.21,4.31],[-5.69,4.31],[-5.69,4.73],[-4.07,4.73],[-4.07,2.04],[-3.41,2.04],[-3.98,2.04],[-3.41,1.99],[-3.47,1.29]],[[4.3,1.29],[4.3,5.5],[6.06,5.5],[6.06,4.27],[5.59,4.27],[5.59,4.07],[6.06,4.07],[6.06,1.29]],[[4.17,-5.48],[0.47,-5.48],[0.47,-3.61],[0.94,-3.61],[0.94,-3.41],[0.47,-3.41],[0.47,0.01],[0.17,0.12],[0.12,0.01],[-0.58,0.01],[-0.58,0.12],[-1.63,0.07],[-1.63,1.17],[0.47,1.17],[0.47,4.07],[0.94,4.07],[0.94,4.27],[0.47,4.27],[0.47,5.5],[4.15,5.5],[4.15,1.17],[6.06,1.17],[6.06,-0.65],[6.16,-0.65],[6.06,-3.41],[4.17,-3.41]]];
- const wallCandidates=[{"original":1,"pts":[2.814,14.995,2.814,19.35]},{"original":5,"pts":[2.814,20.12,2.814,23.07]},{"original":8,"pts":[4.429,23.735,4.429,21.306]},{"original":11,"pts":[5.999,18.95,5.999,15.59]},{"original":17,"pts":[7.094,23.07,7.094,20.29]},{"original":19,"pts":[8.774,18.89,8.774,15.59]},{"original":22,"pts":[8.854,15.39,8.854,13.52]},{"original":23,"pts":[8.974,15.59,8.974,19.01]},{"original":27,"pts":[12.654,20.17,14.564,20.17]},{"original":34,"pts":[6.478,13.52,12.178,13.52]},{"original":35,"pts":[2.849,14.917,6.449,14.917]},{"original":36,"pts":[12.414,15.523,15.044,15.523]},{"original":39,"pts":[6.839,23.136,8.954,23.136]},{"original":40,"pts":[4.069,23.649,6.969,23.649]},{"original":42,"pts":[9.384,24.5,14.244,24.5]},{"original":43,"pts":[14.664,16.91,14.664,18.855]},{"original":44,"pts":[14.564,22.84,14.564,24.93]},{"original":45,"pts":[12.747,13.185,12.747,15.579]},{"original":46,"pts":[12.654,20.54,12.654,23.4]},{"original":61,"pts":[14.564,22.84,14.564,20.29]}];
- const hosted=[[42,"window",1.875,1.5,2.79,1.2],[35,"window",1.35,1.5,1.74,1.2],[34,"door",1.257,1.05,1.554,2.1],[40,"window",1.45,1.5,1.94,1.2],[39,"window",1.058,1.5,1.155,1.2],[36,"window",1.315,1.5,1.67,1.2],[46,"door",1.43,1.05,1.9,2.1],[45,"window",1.197,1.5,1.434,1.2],[43,"door",0.973,1.05,0.985,2.1],[44,"door",1.045,1.05,1.13,2.1]];
- const names=['bath-west','bed-east','bed-west','bath-inner','kitchen','living-dining'];
- const colors=['#bcb9b2','#c1b7a8','#b7b6ae','#aeb8b8','#b9b2a6','#c4b8a5'];
- const nodes={},rootNodeIds=[];
- zones.forEach((polygon,i)=>{const id='zone-'+i;nodes[id]={id,type:'zone',name:names[i],polygon,color:colors[i],visible:true};rootNodeIds.push(id)});
- const hostMap={};
- wallCandidates.forEach(({original,pts},i)=>{
-  const id='wall-'+i;hostMap[original]=id;
-  nodes[id]={id,type:'wall',start:[+(pts[0]-8.5).toFixed(3),+(pts[1]-19).toFixed(3)],end:[+(pts[2]-8.5).toFixed(3),+(pts[3]-19).toFixed(3)],thickness:.14,visible:true,children:[]};
+ const segments=[{"id":1,"seg":[2.814,14.995,2.814,19.35]},{"id":5,"seg":[2.814,20.12,2.814,23.07]},{"id":8,"seg":[4.429,23.735,4.429,21.306]},{"id":11,"seg":[5.999,18.95,5.999,15.59]},{"id":17,"seg":[7.094,23.07,7.094,20.29]},{"id":19,"seg":[8.774,18.89,8.774,15.59]},{"id":22,"seg":[8.854,15.39,8.854,13.52]},{"id":23,"seg":[8.974,15.59,8.974,19.01]},{"id":27,"seg":[12.654,20.17,14.564,20.17]},{"id":29,"seg":[14.564,20.29,12.804,20.29]},{"id":34,"seg":[6.478,13.52,12.178,13.52]},{"id":35,"seg":[2.849,14.917,6.449,14.917]},{"id":36,"seg":[12.414,15.523,15.044,15.523]},{"id":37,"seg":[7.474,19.01,9.129,19.01]},{"id":38,"seg":[6.859,20.23,8.514,20.23]},{"id":39,"seg":[6.839,23.136,8.954,23.136]},{"id":40,"seg":[4.069,23.649,6.969,23.649]},{"id":41,"seg":[2.859,23.735,4.859,23.735]},{"id":42,"seg":[9.384,24.5,14.244,24.5]},{"id":43,"seg":[14.664,16.91,14.664,18.855]},{"id":44,"seg":[14.564,22.84,14.564,24.93]},{"id":45,"seg":[12.747,13.185,12.747,15.579]},{"id":46,"seg":[12.654,20.54,12.654,23.4]},{"id":47,"seg":[6.814,18.755,6.814,20.37]},{"id":48,"seg":[5.089,19.935,5.089,21.465]},{"id":61,"seg":[14.564,22.84,14.564,20.29]}];
+ const openings=[[42,"window",1.875,1.5,2.79,1.2],[42,"window",3.9,1.5,0.96,1.2],[35,"window",1.35,1.5,1.74,1.2],[35,"window",2.745,1.5,0.75,1.2],[34,"door",1.257,1.05,1.554,2.1],[34,"door",3.966,1.05,2.509,2.1],[40,"window",1.45,1.5,1.94,1.2],[39,"window",1.058,1.5,1.155,1.2],[38,"door",0.828,1.05,0.695,2.1],[36,"window",1.315,1.5,1.67,1.2],[37,"door",0.828,1.05,0.695,2.1],[48,"door",0.765,1.05,0.57,2.1],[46,"door",1.43,1.05,1.9,2.1],[47,"door",0.807,1.05,0.655,2.1],[45,"window",1.197,1.5,1.434,1.2],[43,"door",0.973,1.05,0.985,2.1],[44,"door",1.045,1.05,1.13,2.1],[41,"window",1,1.5,1.04,1.2]];
+ const nodes={},rootNodeIds=[],hostId={};
+ const colors=['#b9b0a4','#b5b4b1','#b6afa3','#b1b7b8','#beb4a6','#c1ad97'];
+ zones.forEach((polygon,i)=>{const id='zone-'+i;nodes[id]={id,type:'zone',visible:true,color:colors[i],polygon};rootNodeIds.push(id)});
+ for(const {id:sourceId,seg} of segments){
+  const id='wall-'+sourceId;hostId[sourceId]=id;
+  nodes[id]={id,type:'wall',visible:true,start:[seg[0]-8.5,seg[1]-19],end:[seg[2]-8.5,seg[3]-19],thickness:.12,children:[]};
   rootNodeIds.push(id);
- });
- hosted.forEach(([host,type,x,y,width,height],i)=>{
-  const wallId=hostMap[host];if(!wallId)return;
+ }
+ openings.forEach(([sourceId,type,x,y,width,height],i)=>{
+  const wallId=hostId[sourceId];if(!wallId)return;
   const id='opening-'+i;
-  nodes[id]={id,type,wallId,parentId:wallId,position:[x,y,0],width,height,visible:true};
+  nodes[id]={id,type,visible:true,wallId,parentId:wallId,position:[x,y,0],width,height};
   nodes[wallId].children.push(id);
  });
  return {nodes,rootNodeIds};
