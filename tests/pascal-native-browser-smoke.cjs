@@ -11,9 +11,12 @@ const fs = require('node:fs');
   assert(response?.ok(),'native app failed HTTP navigation');
   await page.locator('body').waitFor();
   await page.waitForTimeout(5000);
-  const text=await page.locator('body').innerText();
-  for(const label of ['Scene','Build','Paint','Items']) assert(text.includes(label),'upstream editor missing tab '+label);
   fs.mkdirSync('artifacts/pascal-native',{recursive:true});
+  await page.screenshot({path:'artifacts/pascal-native/initial-render.png',fullPage:true});
+  const text=await page.locator('body').innerText();
+  const buttons=await page.getByRole('button').evaluateAll(nodes=>nodes.map(n=>({aria:n.getAttribute('aria-label'),text:n.textContent?.trim().slice(0,50)})));
+  fs.writeFileSync('artifacts/pascal-native/initial-dom.json',JSON.stringify({title:await page.title(),url:page.url(),text:text.slice(0,3000),buttons,runtime_errors:bad},null,2));
+  for(const label of ['Scene','Build','Paint','Items']) assert(await page.getByRole('button',{name:label,exact:true}).count()>0,'upstream editor missing labeled tool '+label);
   // Exercise real upstream tabs, not just their presence in static HTML.
   const panelClicks={};
   for(const tab of ['Build','Paint','Items','Scene']){
