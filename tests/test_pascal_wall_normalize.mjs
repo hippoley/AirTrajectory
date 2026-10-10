@@ -35,14 +35,18 @@ for(let i=0;i<shell.length;i++){
 }
 assert.equal(Object.values(starter.nodes).filter(n=>n.type==='zone').length,6);
 const baseWalls=Object.values(starter.nodes).filter(n=>n.type==='wall');
-assert.equal(baseWalls.length,12,'exactly six shell and six partition walls');
+assert.equal(baseWalls.length,11,'six exterior walls and five partitions only');
 const openings=Object.values(starter.nodes).filter(n=>n.type==='door'||n.type==='window');
-assert.equal(openings.length,9);
+assert.equal(openings.length,12);
 for(const n of openings){
  const wall=starter.nodes[n.wallId];assert.ok(wall&&wall.children.includes(n.id));
  const L=Math.hypot(wall.end[0]-wall.start[0],wall.end[1]-wall.start[1]);
  assert.ok(n.position[0]-n.width/2>=.05&&n.position[0]+n.width/2<=L-.05);
 }
 const normalizedStarter=normalizeWallGraph(starter);
-assert.equal(Object.values(normalizedStarter.nodes).filter(n=>n.type==='door'||n.type==='window').length,9);
+assert.equal(Object.values(normalizedStarter.nodes).filter(n=>n.type==='door'||n.type==='window').length,12);
 console.log('Single-topology default: shell closure, six zones, walls, opening host bounds PASS');
+
+assert.equal(starter.nodes['partition-5'],undefined,'phantom interior partition must not exist');
+assert.equal(openings.filter(o=>o.type==='door').length,8,'every room has a passage and there is an entrance');
+assert.ok(openings.some(o=>o.wallId==='shell-1'&&o.type==='door'),'exterior entrance is present');
