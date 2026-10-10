@@ -47,7 +47,14 @@ function exportLayout(scene,options={}){
   if(!positive(n.width)||!positive(n.height))throw Error("Opening "+n.id+" requires physical width and height");
   // Pascal wall children are face-local. Exact normalized t requires explicit
   // semantic export, rather than guessing from the node's 3D position tuple.
-  const t=meta.airtrajectory_position_t;
+  // Pascal stores wall-attached position[0] in metres along the host wall.
+  // Prefer this native coordinate over copied, potentially stale annotations.
+  const nativeOffset=Array.isArray(n.position)?n.position[0]:undefined;
+  if(nativeOffset!==undefined&&(typeof nativeOffset!=="number"||!Number.isFinite(nativeOffset)||nativeOffset<0||nativeOffset>host.length_m))throw Error("Opening "+n.id+" native wall-local offset invalid");
+  const nativeT=nativeOffset===undefined?undefined:nativeOffset/host.length_m;
+  const explicitT=meta.airtrajectory_position_t;
+  if(nativeT!==undefined&&explicitT!==undefined&&(typeof explicitT!=="number"||!Number.isFinite(explicitT)||Math.abs(explicitT-nativeT)>1e-6))throw Error("Opening "+n.id+" normalized annotation conflicts with native position");
+  const t=nativeT===undefined?explicitT:nativeT;
   const sill=meta.airtrajectory_sill_height_m;
   if(typeof sill!=="number"||!Number.isFinite(sill)||sill<0)throw Error("Opening "+n.id+" needs verified sill height in metres");
   if(typeof t!=="number"||!Number.isFinite(t)||t<0||t>1)throw Error("Opening "+n.id+" needs verified normalized wall position");
