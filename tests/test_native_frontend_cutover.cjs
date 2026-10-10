@@ -1,0 +1,11 @@
+const assert=require('node:assert/strict');const fs=require('node:fs');
+const entry=fs.readFileSync('web/studio.html','utf8'),home=fs.readFileSync('web/index.html','utf8'),legacy=fs.readFileSync('web/legacy-studio.html','utf8');
+assert.match(entry,/start-full-editor\.sh/);
+assert.match(entry,/localhost:3002/);
+assert.match(entry,/Pascal 原生/);
+assert.doesNotMatch(entry,/<svg id="plan"/);
+assert.doesNotMatch(entry,/studio-interactions\.js/);
+assert.match(home,/完整 2D\/3D 原生编辑器/);
+assert.match(legacy,/<svg id="plan"/);
+assert.match(legacy,/studio-interactions\.js/);
+console.log('PASS canonical frontend is native Pascal gateway; legacy SVG editing is archival only');
