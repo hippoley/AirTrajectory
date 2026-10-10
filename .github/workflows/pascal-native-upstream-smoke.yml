@@ -94,6 +94,15 @@ jobs:
       - name: Verify preferred native residential template has full architecture
         run: |
           node -e "const fs=require('fs');const g=require('./artifacts/pascal-native/native-graph.json');const n=Object.values(g.nodes);for(const [t,k] of [['zone',4],['wall',9],['window',5],['door',4]]){if(n.filter(x=>x.type===t).length<k)process.exit(1)}console.log('PASS native two-bedroom residential template',n.length)"
+      - name: Load public synthetic six-room native SceneGraph in real Pascal Chromium
+        env:
+          NODE_PATH: /tmp/pascal-smoke/node_modules
+        run: |
+          python scripts/convert_reviewed_rooms_to_pascal.py tests/fixtures/pascal-synthetic-six-rooms.json --output artifacts/pascal-native/synthetic-six-rooms.json
+          node -e "const g=require('./artifacts/pascal-native/synthetic-six-rooms.json');if(Object.values(g.nodes).filter(n=>n.type==='zone').length!==6)process.exit(1)"
+          node scripts/accept-private-pascal-scene.cjs artifacts/pascal-native/synthetic-six-rooms.json synthetic-six-room-${{ github.run_id }}-${{ github.run_attempt }}
+          cp artifacts/private-pascal/native-private-residence.png artifacts/pascal-native/synthetic-six-room-browser.png
+          cp artifacts/private-pascal/acceptance.json artifacts/pascal-native/synthetic-six-room-browser.json
       - name: Audit actual Pascal native template physics-readiness gaps
         run: |
           node scripts/audit-pascal-native-scene.cjs artifacts/pascal-native/native-graph.json artifacts/pascal-native/native-physics-review.json
