@@ -20,6 +20,7 @@ jobs:
       - run: python -m pip install -e ".[contracts]"
       - run: node --check integrations/pascal-studio/pascal-scene-bridge.cjs
       - run: node tests/test_pascal_scene_bridge.cjs
+      - run: node tests/test_studio_editor_entry.cjs
       - name: Verify Pascal SceneNodes reach canonical Python layout
         run: |
           node scripts/export-pascal-scene.cjs tests/fixtures/pascal-scene-two-rooms.json artifacts/pascal-exported-layout.json
