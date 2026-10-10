@@ -22,6 +22,8 @@ jobs:
       - run: node tests/test_pascal_scene_bridge.cjs
       - name: Verify annotated Pascal-to-CONTAM symbolic contract and receipt
         run: python -m unittest -v tests/test_pascal_contam_integration.py
+      - name: Verify Pascal native-node projection contract against runtime receipt
+        run: python -m unittest -v tests/test_pascal_result_projection.py
       - run: node tests/test_studio_editor_entry.cjs
       - name: Verify Pascal SceneNodes reach canonical Python layout
         run: |
