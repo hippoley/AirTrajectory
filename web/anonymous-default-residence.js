@@ -18,5 +18,14 @@ export function makeAnonymousDefaultGraph(){
   nodes[id]={id,type,visible:true,wallId,parentId:wallId,position:[x,y,0],width,height};
   nodes[wallId].children.push(id);
  });
+ // The default editor scene needs a genuinely closed outer envelope.
+ // Derived from the union of the 6 zone polygons, simplified for presentation.
+ // All shell edges form one cyclic contour, independent of internal partition walls.
+ const shell=[[2.814,14.995],[2.814,23.069],[3.293,23.17],[3.222,23.305],[2.814,23.31],[2.814,23.734],[7.094,23.649],[7.162,23.073],[8.773,23.069],[8.878,22.97],[9.073,23.165],[8.974,23.27],[8.974,24.499],[14.563,24.499],[14.563,23.27],[14.464,23.165],[14.564,23.067],[14.564,18.45],[14.663,18.349],[14.664,17.362],[14.564,17.27],[14.563,15.59],[12.703,15.56],[12.673,13.52],[6.199,13.52],[6.199,14.906],[6.101,15.006]];
+ for(let i=0;i<shell.length;i++){
+  const a=shell[i],b=shell[(i+1)%shell.length],id='envelope-'+i;
+  nodes[id]={id,type:'wall',start:[+(a[0]-8.5).toFixed(3),+(a[1]-19).toFixed(3)],end:[+(b[0]-8.5).toFixed(3),+(b[1]-19).toFixed(3)],thickness:.16,visible:true,children:[],editorRole:'exterior'};
+  rootNodeIds.push(id);
+ }
  return {nodes,rootNodeIds};
 }
