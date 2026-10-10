@@ -5,6 +5,7 @@ AirTrajectory strict importer. Never guesses missing walls, adjacency or volume.
 """
 from __future__ import annotations
 import argparse
+from dataclasses import asdict
 import hashlib
 import json
 from pathlib import Path
@@ -41,7 +42,7 @@ def preflight(source: Path, output: Path) -> dict:
         # LayoutContract.to_dict is canonical and validates real source topology.
         layout_path = output.with_name(output.stem + ".layout.json")
         layout_path.parent.mkdir(parents=True, exist_ok=True)
-        layout_path.write_text(json.dumps(layout.to_dict(), indent=2, sort_keys=True)+"\n", encoding="utf-8")
+        layout_path.write_text(json.dumps(asdict(layout), indent=2, sort_keys=True)+"\n", encoding="utf-8")
         result["layout_contract_sha256"] = layout.sha256()
         result["layout_file"] = str(layout_path)
     output.parent.mkdir(parents=True, exist_ok=True)
