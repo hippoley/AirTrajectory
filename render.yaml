@@ -1,0 +1,23 @@
+# Render Blueprint for the complete upstream Pascal 2D/3D editor.
+# Set the private access policy/authentication before importing personal CAD.
+services:
+  - type: web
+    name: airtrajectory-pascal
+    runtime: docker
+    dockerfilePath: ./Dockerfile.pascal-render
+    dockerContext: .
+    plan: starter
+    healthCheckPath: /airtrajectory/import
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: "3000"
+      - key: HOSTNAME
+        value: 0.0.0.0
+      - key: PASCAL_DATA_DIR
+        value: /data
+    disk:
+      name: pascal-scenes
+      mountPath: /data
+      sizeGB: 1
