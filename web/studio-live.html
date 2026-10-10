@@ -61,7 +61,15 @@ const pointer=new THREE.Vector2(),ray=new THREE.Raycaster(),ground=new THREE.Pla
 function point(e){const rect=canvas.getBoundingClientRect();pointer.set((e.clientX-rect.left)/rect.width*2-1,-(e.clientY-rect.top)/rect.height*2+1);ray.setFromCamera(pointer,camera)}
 canvas.addEventListener('pointerdown',e=>{point(e);startPx=e.clientX;startPy=e.clientY;let found=null;for(const h of ray.intersectObjects(furniture,true)){let p=h.object;while(p.parent&&!furniture.includes(p))p=p.parent;if(furniture.includes(p)){found=p;break}}if(found){select(found);if(mode==='move'&&ray.ray.intersectPlane(ground,hit)){snapshot();drag=true;offset.copy(found.position).sub(hit);controls.enabled=false;canvas.setPointerCapture(e.pointerId)}}else select(null)});
 canvas.addEventListener('pointermove',e=>{if(!drag||!selected)return;point(e);if(ray.ray.intersectPlane(ground,hit)){selected.position.x=THREE.MathUtils.clamp(hit.x+offset.x,-4.25,4.25);selected.position.z=THREE.MathUtils.clamp(hit.z+offset.z,-2.6,2.65)}});function endDrag(){if(drag){drag=false;controls.enabled=true;drawPanel()}}canvas.addEventListener('pointerup',endDrag);canvas.addEventListener('pointercancel',endDrag);
-document.getElementById('color').oninput=e=>{if(!selected)return;selected.userData.color=e.target.value;selected.traverse(o=>{if(o.isMesh&&o.material!==M.edge&&o.material!==M.bed&&o.material!==M.wood){if(o.material.color)o.material.color.set(e.target.value)}})};
+document.getElementById('color').oninput=e=>{
+ if(!selected)return;
+ selected.userData.color=e.target.value;
+ if(selected.userData.type==='pascal'){
+  // Paint only the selected authored material slot, never recolor every part.
+  const slotId=selected.userData.paintSlot;
+  selected.traverse(o=>{if(o.isMesh&&o.userData.pascalMaterialSlot===slotId&&o.material.color)o.material.color.set(e.target.value)});
+ }else selected.traverse(o=>{if(o.isMesh&&o.material!==M.edge&&o.material!==M.bed&&o.material!==M.wood&&o.material.color)o.material.color.set(e.target.value)});
+};
 document.getElementById('rotation').oninput=e=>{if(!selected)return;selected.rotation.y=+e.target.value*Math.PI/180;selected.userData.rotation=selected.rotation.y};
 document.getElementById('scale').oninput=e=>{if(!selected)return;selected.scale.setScalar(+e.target.value/100);selected.userData.scale=selected.scale.x};
 document.getElementById('delete').onclick=()=>{if(selected){snapshot();scene.remove(selected);furniture=furniture.filter(f=>f!==selected);select(null)}};
@@ -126,7 +134,9 @@ function exportNativeGraph(){
   const n=output.nodes[f.userData.id];if(!n)continue;
   n.position=[f.position.x+center[0],f.position.y,f.position.z+center[1]];
   n.rotation=[0,f.rotation.y,0];
-  const slot=n.recipe?.slots?.[0];if(slot)slot.color=f.userData.color;
+  n.scale=[f.scale.x,f.scale.y,f.scale.z];
+  const slot=n.recipe?.slots?.find(s=>s.id===f.userData.paintSlot);
+  if(slot)slot.color=f.userData.color;
  }
  return output;
 }
