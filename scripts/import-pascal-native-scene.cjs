@@ -19,7 +19,25 @@ function checkGraph(graph){
   if(node.parentId!=null&&!Object.hasOwn(graph.nodes,node.parentId))throw Error('Missing parent for '+id);
   if(node.children&&(!Array.isArray(node.children)||node.children.some(child=>!Object.hasOwn(graph.nodes,child))))throw Error('Missing child for '+id);
  }
+ if(new Set(graph.rootNodeIds).size!==graph.rootNodeIds.length)throw Error('Duplicate root node IDs');
  if(graph.rootNodeIds.some(id=>!Object.hasOwn(graph.nodes,id)))throw Error('Missing root node');
+ for(const root of graph.rootNodeIds)if(graph.nodes[root].parentId!=null)throw Error('Root must have no parent: '+root);
+ for(const [id,node] of Object.entries(graph.nodes)){
+  const children=node.children||[];
+  if(new Set(children).size!==children.length)throw Error('Duplicate children on '+id);
+  for(const child of children){
+   if(graph.nodes[child].parentId!==id)throw Error('Parent-child mismatch: '+id+' -> '+child);
+  }
+  if(node.parentId!=null&&!((graph.nodes[node.parentId].children||[]).includes(id)))throw Error('Child-parent mismatch: '+id);
+ }
+ for(const id of ids){
+  const visited=new Set();let cursor=id;
+  while(cursor!=null){
+   if(visited.has(cursor))throw Error('Cycle detected at '+cursor);
+   visited.add(cursor);cursor=graph.nodes[cursor].parentId??null;
+  }
+  if(!graph.rootNodeIds.includes([...visited].at(-1)))throw Error('Orphan hierarchy for '+id);
+ }
  return ids.length;
 }
 async function importScene({source,url='http://127.0.0.1:3002',id,name='AirTrajectory Residence',projectId='airtrajectory',fetcher=fetch}){
