@@ -40,13 +40,20 @@ async function verify({sceneFile,base='http://127.0.0.1:3002',out='artifacts/pri
   }
   assert(!missing,'Native Editor displayed not-found');
   assert(canvasCount>0,'Native renderer canvas absent');
+  // A hidden or zero-size canvas is not meaningful browser rendering evidence.
+  const canvasBounds=await page.locator('canvas').evaluateAll(elements=>elements.map(el=>{
+   const box=el.getBoundingClientRect(); const styles=getComputedStyle(el);
+   return {width:box.width,height:box.height,visible:styles.visibility!=='hidden'&&styles.display!=='none'&&Number(styles.opacity)>0};
+  }));
+  assert(canvasBounds.some(box=>box.visible&&box.width>=160&&box.height>=120),
+    'Native canvas mounted but was hidden or too small for a rendered scene');
   assert.equal(errors.length,0,'Browser runtime exceptions: '+errors.join(' | '));
   fs.mkdirSync(out,{recursive:true});
   const img=path.join(out,'native-private-residence.png');
   await page.screenshot({path:img,fullPage:true});
   report={status:'PRIVATE_PASCAL_NATIVE_SCENE_BROWSER_LOADED',scene_id:sceneId,scene_sha256:hash(content),
    total_native_nodes:count,verified_persisted_zones:zones.length,canvas_count:canvasCount,
-   browser_errors:errors,rendered_visual_accuracy_verified:false,
+   browser_errors:errors,canvas_bounds:canvasBounds,rendered_visual_accuracy_verified:false,
    wall_host_accuracy_verified:false,furniture_interaction_verified:false,
    private_artifact_screenshot:img};
   fs.writeFileSync(path.join(out,'acceptance.json'),JSON.stringify(report,null,2)+'\n');
