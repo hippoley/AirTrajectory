@@ -6,6 +6,13 @@ export function loadPascalGraph(THREE, scene, graph) {
  if(!zones.length||!walls.length)throw Error('Missing Pascal zones or walls');
  if(nodes.length>20000)throw Error('Scene exceeds 20,000 nodes');
  const group=new THREE.Group();group.name='Imported Pascal residence';scene.add(group);
+ const openingsByWall=new Map();
+ for(const node of nodes.filter(n=>['door','window'].includes(n.type)&&n.visible!==false)){
+  const host=node.wallId||node.parentId;
+  if(!host)continue;
+  if(!openingsByWall.has(host))openingsByWall.set(host,[]);
+  openingsByWall.get(host).push(node);
+ }
  const xy=zones.flatMap(z=>z.polygon||[]);const center=[(Math.min(...xy.map(p=>p[0]))+Math.max(...xy.map(p=>p[0])))/2,(Math.min(...xy.map(p=>p[1]))+Math.max(...xy.map(p=>p[1])))/2];
  const pos=p=>[p[0]-center[0],p[1]-center[1]];
  const mesh=(w,h,d,color,x,y,z,root=group)=>{const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),new THREE.MeshStandardMaterial({color,roughness:.8}));m.position.set(x,y,z);m.castShadow=true;m.receiveShadow=true;root.add(m);return m};
@@ -22,7 +29,7 @@ export function loadPascalGraph(THREE, scene, graph) {
   const dx=b[0]-a[0],dz=b[1]-a[1],L=Math.hypot(dx,dz);if(L<.01)continue;
   const height=2.5,thick=Math.max(.06,Math.min(wall.thickness||.12,.45));
   // Native opening positions use wall-local x coordinate, dimensions in metres.
-  const holes=(wall.children||[]).map(id=>graph.nodes[id]).filter(n=>n&&['door','window'].includes(n.type)&&n.visible!==false)
+  const holes=[...new Map([...(openingsByWall.get(wall.id)||[]),...(wall.children||[]).map(id=>graph.nodes[id]).filter(Boolean)].map(n=>[n.id,n])).values()].filter(n=>n&&['door','window'].includes(n.type)&&n.visible!==false)
     .map(n=>({lo:Math.max(0,n.position[0]-n.width/2),hi:Math.min(L,n.position[0]+n.width/2),bottom:n.type==='door'?0:Math.max(.6,n.position[1]-n.height/2),top:n.type==='door'?Math.min(height,n.height):Math.min(height,n.position[1]+n.height/2),type:n.type})).filter(h=>h.hi>h.lo);
   const boundaries=[0,L,...holes.flatMap(h=>[h.lo,h.hi])].sort((a,b)=>a-b).filter((v,i,arr)=>!i||v-arr[i-1]>.001);
   const addSection=(x0,x1,y0,y1,color)=>{if(x1-x0<.01||y1-y0<.01)return;
